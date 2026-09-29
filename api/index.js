@@ -1,9 +1,16 @@
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
+import XLSX from 'xlsx';
+import fs from 'fs';
+import path from 'path';
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 // Default Columns Definitions
 const DEFAULT_COLUMNS = [
@@ -52,6 +59,119 @@ let dbStore = {
   history: []
 };
 
+function cleanStr(val) {
+  if (val === null || val === undefined) return '';
+  const s = String(val).trim();
+  if (s === '-' || s === 'None' || s === 'null' || s === 'undefined' || s === '#N/A') return '';
+  return s;
+}
+
+function parseCoords(latColVal, lngColVal) {
+  let num1 = parseFloat(cleanStr(latColVal));
+  let num2 = parseFloat(cleanStr(lngColVal));
+
+  if (isNaN(num1) || isNaN(num2)) {
+    return { lat: null, lng: null, isValid: false, reason: 'Invalid or missing numbers' };
+  }
+
+  let lat, lng;
+  if (num1 > num2) {
+    lat = num2; // Cairo Lat (~30.09° N)
+    lng = num1; // Cairo Lng (~31.32° E)
+  } else {
+    lat = num2; // Alex Lat (~31.32° N)
+    lng = num1; // Alex Lng (~30.09° E)
+  }
+
+  if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+    return { lat, lng, isValid: true };
+  }
+
+  return { lat: null, lng: null, isValid: false, reason: 'Coordinates out of bounds' };
+}
+
+function parseExcelBuffer(buffer) {
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, cellText: false });
+  const activeColumns = dbStore.columns.filter(c => c.is_active === 1);
+  const requiredKeys = activeColumns.filter(c => c.is_required === 1).map(c => c.key_name);
+
+  let sheetName = workbook.SheetNames.find(s => s === 'CE_Database' || s === 'CW_Database') || workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+
+  const parsedRows = [];
+  let validCount = 0;
+  let invalidCount = 0;
+
+  rawRows.forEach((row, idx) => {
+    const rowObj = {};
+    const missingFields = [];
+    const errors = [];
+
+    Object.keys(row).forEach(key => {
+      if (key && !key.startsWith('__EMPTY')) {
+        const val = row[key];
+        rowObj[key] = val instanceof Date ? val.toISOString().split('T')[0] : (val !== null && val !== undefined ? String(val).trim() : '');
+      }
+    });
+
+    for (const reqKey of requiredKeys) {
+      const cellVal = cleanStr(rowObj[reqKey]);
+      if (!cellVal) {
+        missingFields.push(reqKey);
+        errors.push(`Missing required field: '${reqKey}'`);
+      }
+    }
+
+    for (const col of activeColumns) {
+      const cellVal = cleanStr(rowObj[col.key_name]);
+      if (!cellVal && !missingFields.includes(col.key_name)) {
+        missingFields.push(col.key_name);
+      }
+    }
+
+    const latColVal = rowObj['Latitude'] || rowObj['lat'] || rowObj['LATITUDE'];
+    const lngColVal = rowObj['Longitude'] || rowObj['lng'] || rowObj['LONGITUDE'];
+    const coordCheck = parseCoords(latColVal, lngColVal);
+
+    if (!coordCheck.isValid) {
+      errors.push('Missing or invalid GPS Latitude/Longitude coordinates');
+    }
+
+    const isValid = errors.length === 0;
+    if (isValid) validCount++;
+    else invalidCount++;
+
+    parsedRows.push({
+      rowIndex: idx + 2,
+      chillerCode: rowObj['Chiller Code'] || `CH-${idx + 1}`,
+      latitude: coordCheck.lat,
+      longitude: coordCheck.lng,
+      customerType: rowObj['Customer Type'] || 'Retail',
+      efficiency: rowObj['Month Ach. Status'] || 'Non-Performing',
+      branch: rowObj['Branch'] || '',
+      chillerType: rowObj['Chiller Type'] || '',
+      chillerStatus: rowObj['Chiller Status'] || '',
+      condition: rowObj['Condiiton'] || rowObj['Condition'] || '',
+      customerName: rowObj['Customer Name'] || '',
+      customerAddress: rowObj['Customer Address'] || '',
+      mobileNumber: rowObj['Mobile Number'] || '',
+      rowObj,
+      isValid,
+      missingFields,
+      errors
+    });
+  });
+
+  return {
+    sheetName,
+    totalRows: parsedRows.length,
+    validCount,
+    invalidCount,
+    rows: parsedRows
+  };
+}
+
 app.get('/api/columns', (req, res) => {
   res.json({ success: true, columns: dbStore.columns });
 });
@@ -79,6 +199,43 @@ app.post('/api/columns/toggle', (req, res) => {
     if (is_required !== undefined) col.is_required = is_required ? 1 : 0;
   }
   res.json({ success: true, message: 'Column updated successfully' });
+});
+
+// Excel Parsing Endpoint
+app.post('/api/excel/parse', upload.single('file'), (req, res) => {
+  try {
+    let buffer = req.file ? req.file.buffer : null;
+    let filename = req.file ? req.file.originalname : 'Uploaded_Sheet.xlsx';
+
+    if (!buffer && req.body && req.body.fileBase64) {
+      buffer = Buffer.from(req.body.fileBase64, 'base64');
+      if (req.body.filename) filename = req.body.filename;
+    }
+
+    if (!buffer) {
+      return res.status(400).json({ success: false, error: 'No Excel file provided' });
+    }
+
+    const result = parseExcelBuffer(buffer);
+    res.json({ success: true, filename, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Sample loader endpoint
+app.get('/api/excel/scratch-sample', (req, res) => {
+  try {
+    const scratchPath = 'C:\\Users\\skamal\\.gemini\\antigravity\\scratch\\Bassem\\Chillers Database_V1.xlsx';
+    if (fs.existsSync(scratchPath)) {
+      const buffer = fs.readFileSync(scratchPath);
+      const result = parseExcelBuffer(buffer);
+      return res.json({ success: true, filename: 'Chillers Database_V1.xlsx', ...result });
+    }
+    res.status(404).json({ success: false, error: 'Sample file not available on cloud instance. Please upload custom .xlsx file.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.post('/api/excel/confirm', (req, res) => {
