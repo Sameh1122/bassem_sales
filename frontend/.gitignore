@@ -9,6 +9,9 @@
 .history
 .svn/
 
+# Ignore large debug symbol files
+*.symbols
+
 # IntelliJ-based IDEs
 *.iml
 *.ipr
