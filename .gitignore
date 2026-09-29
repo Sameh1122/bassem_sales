@@ -20,3 +20,5 @@ frontend/.dart_tool/
 *.swp
 .idea/
 .vscode/
+
+.vercel
