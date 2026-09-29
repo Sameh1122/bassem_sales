@@ -67,21 +67,24 @@ class ApiService {
     throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to load sample Excel file');
   }
 
-  // Upload custom Excel file
+  // Upload custom Excel file via Base64 JSON payload for cross-platform cloud support
   static Future<Map<String, dynamic>> uploadExcelFile(Uint8List fileBytes, String fileName) async {
-    final uri = Uri.parse('$baseUrl/excel/parse');
-    final request = http.MultipartRequest('POST', uri);
-    request.files.add(http.MultipartFile.fromBytes('file', fileBytes, filename: fileName));
-
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+    final String base64Content = base64Encode(fileBytes);
+    final response = await http.post(
+      Uri.parse('$baseUrl/excel/parse'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'fileBase64': base64Content,
+        'filename': fileName,
+      }),
+    );
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
     throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to upload Excel file');
   }
 
-  // Confirm upload and save to SQLite DB
+  // Confirm upload and save to DB
   static Future<Map<String, dynamic>> confirmUpload({
     required String filename,
     required List<dynamic> rows,

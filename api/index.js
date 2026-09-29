@@ -201,26 +201,31 @@ app.post('/api/columns/toggle', (req, res) => {
   res.json({ success: true, message: 'Column updated successfully' });
 });
 
-// Excel Parsing Endpoint
-app.post('/api/excel/parse', upload.single('file'), (req, res) => {
-  try {
-    let buffer = req.file ? req.file.buffer : null;
-    let filename = req.file ? req.file.originalname : 'Uploaded_Sheet.xlsx';
+// Excel Parsing Endpoint (supports both multipart form data and base64 JSON payload)
+app.post('/api/excel/parse', (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    try {
+      let buffer = null;
+      let filename = 'Uploaded_Sheet.xlsx';
 
-    if (!buffer && req.body && req.body.fileBase64) {
-      buffer = Buffer.from(req.body.fileBase64, 'base64');
-      if (req.body.filename) filename = req.body.filename;
+      if (req.file) {
+        filename = req.file.originalname;
+        buffer = req.file.buffer || (req.file.path && fs.existsSync(req.file.path) ? fs.readFileSync(req.file.path) : null);
+      } else if (req.body && req.body.fileBase64) {
+        buffer = Buffer.from(req.body.fileBase64, 'base64');
+        if (req.body.filename) filename = req.body.filename;
+      }
+
+      if (!buffer) {
+        return res.status(400).json({ success: false, error: 'No Excel file provided' });
+      }
+
+      const result = parseExcelBuffer(buffer);
+      res.json({ success: true, filename, ...result });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e.message });
     }
-
-    if (!buffer) {
-      return res.status(400).json({ success: false, error: 'No Excel file provided' });
-    }
-
-    const result = parseExcelBuffer(buffer);
-    res.json({ success: true, filename, ...result });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
+  });
 });
 
 // Sample loader endpoint
@@ -335,4 +340,52 @@ app.get('/api/batches', (req, res) => {
   res.json({ success: true, batches: [...dbStore.batches].reverse() });
 });
 
+app.get('/api/delta', (req, res) => {
+  const { startBatchId, endBatchId } = req.query;
+  const startId = parseInt(startBatchId);
+  const endId = parseInt(endBatchId);
+
+  const startSnapshot = dbStore.history.filter(h => h.batch_id === startId);
+  const endSnapshot = dbStore.history.filter(h => h.batch_id === endId);
+
+  const startMap = new Map(startSnapshot.map(item => [item.chiller_code, item]));
+  const endMap = new Map(endSnapshot.map(item => [item.chiller_code, item]));
+
+  const added = [];
+  const removed = [];
+  const modified = [];
+
+  for (const [code, item] of endMap.entries()) {
+    if (!startMap.has(code)) {
+      added.push(item);
+    } else {
+      const prev = startMap.get(code);
+      if (prev.efficiency !== item.efficiency || prev.latitude !== item.latitude || prev.longitude !== item.longitude || prev.branch !== item.branch) {
+        modified.push({ previous: prev, current: item });
+      }
+    }
+  }
+
+  for (const [code, item] of startMap.entries()) {
+    if (!endMap.has(code)) {
+      removed.push(item);
+    }
+  }
+
+  res.json({
+    success: true,
+    startBatchId: startId,
+    endBatchId: endId,
+    summary: {
+      added: added.length,
+      removed: removed.length,
+      modified: modified.length
+    },
+    added,
+    removed,
+    modified
+  });
+});
+
 export default app;
+

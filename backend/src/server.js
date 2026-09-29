@@ -41,7 +41,6 @@ app.post('/api/columns', async (req, res) => {
       return res.status(400).json({ success: false, error: 'key_name and display_label are required' });
     }
     
-    // Check max display order
     const maxOrderRes = await query(`SELECT MAX(display_order) as max_ord FROM column_definitions`);
     const nextOrder = (maxOrderRes[0]?.max_ord || 0) + 1;
 
@@ -81,7 +80,7 @@ app.post('/api/columns/toggle', async (req, res) => {
 // EXCEL PARSING & UPLOAD ENDPOINTS
 // ----------------------------------------------------
 
-// Load default sample from Scratch folder (C:\Users\skamal\.gemini\antigravity\scratch\Bassem)
+// Load default sample from Scratch folder
 app.get('/api/excel/scratch-sample', async (req, res) => {
   try {
     const scratchPath = 'C:\\Users\\skamal\\.gemini\\antigravity\\scratch\\Bassem\\Chillers Database_V1.xlsx';
@@ -96,25 +95,34 @@ app.get('/api/excel/scratch-sample', async (req, res) => {
   }
 });
 
-// Upload custom Excel file
+// Upload custom Excel file (supports both multipart form data and base64 JSON payload)
 app.post('/api/excel/parse', upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
+    let buffer = null;
+    let filename = 'Uploaded_Sheet.xlsx';
+
+    if (req.file) {
+      filename = req.file.originalname;
+      buffer = fs.readFileSync(req.file.path);
+      fs.unlinkSync(req.file.path);
+    } else if (req.body && req.body.fileBase64) {
+      buffer = Buffer.from(req.body.fileBase64, 'base64');
+      if (req.body.filename) filename = req.body.filename;
+    }
+
+    if (!buffer) {
       return res.status(400).json({ success: false, error: 'No Excel file provided' });
     }
 
-    const result = await parseExcelData(req.file.path);
-    // Cleanup uploaded temp file
-    fs.unlinkSync(req.file.path);
-
-    res.json({ success: true, filename: req.file.originalname, ...result });
+    const result = await parseExcelData(buffer);
+    res.json({ success: true, filename, ...result });
   } catch (err) {
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Confirm & save preview records to SQLite DB (with optional bypassValidation flag)
+// Confirm & save preview records to SQLite DB
 app.post('/api/excel/confirm', async (req, res) => {
   try {
     const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false } = req.body;
@@ -123,12 +131,10 @@ app.post('/api/excel/confirm', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No rows provided to save' });
     }
 
-    // Filter rows if strict validation
     const rowsToSave = bypassValidation ? rows : rows.filter(r => r.isValid);
     const validCount = rows.filter(r => r.isValid).length;
     const invalidCount = rows.length - validCount;
 
-    // Create batch record
     const batchRes = await run(
       `INSERT INTO upload_batches (filename, total_rows, valid_rows, invalid_rows, bypassed_validation)
        VALUES (?, ?, ?, ?, ?)`,
@@ -136,12 +142,10 @@ app.post('/api/excel/confirm', async (req, res) => {
     );
     const batchId = batchRes.lastID;
 
-    // Insert into chillers (latest active state) and chillers_history (delta tracking)
     for (const r of rowsToSave) {
       const rawJson = JSON.stringify(r.rowObj || {});
       const chillerCode = r.chillerCode || `CH-${Math.random().toString(36).substring(7)}`;
 
-      // Upsert into active chillers table
       await run(
         `INSERT INTO chillers (chiller_code, batch_id, latitude, longitude, customer_type, efficiency, branch, chiller_type, chiller_status, condition, customer_name, raw_data_json, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -161,7 +165,6 @@ app.post('/api/excel/confirm', async (req, res) => {
         [chillerCode, batchId, r.latitude, r.longitude, r.customerType, r.efficiency, r.branch, r.chillerType, r.chillerStatus, r.condition, r.customerName, rawJson]
       );
 
-      // Insert snapshot into history table for delta tracking
       await run(
         `INSERT INTO chillers_history (batch_id, chiller_code, latitude, longitude, customer_type, efficiency, branch, chiller_type, chiller_status, condition, customer_name, raw_data_json)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -231,7 +234,6 @@ app.get('/api/chillers', async (req, res) => {
   }
 });
 
-// Clear active dataset
 app.delete('/api/chillers/clear', async (req, res) => {
   try {
     await run(`DELETE FROM chillers`);
