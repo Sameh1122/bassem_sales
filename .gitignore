@@ -1,0 +1,24 @@
+# Node
+node_modules/
+npm-debug.log
+uploads/
+data/*.db
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+frontend/build/
+frontend/.dart_tool/
+
+# Vercel
+.vercel
+
+# Environment & IDE
+.env
+.DS_Store
+*.swp
+.idea/
+.vscode/
