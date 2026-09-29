@@ -3,7 +3,15 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:5000/api';
+  static String get baseUrl {
+    final Uri currentUri = Uri.base;
+    if (currentUri.host == 'localhost' || currentUri.host == '127.0.0.1') {
+      if (currentUri.port != 5000) {
+        return 'http://localhost:5000/api';
+      }
+    }
+    return '/api';
+  }
 
   // Fetch dynamic column definitions
   static Future<List<dynamic>> getColumns() async {

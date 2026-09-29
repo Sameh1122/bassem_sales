@@ -9,8 +9,6 @@ data/*.db
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
-build/
-frontend/build/
 frontend/.dart_tool/
 
 # Vercel
