@@ -394,12 +394,22 @@ import path from 'path';
 app.use(express.static('public'));
 app.use(express.static('frontend/build/web'));
 
+app.get(['/', '/index.html'], (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  const publicIndexPath = path.resolve('public/index.html');
+  if (fs.existsSync(publicIndexPath)) {
+    return res.sendFile(publicIndexPath);
+  }
+  res.send('<!DOCTYPE html><html><head><title>Bassem Sales</title></head><body><div id="app"></div></body></html>');
+});
+
 app.use('/api', router);
 app.use('/', router);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, error: `API endpoint '${req.url}' not found` });
 });
+
 
 export default (req, res) => {
   return app(req, res);
