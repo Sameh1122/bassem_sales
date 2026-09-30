@@ -1,5 +1,5 @@
 {
-  "outputDirectory": "frontend/build/web",
+  "outputDirectory": "public",
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -11,3 +11,4 @@
     }
   ]
 }
+
