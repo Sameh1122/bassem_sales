@@ -13,7 +13,6 @@ app.use(express.json({ limit: '50mb' }));
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-
 // Default Columns Definitions
 const DEFAULT_COLUMNS = [
   { id: 1, key_name: 'Branch', display_label: 'Branch', data_type: 'string', is_required: 0, is_active: 1, display_order: 1 },
@@ -389,18 +388,9 @@ router.get('/delta', (req, res) => {
   });
 });
 
-import path from 'path';
-
-app.use(express.static('public'));
-app.use(express.static('frontend/build/web'));
-
 app.get(['/', '/index.html'], (req, res) => {
   res.setHeader('Content-Type', 'text/html');
-  const publicIndexPath = path.resolve('public/index.html');
-  if (fs.existsSync(publicIndexPath)) {
-    return res.sendFile(publicIndexPath);
-  }
-  res.send('<!DOCTYPE html><html><head><title>Bassem Sales</title></head><body><div id="app"></div></body></html>');
+  res.send('<!DOCTYPE html><html><head><title>Bassem Sales Platform</title><base href="/"><meta charset="UTF-8"><meta content="IE=Edge" http-equiv="X-UA-Compatible"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body><script src="flutter_bootstrap.js" async></script></body></html>');
 });
 
 app.use('/api', router);
@@ -410,10 +400,6 @@ app.use((req, res) => {
   res.status(404).json({ success: false, error: `API endpoint '${req.url}' not found` });
 });
 
-
 export default (req, res) => {
   return app(req, res);
 };
-
-
-
