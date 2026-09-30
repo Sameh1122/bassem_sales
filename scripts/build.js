@@ -53,5 +53,14 @@ if (!fs.existsSync(versionJson)) {
   fs.writeFileSync(versionJson, JSON.stringify({ app_name: "frontend", version: "1.0.0", build_number: "1" }));
 }
 
+// Ensure icons directory and icon files exist in public/icons
+const iconsSrc = path.resolve('frontend/web/icons');
+const iconsDest = path.join(destDir, 'icons');
+if (fs.existsSync(iconsSrc)) {
+  fs.mkdirSync(iconsDest, { recursive: true });
+  fs.cpSync(iconsSrc, iconsDest, { recursive: true });
+  console.log('✅ Copied web icons to public/icons/');
+}
+
 console.log('🎉 Build script completed successfully.');
 

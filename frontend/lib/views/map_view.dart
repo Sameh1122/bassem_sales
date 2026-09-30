@@ -68,6 +68,12 @@ class _MapViewScreenState extends State<MapViewScreen> {
     html.window.open(googleMapsUrl, '_blank');
   }
 
+  double _toDouble(dynamic val, [double defaultValue = 0.0]) {
+    if (val == null) return defaultValue;
+    if (val is num) return val.toDouble();
+    return double.tryParse(val.toString()) ?? defaultValue;
+  }
+
   void _showChillerDetailsModal(Map<String, dynamic> chiller) {
     final rawData = chiller['rawData'] ?? {};
     final String code = chiller['chillerCode'] ?? 'N/A';
@@ -75,8 +81,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
     final String customerName = chiller['customerName'] ?? 'N/A';
     final String efficiency = chiller['efficiency'] ?? 'N/A';
     final String customerType = chiller['customerType'] ?? 'N/A';
-    final double lat = (chiller['latitude'] as num).toDouble();
-    final double lng = (chiller['longitude'] as num).toDouble();
+    final double lat = _toDouble(chiller['latitude'], 30.0444);
+    final double lng = _toDouble(chiller['longitude'], 31.2357);
 
     showDialog(
       context: context,
@@ -229,8 +235,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
             options: MapOptions(
               initialCenter: _chillers.isNotEmpty
                   ? LatLng(
-                      (_chillers.first['latitude'] as num).toDouble(),
-                      (_chillers.first['longitude'] as num).toDouble(),
+                      _toDouble(_chillers.first['latitude'], 30.0444),
+                      _toDouble(_chillers.first['longitude'], 31.2357),
                     )
                   : centerEgypt,
               initialZoom: 6.5,
@@ -241,9 +247,13 @@ class _MapViewScreenState extends State<MapViewScreen> {
                 userAgentPackageName: 'com.example.chiller_analytics',
               ),
               MarkerLayer(
-                markers: _chillers.map((c) {
-                  final double lat = (c['latitude'] as num).toDouble();
-                  final double lng = (c['longitude'] as num).toDouble();
+                markers: _chillers.where((c) {
+                  final lat = _toDouble(c['latitude'], 0.0);
+                  final lng = _toDouble(c['longitude'], 0.0);
+                  return lat != 0.0 && lng != 0.0;
+                }).map((c) {
+                  final double lat = _toDouble(c['latitude']);
+                  final double lng = _toDouble(c['longitude']);
                   final String eff = c['efficiency'] ?? '';
                   final Color markerColor = _getMarkerColor(eff);
 

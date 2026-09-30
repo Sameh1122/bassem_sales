@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'views/map_view.dart';
 import 'views/upload_view.dart';
 import 'views/delta_view.dart';
@@ -25,7 +24,6 @@ class ChillerAnalyticsApp extends StatelessWidget {
           secondary: Color(0xFF10B981), // Emerald accent
           surface: Color(0xFF1E293B),
         ),
-        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
       ),
       home: const MainNavigationScreen(),
     );
