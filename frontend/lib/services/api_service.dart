@@ -13,12 +13,26 @@ class ApiService {
     return '/api';
   }
 
+  static dynamic _safeJsonDecode(String body) {
+    try {
+      final trimmed = body.trim();
+      if (trimmed.startsWith('<')) {
+        return {'error': 'Server error (HTML returned instead of JSON)'};
+      }
+      return jsonDecode(trimmed);
+    } catch (e) {
+      return {'error': 'Failed to parse JSON response: $e'};
+    }
+  }
+
   // Fetch dynamic column definitions
   static Future<List<dynamic>> getColumns() async {
     final response = await http.get(Uri.parse('$baseUrl/columns'));
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['columns'] ?? [];
+      final data = _safeJsonDecode(response.body);
+      if (data is Map && data.containsKey('columns')) {
+        return data['columns'] ?? [];
+      }
     }
     throw Exception('Failed to fetch column definitions');
   }
@@ -61,10 +75,12 @@ class ApiService {
   // Load sample Excel from Scratch folder
   static Future<Map<String, dynamic>> loadScratchSample() async {
     final response = await http.get(Uri.parse('$baseUrl/excel/scratch-sample'));
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
+      return decoded;
     }
-    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to load sample Excel file');
+    final errorMsg = (decoded is Map && decoded['error'] != null) ? decoded['error'] : 'Failed to load sample Excel file (${response.statusCode})';
+    throw Exception(errorMsg);
   }
 
   // Upload custom Excel file via Base64 JSON payload for cross-platform cloud support
@@ -78,10 +94,12 @@ class ApiService {
         'filename': fileName,
       }),
     );
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
+      return decoded;
     }
-    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to upload Excel file');
+    final errorMsg = (decoded is Map && decoded['error'] != null) ? decoded['error'] : 'Failed to upload Excel file (${response.statusCode})';
+    throw Exception(errorMsg);
   }
 
   // Confirm upload and save to DB
@@ -99,10 +117,12 @@ class ApiService {
         'bypassValidation': bypassValidation,
       }),
     );
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
+      return decoded;
     }
-    throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to confirm upload');
+    final errorMsg = (decoded is Map && decoded['error'] != null) ? decoded['error'] : 'Failed to confirm upload (${response.statusCode})';
+    throw Exception(errorMsg);
   }
 
   // Fetch chillers for Map view
@@ -119,8 +139,10 @@ class ApiService {
 
     final response = await http.get(uri);
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['chillers'] ?? [];
+      final data = _safeJsonDecode(response.body);
+      if (data is Map && data.containsKey('chillers')) {
+        return data['chillers'] ?? [];
+      }
     }
     throw Exception('Failed to fetch chillers data');
   }
@@ -129,8 +151,10 @@ class ApiService {
   static Future<List<dynamic>> fetchBatches() async {
     final response = await http.get(Uri.parse('$baseUrl/batches'));
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['batches'] ?? [];
+      final data = _safeJsonDecode(response.body);
+      if (data is Map && data.containsKey('batches')) {
+        return data['batches'] ?? [];
+      }
     }
     throw Exception('Failed to fetch upload batches');
   }
@@ -143,8 +167,9 @@ class ApiService {
     });
 
     final response = await http.get(uri);
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
+      return decoded;
     }
     throw Exception('Failed to compare delta batches');
   }

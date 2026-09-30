@@ -397,6 +397,9 @@ app.use('/api', router);
 app.use('/', router);
 
 app.use((req, res) => {
+  if (req.path.endsWith('.json')) {
+    return res.status(200).json({});
+  }
   res.status(404).json({ success: false, error: `API endpoint '${req.url}' not found` });
 });
 
