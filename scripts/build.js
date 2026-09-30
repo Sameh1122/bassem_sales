@@ -62,5 +62,13 @@ if (fs.existsSync(iconsSrc)) {
   console.log('✅ Copied web icons to public/icons/');
 }
 
+// Ensure sample_chillers.xlsx exists in public/
+const sampleSrc = path.resolve('data/sample_chillers.xlsx');
+const sampleDest = path.join(destDir, 'sample_chillers.xlsx');
+if (fs.existsSync(sampleSrc) && !fs.existsSync(sampleDest)) {
+  fs.copyFileSync(sampleSrc, sampleDest);
+  console.log('✅ Copied sample_chillers.xlsx to public/');
+}
+
 console.log('🎉 Build script completed successfully.');
 

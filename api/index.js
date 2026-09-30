@@ -3,6 +3,7 @@ import cors from 'cors';
 import multer from 'multer';
 import XLSXModule from 'xlsx';
 import fs from 'fs';
+import path from 'path';
 
 const XLSX = XLSXModule.default || XLSXModule;
 
@@ -60,6 +61,27 @@ let dbStore = {
   history: []
 };
 
+// Auto-load seed data if available
+try {
+  const seedPaths = [
+    path.resolve('api/seedData.json'),
+    path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, '$1')), 'seedData.json'),
+    path.resolve('seedData.json')
+  ];
+  const validSeedPath = seedPaths.find(p => fs.existsSync(p));
+  if (validSeedPath) {
+    const rawSeed = fs.readFileSync(validSeedPath, 'utf8');
+    const seed = JSON.parse(rawSeed);
+    if (seed.columns && seed.columns.length > 0) dbStore.columns = seed.columns;
+    if (seed.batches && seed.batches.length > 0) dbStore.batches = seed.batches;
+    if (seed.chillers && seed.chillers.length > 0) dbStore.chillers = seed.chillers;
+    if (seed.history && seed.history.length > 0) dbStore.history = seed.history;
+    console.log(`✅ Loaded seed data from ${validSeedPath}: ${dbStore.chillers.length} chillers, ${dbStore.batches.length} batches`);
+  }
+} catch (err) {
+  console.warn('⚠️ Warning: Could not load seedData.json:', err.message);
+}
+
 function cleanStr(val) {
   if (val === null || val === undefined) return '';
   const s = String(val).trim();
@@ -67,25 +89,25 @@ function cleanStr(val) {
   return s;
 }
 
-function parseCoords(latColVal, lngColVal) {
-  let num1 = parseFloat(cleanStr(latColVal));
-  let num2 = parseFloat(cleanStr(lngColVal));
+function parseCoords(rowObj) {
+  const rawLat = cleanStr(rowObj['Latitude'] ?? rowObj['lat'] ?? rowObj['LATITUDE']);
+  const rawLng = cleanStr(rowObj['Longitude'] ?? rowObj['lng'] ?? rowObj['LONGITUDE']);
 
-  if (isNaN(num1) || isNaN(num2)) {
+  let numLat = parseFloat(rawLat);
+  let numLng = parseFloat(rawLng);
+
+  if (isNaN(numLat) || isNaN(numLng)) {
     return { lat: null, lng: null, isValid: false, reason: 'Invalid or missing numbers' };
   }
 
-  let lat, lng;
-  if (num1 > num2) {
-    lat = num2; // Cairo Lat (~30.09° N)
-    lng = num1; // Cairo Lng (~31.32° E)
-  } else {
-    lat = num2; // Alex Lat (~31.32° N)
-    lng = num1; // Alex Lng (~30.09° E)
+  // Detect header inverted Cairo coordinates (where "Latitude" is ~31.32 and "Longitude" is ~30.09)
+  if (numLat >= 31.25 && numLat <= 32.5 && numLng >= 29.8 && numLng <= 30.5) {
+    return { lat: numLng, lng: numLat, isValid: true };
   }
 
-  if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-    return { lat, lng, isValid: true };
+  // Standard coordinates check
+  if (numLat >= -90 && numLat <= 90 && numLng >= -180 && numLng <= 180) {
+    return { lat: numLat, lng: numLng, isValid: true };
   }
 
   return { lat: null, lng: null, isValid: false, reason: 'Coordinates out of bounds' };
@@ -131,10 +153,7 @@ function parseExcelBuffer(buffer) {
       }
     }
 
-    const latColVal = rowObj['Latitude'] || rowObj['lat'] || rowObj['LATITUDE'];
-    const lngColVal = rowObj['Longitude'] || rowObj['lng'] || rowObj['LONGITUDE'];
-    const coordCheck = parseCoords(latColVal, lngColVal);
-
+    const coordCheck = parseCoords(rowObj);
     if (!coordCheck.isValid) {
       errors.push('Missing or invalid GPS Latitude/Longitude coordinates');
     }
@@ -232,13 +251,20 @@ router.post('/excel/parse', (req, res) => {
 
 router.get('/excel/scratch-sample', (req, res) => {
   try {
-    const scratchPath = 'C:\\Users\\skamal\\.gemini\\antigravity\\scratch\\Bassem\\Chillers Database_V1.xlsx';
-    if (fs.existsSync(scratchPath)) {
-      const buffer = fs.readFileSync(scratchPath);
+    const candidatePaths = [
+      path.resolve('data/sample_chillers.xlsx'),
+      path.resolve('public/sample_chillers.xlsx'),
+      path.resolve('backend/data/sample_chillers.xlsx'),
+      path.resolve('sample_chillers.xlsx'),
+      'C:\\Users\\skamal\\.gemini\\antigravity\\scratch\\Bassem\\Chillers Database_V1.xlsx'
+    ];
+    const foundPath = candidatePaths.find(p => fs.existsSync(p));
+    if (foundPath) {
+      const buffer = fs.readFileSync(foundPath);
       const result = parseExcelBuffer(buffer);
-      return res.json({ success: true, filename: 'Chillers Database_V1.xlsx', ...result });
+      return res.json({ success: true, filename: 'sample_chillers.xlsx', ...result });
     }
-    res.status(404).json({ success: false, error: 'Sample file not available on cloud instance. Please upload custom .xlsx file.' });
+    res.status(404).json({ success: false, error: 'Sample file not found. Please upload a custom .xlsx file.' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -261,7 +287,7 @@ router.post('/excel/confirm', (req, res) => {
 
   for (const r of rowsToSave) {
     const code = r.chillerCode || `CH-${Math.random().toString(36).substring(7)}`;
-    const existingIdx = dbStore.chillers.findIndex(c => c.chiller_code === code);
+    const existingIdx = dbStore.chillers.findIndex(c => (c.chiller_code || c.chillerCode) === code);
     const item = {
       id: existingIdx >= 0 ? dbStore.chillers[existingIdx].id : dbStore.chillers.length + 1,
       chiller_code: code,
@@ -301,32 +327,32 @@ router.get('/chillers', (req, res) => {
   }
 
   if (customerType && customerType !== 'All') {
-    rows = rows.filter(r => (r.customer_type || '').toLowerCase() === customerType.toLowerCase());
+    rows = rows.filter(r => (r.customer_type || r.customerType || '').toLowerCase() === customerType.toLowerCase());
   }
 
   if (search) {
     const term = search.toLowerCase();
     rows = rows.filter(r =>
-      (r.chiller_code || '').toLowerCase().includes(term) ||
-      (r.customer_name || '').toLowerCase().includes(term) ||
+      (r.chiller_code || r.chillerCode || '').toLowerCase().includes(term) ||
+      (r.customer_name || r.customerName || '').toLowerCase().includes(term) ||
       (r.branch || '').toLowerCase().includes(term)
     );
   }
 
   const chillers = rows.map(r => ({
     id: r.id,
-    chillerCode: r.chiller_code,
-    batchId: r.batch_id,
+    chillerCode: r.chiller_code || r.chillerCode,
+    batchId: r.batch_id || r.batchId,
     latitude: r.latitude,
     longitude: r.longitude,
-    customerType: r.customer_type,
+    customerType: r.customer_type || r.customerType,
     efficiency: r.efficiency,
     branch: r.branch,
-    chillerType: r.chiller_type,
-    chillerStatus: r.chiller_status,
+    chillerType: r.chiller_type || r.chillerType,
+    chillerStatus: r.chiller_status || r.chillerStatus,
     condition: r.condition,
-    customerName: r.customer_name,
-    rawData: JSON.parse(r.raw_data_json || '{}')
+    customerName: r.customer_name || r.customerName,
+    rawData: typeof r.raw_data_json === 'string' ? JSON.parse(r.raw_data_json || '{}') : (r.rawData || r.raw_data_json || {})
   }));
 
   res.json({ success: true, count: chillers.length, chillers });
@@ -346,11 +372,11 @@ router.get('/delta', (req, res) => {
   const startId = parseInt(startBatchId);
   const endId = parseInt(endBatchId);
 
-  const startSnapshot = dbStore.history.filter(h => h.batch_id === startId);
-  const endSnapshot = dbStore.history.filter(h => h.batch_id === endId);
+  const startSnapshot = dbStore.history.filter(h => (h.batch_id || h.batchId) === startId);
+  const endSnapshot = dbStore.history.filter(h => (h.batch_id || h.batchId) === endId);
 
-  const startMap = new Map(startSnapshot.map(item => [item.chiller_code, item]));
-  const endMap = new Map(endSnapshot.map(item => [item.chiller_code, item]));
+  const startMap = new Map(startSnapshot.map(item => [item.chiller_code || item.chillerCode, item]));
+  const endMap = new Map(endSnapshot.map(item => [item.chiller_code || item.chillerCode, item]));
 
   const added = [];
   const removed = [];
@@ -389,6 +415,10 @@ router.get('/delta', (req, res) => {
 });
 
 app.get(['/', '/index.html'], (req, res) => {
+  const publicIndex = path.resolve('public/index.html');
+  if (fs.existsSync(publicIndex)) {
+    return res.sendFile(publicIndex);
+  }
   res.setHeader('Content-Type', 'text/html');
   res.send('<!DOCTYPE html><html><head><title>Bassem Sales Platform</title><base href="/"><meta charset="UTF-8"><meta content="IE=Edge" http-equiv="X-UA-Compatible"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body><script src="flutter_bootstrap.js" async></script></body></html>');
 });
@@ -396,13 +426,23 @@ app.get(['/', '/index.html'], (req, res) => {
 app.use('/api', router);
 app.use('/', router);
 
-app.use((req, res) => {
-  if (req.path.endsWith('.json')) {
-    return res.status(200).json({});
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ success: false, error: `API endpoint '${req.url}' not found` });
   }
-  res.status(404).json({ success: false, error: `API endpoint '${req.url}' not found` });
+  next();
 });
 
+// Auto-start listener if executed directly with node api/index.js
+const isMain = process.argv[1]?.endsWith('api/index.js') || process.argv[1]?.endsWith('api\\index.js');
+if (isMain) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`🚀 API Server listening at http://localhost:${PORT}`);
+  });
+}
+
+export { app };
 export default (req, res) => {
   return app(req, res);
 };
