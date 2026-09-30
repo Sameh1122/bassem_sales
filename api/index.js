@@ -3,7 +3,6 @@ import cors from 'cors';
 import multer from 'multer';
 import XLSX from 'xlsx';
 import fs from 'fs';
-import path from 'path';
 
 const app = express();
 app.use(cors());
@@ -172,11 +171,13 @@ function parseExcelBuffer(buffer) {
   };
 }
 
-app.get(['/api/columns', '/columns'], (req, res) => {
+const router = express.Router();
+
+router.get('/columns', (req, res) => {
   res.json({ success: true, columns: dbStore.columns });
 });
 
-app.post(['/api/columns', '/columns'], (req, res) => {
+router.post('/columns', (req, res) => {
   const { key_name, display_label, data_type = 'string', is_required = 0, is_active = 1 } = req.body;
   const newCol = {
     id: dbStore.columns.length + 1,
@@ -191,7 +192,7 @@ app.post(['/api/columns', '/columns'], (req, res) => {
   res.json({ success: true, message: `Column '${display_label}' added successfully` });
 });
 
-app.post(['/api/columns/toggle', '/columns/toggle'], (req, res) => {
+router.post('/columns/toggle', (req, res) => {
   const { id, is_active, is_required } = req.body;
   const col = dbStore.columns.find(c => c.id === id);
   if (col) {
@@ -201,8 +202,7 @@ app.post(['/api/columns/toggle', '/columns/toggle'], (req, res) => {
   res.json({ success: true, message: 'Column updated successfully' });
 });
 
-// Excel Parsing Endpoint (supports both multipart form data and base64 JSON payload)
-app.post(['/api/excel/parse', '/excel/parse'], (req, res) => {
+router.post('/excel/parse', (req, res) => {
   upload.single('file')(req, res, (err) => {
     try {
       let buffer = null;
@@ -228,8 +228,7 @@ app.post(['/api/excel/parse', '/excel/parse'], (req, res) => {
   });
 });
 
-// Sample loader endpoint
-app.get(['/api/excel/scratch-sample', '/excel/scratch-sample'], (req, res) => {
+router.get('/excel/scratch-sample', (req, res) => {
   try {
     const scratchPath = 'C:\\Users\\skamal\\.gemini\\antigravity\\scratch\\Bassem\\Chillers Database_V1.xlsx';
     if (fs.existsSync(scratchPath)) {
@@ -243,7 +242,7 @@ app.get(['/api/excel/scratch-sample', '/excel/scratch-sample'], (req, res) => {
   }
 });
 
-app.post(['/api/excel/confirm', '/excel/confirm'], (req, res) => {
+router.post('/excel/confirm', (req, res) => {
   const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false } = req.body;
   const rowsToSave = bypassValidation ? rows : rows.filter(r => r.isValid);
   const batchId = dbStore.batches.length + 1;
@@ -291,7 +290,7 @@ app.post(['/api/excel/confirm', '/excel/confirm'], (req, res) => {
   });
 });
 
-app.get(['/api/chillers', '/chillers'], (req, res) => {
+router.get('/chillers', (req, res) => {
   const { efficiency, customerType, search } = req.query;
   let rows = [...dbStore.chillers];
 
@@ -331,16 +330,16 @@ app.get(['/api/chillers', '/chillers'], (req, res) => {
   res.json({ success: true, count: chillers.length, chillers });
 });
 
-app.delete(['/api/chillers/clear', '/chillers/clear'], (req, res) => {
+router.delete('/chillers/clear', (req, res) => {
   dbStore.chillers = [];
   res.json({ success: true, message: 'All active database records cleared' });
 });
 
-app.get(['/api/batches', '/batches'], (req, res) => {
+router.get('/batches', (req, res) => {
   res.json({ success: true, batches: [...dbStore.batches].reverse() });
 });
 
-app.get(['/api/delta', '/delta'], (req, res) => {
+router.get('/delta', (req, res) => {
   const { startBatchId, endBatchId } = req.query;
   const startId = parseInt(startBatchId);
   const endId = parseInt(endBatchId);
@@ -387,6 +386,7 @@ app.get(['/api/delta', '/delta'], (req, res) => {
   });
 });
 
+app.use('/api', router);
+app.use('/', router);
 
 export default app;
-
