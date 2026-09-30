@@ -397,23 +397,13 @@ app.use(express.static('frontend/build/web'));
 app.use('/api', router);
 app.use('/', router);
 
-app.use((req, res, next) => {
-  if (req.url.startsWith('/api')) {
-    return res.status(404).json({ success: false, error: `API endpoint '${req.url}' not found` });
-  }
-  const publicIndexPath = path.resolve('public/index.html');
-  if (fs.existsSync(publicIndexPath)) {
-    return res.sendFile(publicIndexPath);
-  }
-  const webIndexPath = path.resolve('frontend/build/web/index.html');
-  if (fs.existsSync(webIndexPath)) {
-    return res.sendFile(webIndexPath);
-  }
-  res.send('<!DOCTYPE html><html><head><title>Bassem Sales</title></head><body><div id="app"></div></body></html>');
+app.use((req, res) => {
+  res.status(404).json({ success: false, error: `API endpoint '${req.url}' not found` });
 });
 
 export default (req, res) => {
   return app(req, res);
 };
+
 
 
