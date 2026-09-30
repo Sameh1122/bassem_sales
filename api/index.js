@@ -1,8 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import XLSX from 'xlsx';
+import XLSXModule from 'xlsx';
 import fs from 'fs';
+
+const XLSX = XLSXModule.default || XLSXModule;
 
 const app = express();
 app.use(cors());
@@ -10,6 +12,7 @@ app.use(express.json({ limit: '50mb' }));
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
+
 
 // Default Columns Definitions
 const DEFAULT_COLUMNS = [
