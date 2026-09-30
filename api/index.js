@@ -389,4 +389,7 @@ router.get('/delta', (req, res) => {
 app.use('/api', router);
 app.use('/', router);
 
-export default app;
+export default (req, res) => {
+  return app(req, res);
+};
+
