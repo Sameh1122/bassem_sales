@@ -61,23 +61,17 @@ let dbStore = {
   history: []
 };
 
-// Auto-load seed data if available
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
+// Auto-load seed data
 try {
-  const seedPaths = [
-    path.resolve('api/seedData.json'),
-    path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, '$1')), 'seedData.json'),
-    path.resolve('seedData.json')
-  ];
-  const validSeedPath = seedPaths.find(p => fs.existsSync(p));
-  if (validSeedPath) {
-    const rawSeed = fs.readFileSync(validSeedPath, 'utf8');
-    const seed = JSON.parse(rawSeed);
-    if (seed.columns && seed.columns.length > 0) dbStore.columns = seed.columns;
-    if (seed.batches && seed.batches.length > 0) dbStore.batches = seed.batches;
-    if (seed.chillers && seed.chillers.length > 0) dbStore.chillers = seed.chillers;
-    if (seed.history && seed.history.length > 0) dbStore.history = seed.history;
-    console.log(`✅ Loaded seed data from ${validSeedPath}: ${dbStore.chillers.length} chillers, ${dbStore.batches.length} batches`);
-  }
+  const seed = require('./seedData.json');
+  if (seed.columns && seed.columns.length > 0) dbStore.columns = seed.columns;
+  if (seed.batches && seed.batches.length > 0) dbStore.batches = seed.batches;
+  if (seed.chillers && seed.chillers.length > 0) dbStore.chillers = seed.chillers;
+  if (seed.history && seed.history.length > 0) dbStore.history = seed.history;
+  console.log(`✅ Loaded seed data: ${dbStore.chillers.length} chillers, ${dbStore.batches.length} batches`);
 } catch (err) {
   console.warn('⚠️ Warning: Could not load seedData.json:', err.message);
 }
@@ -252,6 +246,8 @@ router.post('/excel/parse', (req, res) => {
 router.get('/excel/scratch-sample', (req, res) => {
   try {
     const candidatePaths = [
+      path.resolve('api/sample_chillers.xlsx'),
+      path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, '$1')), 'sample_chillers.xlsx'),
       path.resolve('data/sample_chillers.xlsx'),
       path.resolve('public/sample_chillers.xlsx'),
       path.resolve('backend/data/sample_chillers.xlsx'),

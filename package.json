@@ -2,7 +2,7 @@
   "name": "bassem-sales-platform",
   "version": "1.0.0",
   "type": "module",
-  "main": "server.js",
+  "main": "api/index.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
