@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 
 class ApiService {
@@ -123,6 +124,9 @@ class ApiService {
     if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
       if (decoded['chillers'] != null && decoded['chillers'] is List) {
         _recentChillersCache = List<dynamic>.from(decoded['chillers']);
+        try {
+          html.window.localStorage['chillers_dataset'] = jsonEncode(_recentChillersCache);
+        } catch (_) {}
       }
       return decoded;
     }
@@ -142,24 +146,41 @@ class ApiService {
       if (search.isNotEmpty) 'search': search,
     });
 
-    final response = await http.get(uri);
-    if (response.statusCode == 200) {
-      final data = _safeJsonDecode(response.body);
-      if (data is Map && data.containsKey('chillers')) {
-        final List<dynamic> fetched = data['chillers'] ?? [];
-        if (fetched.isNotEmpty) {
-          _recentChillersCache = fetched;
-          return fetched;
-        } else if (_recentChillersCache != null && _recentChillersCache!.isNotEmpty) {
-          return _recentChillersCache!;
+    try {
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final data = _safeJsonDecode(response.body);
+        if (data is Map && data.containsKey('chillers')) {
+          final List<dynamic> fetched = data['chillers'] ?? [];
+          if (fetched.isNotEmpty) {
+            _recentChillersCache = fetched;
+            try {
+              html.window.localStorage['chillers_dataset'] = jsonEncode(fetched);
+            } catch (_) {}
+            return fetched;
+          }
         }
-        return fetched;
       }
-    }
+    } catch (_) {}
+
+    // Check in-memory cache first
     if (_recentChillersCache != null && _recentChillersCache!.isNotEmpty) {
       return _recentChillersCache!;
     }
-    throw Exception('Failed to fetch chillers data');
+
+    // Check browser localStorage fallback
+    try {
+      final stored = html.window.localStorage['chillers_dataset'];
+      if (stored != null && stored.isNotEmpty) {
+        final decodedStored = jsonDecode(stored);
+        if (decodedStored is List && decodedStored.isNotEmpty) {
+          _recentChillersCache = decodedStored;
+          return decodedStored;
+        }
+      }
+    } catch (_) {}
+
+    return [];
   }
 
   // Fetch upload history batches

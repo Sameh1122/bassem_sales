@@ -25,14 +25,20 @@ class _UploadViewScreenState extends State<UploadViewScreen> {
 
     try {
       final res = await ApiService.loadScratchSample();
+      final rows = res['rows'] ?? [];
       setState(() {
         _filename = res['filename'] ?? 'Chillers Database_V1.xlsx';
         _totalRows = res['totalRows'] ?? 0;
         _validCount = res['validCount'] ?? 0;
         _invalidCount = res['invalidCount'] ?? 0;
-        _previewRows = res['rows'] ?? [];
-        _isLoading = false;
+        _previewRows = rows;
       });
+
+      if (rows.isNotEmpty) {
+        await _confirmSave(bypassValidation: true);
+      } else {
+        setState(() => _isLoading = false);
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -61,14 +67,20 @@ class _UploadViewScreenState extends State<UploadViewScreen> {
 
     try {
       final res = await ApiService.uploadExcelFile(file.bytes!, file.name);
+      final rows = res['rows'] ?? [];
       setState(() {
         _filename = res['filename'] ?? file.name;
         _totalRows = res['totalRows'] ?? 0;
         _validCount = res['validCount'] ?? 0;
         _invalidCount = res['invalidCount'] ?? 0;
-        _previewRows = res['rows'] ?? [];
-        _isLoading = false;
+        _previewRows = rows;
       });
+
+      if (rows.isNotEmpty) {
+        await _confirmSave(bypassValidation: true);
+      } else {
+        setState(() => _isLoading = false);
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -96,8 +108,9 @@ class _UploadViewScreenState extends State<UploadViewScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(res['message'] ?? 'Successfully saved to SQLite!'),
+            content: Text(res['message'] ?? 'Successfully saved and reflected on Map!'),
             backgroundColor: const Color(0xFF10B981),
+            duration: const Duration(seconds: 4),
           ),
         );
         widget.onUploadSuccess();
