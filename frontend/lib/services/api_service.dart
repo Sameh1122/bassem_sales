@@ -102,6 +102,8 @@ class ApiService {
     throw Exception(errorMsg);
   }
 
+  static List<dynamic>? _recentChillersCache;
+
   // Confirm upload and save to DB
   static Future<Map<String, dynamic>> confirmUpload({
     required String filename,
@@ -119,6 +121,9 @@ class ApiService {
     );
     final decoded = _safeJsonDecode(response.body);
     if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
+      if (decoded['chillers'] != null && decoded['chillers'] is List) {
+        _recentChillersCache = List<dynamic>.from(decoded['chillers']);
+      }
       return decoded;
     }
     final errorMsg = (decoded is Map && decoded['error'] != null) ? decoded['error'] : 'Failed to confirm upload (${response.statusCode})';
@@ -141,8 +146,18 @@ class ApiService {
     if (response.statusCode == 200) {
       final data = _safeJsonDecode(response.body);
       if (data is Map && data.containsKey('chillers')) {
-        return data['chillers'] ?? [];
+        final List<dynamic> fetched = data['chillers'] ?? [];
+        if (fetched.isNotEmpty) {
+          _recentChillersCache = fetched;
+          return fetched;
+        } else if (_recentChillersCache != null && _recentChillersCache!.isNotEmpty) {
+          return _recentChillersCache!;
+        }
+        return fetched;
       }
+    }
+    if (_recentChillersCache != null && _recentChillersCache!.isNotEmpty) {
+      return _recentChillersCache!;
     }
     throw Exception('Failed to fetch chillers data');
   }
