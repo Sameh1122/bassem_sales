@@ -39,16 +39,22 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
+  final GlobalKey<MapViewScreenState> _mapKey = GlobalKey<MapViewScreenState>();
+
+  void _onUploadSuccess() {
+    setState(() {
+      _currentIndex = 0;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _mapKey.currentState?.reloadChillers();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = [
-      const MapViewScreen(),
-      UploadViewScreen(onUploadSuccess: () {
-        setState(() {
-          _currentIndex = 0; // Automatically switch to Map View on successful upload & save!
-        });
-      }),
+      MapViewScreen(key: _mapKey),
+      UploadViewScreen(onUploadSuccess: _onUploadSuccess),
       const DeltaViewScreen(),
       const ColumnsViewScreen(),
       const DataTableViewScreen(),
@@ -90,6 +96,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             selectedIndex: _currentIndex,
             onDestinationSelected: (index) {
               setState(() => _currentIndex = index);
+              if (index == 0) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _mapKey.currentState?.reloadChillers();
+                });
+              }
             },
             extended: true,
             minExtendedWidth: 220,

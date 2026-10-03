@@ -8,10 +8,10 @@ class MapViewScreen extends StatefulWidget {
   const MapViewScreen({super.key});
 
   @override
-  State<MapViewScreen> createState() => _MapViewScreenState();
+  State<MapViewScreen> createState() => MapViewScreenState();
 }
 
-class _MapViewScreenState extends State<MapViewScreen> {
+class MapViewScreenState extends State<MapViewScreen> {
   final MapController _mapController = MapController();
   List<dynamic> _chillers = [];
   bool _isLoading = true;
@@ -26,6 +26,10 @@ class _MapViewScreenState extends State<MapViewScreen> {
   @override
   void initState() {
     super.initState();
+    _loadChillers();
+  }
+
+  void reloadChillers() {
     _loadChillers();
   }
 
