@@ -70,5 +70,16 @@ if (fs.existsSync(sampleSrc) && !fs.existsSync(sampleDest)) {
   console.log('✅ Copied sample_chillers.xlsx to public/');
 }
 
+// Satisfy Vercel entrypoint detector in output directory
+const entrypointContent = `import handler from '../api/index.js';
+export default handler;
+export { handler };
+`;
+fs.writeFileSync(path.join(destDir, 'index.js'), entrypointContent);
+fs.writeFileSync(path.join(destDir, 'app.js'), entrypointContent);
+fs.writeFileSync(path.join(destDir, 'server.js'), entrypointContent);
+console.log('✅ Generated index.js, app.js, and server.js entrypoints in public/');
+
 console.log('🎉 Build script completed successfully.');
+
 
