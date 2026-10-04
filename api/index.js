@@ -55,6 +55,10 @@ const DEFAULT_COLUMNS = [
 ];
 
 import os from 'os';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const DB_FILE = process.env.VERCEL ? '/tmp/chillers_db.json' : path.resolve(os.tmpdir(), 'chillers_db.json');
 
@@ -63,7 +67,7 @@ function loadDbStore() {
     if (fs.existsSync(DB_FILE)) {
       const content = fs.readFileSync(DB_FILE, 'utf8');
       const parsed = JSON.parse(content);
-      if (parsed && Array.isArray(parsed.chillers)) {
+      if (parsed && Array.isArray(parsed.chillers) && parsed.chillers.length > 0) {
         return parsed;
       }
     }
@@ -79,15 +83,25 @@ function loadDbStore() {
   };
 
   try {
-    const seedPath = path.resolve('api/seedData.json');
-    if (fs.existsSync(seedPath)) {
+    const candidateSeedPaths = [
+      path.join(__dirname, 'seedData.json'),
+      path.resolve('api/seedData.json'),
+      path.resolve('seedData.json'),
+      path.join(process.cwd(), 'api/seedData.json')
+    ];
+    const seedPath = candidateSeedPaths.find(p => fs.existsSync(p));
+    if (seedPath) {
+      console.log('📦 Loading seedData from:', seedPath);
       const seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
       if (seed.columns && seed.columns.length > 0) store.columns = seed.columns;
       if (seed.batches && seed.batches.length > 0) store.batches = seed.batches;
       if (seed.chillers && seed.chillers.length > 0) store.chillers = seed.chillers;
       if (seed.history && seed.history.length > 0) store.history = seed.history;
+      console.log(`✅ Loaded ${store.chillers.length} initial chillers from seedData`);
     }
-  } catch (err) {}
+  } catch (err) {
+    console.warn('⚠️ Could not load seedData:', err.message);
+  }
 
   return store;
 }
