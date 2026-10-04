@@ -5,10 +5,10 @@ class DeltaViewScreen extends StatefulWidget {
   const DeltaViewScreen({super.key});
 
   @override
-  State<DeltaViewScreen> createState() => _DeltaViewScreenState();
+  State<DeltaViewScreen> createState() => DeltaViewScreenState();
 }
 
-class _DeltaViewScreenState extends State<DeltaViewScreen> {
+class DeltaViewScreenState extends State<DeltaViewScreen> {
   List<dynamic> _batches = [];
   int? _startBatchId;
   int? _endBatchId;
@@ -18,6 +18,10 @@ class _DeltaViewScreenState extends State<DeltaViewScreen> {
   @override
   void initState() {
     super.initState();
+    _loadBatches();
+  }
+
+  void reload() {
     _loadBatches();
   }
 

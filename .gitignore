@@ -21,4 +21,8 @@ frontend/.dart_tool/
 .idea/
 .vscode/
 
-.vercel
+# Flutter build test cache
+frontend/build/native_assets/
+frontend/build/test_cache/
+frontend/build/unit_test_assets/
+

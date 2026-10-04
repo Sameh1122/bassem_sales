@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'dart:html' as html;
+import '../services/url_launcher.dart';
 import '../services/api_service.dart';
 
 class MapViewScreen extends StatefulWidget {
   const MapViewScreen({super.key});
 
   @override
-  State<MapViewScreen> createState() => _MapViewScreenState();
+  State<MapViewScreen> createState() => MapViewScreenState();
 }
 
-class _MapViewScreenState extends State<MapViewScreen> {
+class MapViewScreenState extends State<MapViewScreen> {
   final MapController _mapController = MapController();
   List<dynamic> _chillers = [];
   bool _isLoading = true;
+  bool _hasInitialFitted = false;
   String _selectedEfficiency = 'All';
   String _selectedCustomerType = 'All';
   String _searchQuery = '';
@@ -26,21 +27,63 @@ class _MapViewScreenState extends State<MapViewScreen> {
   @override
   void initState() {
     super.initState();
-    _loadChillers();
+    _loadChillers(forceRecenter: true);
   }
 
-  Future<void> _loadChillers() async {
+  void reload({bool forceRecenter = false, bool forceApi = false}) {
+    _loadChillers(forceRecenter: forceRecenter, forceApi: forceApi);
+  }
+
+  void _fitBoundsToChillers() {
+    final validPoints = _chillers.where((c) {
+      final lat = _toDouble(c['latitude'], 0.0);
+      final lng = _toDouble(c['longitude'], 0.0);
+      return lat != 0.0 && lng != 0.0;
+    }).map((c) {
+      return LatLng(_toDouble(c['latitude']), _toDouble(c['longitude']));
+    }).toList();
+
+    if (validPoints.isEmpty) return;
+
+    if (validPoints.length == 1) {
+      _mapController.move(validPoints.first, 13.0);
+      return;
+    }
+
+    try {
+      final bounds = LatLngBounds.fromPoints(validPoints);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(48.0),
+        ),
+      );
+    } catch (_) {
+      _mapController.move(validPoints.first, 7.0);
+    }
+  }
+
+  Future<void> _loadChillers({bool forceRecenter = false, bool forceApi = false}) async {
     setState(() => _isLoading = true);
     try {
       final data = await ApiService.fetchChillers(
         efficiency: _selectedEfficiency,
         customerType: _selectedCustomerType,
         search: _searchQuery,
+        forceApi: forceApi,
       );
       setState(() {
         _chillers = data;
         _isLoading = false;
       });
+
+      if (forceRecenter || !_hasInitialFitted) {
+        _hasInitialFitted = true;
+        // Allow widget tree frame to render before adjusting camera
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _fitBoundsToChillers();
+        });
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -65,7 +108,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
   void _openGoogleMapsDirections(double lat, double lng) {
     final googleMapsUrl = 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng';
-    html.window.open(googleMapsUrl, '_blank');
+    openExternalUrl(googleMapsUrl);
   }
 
   double _toDouble(dynamic val, [double defaultValue = 0.0]) {
@@ -398,6 +441,29 @@ class _MapViewScreenState extends State<MapViewScreen> {
                             setState(() => _searchQuery = val.trim());
                             _loadChillers();
                           },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.refresh, color: Colors.cyan, size: 20),
+                              tooltip: 'Refresh pins from database',
+                              onPressed: () => reload(forceRecenter: true, forceApi: true),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.center_focus_strong, color: Colors.cyan, size: 20),
+                              tooltip: 'Fit map bounds to all pins',
+                              onPressed: _fitBoundsToChillers,
+                            ),
+                          ],
                         ),
                       ),
                     ],

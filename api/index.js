@@ -83,9 +83,34 @@ function cleanStr(val) {
   return s;
 }
 
+function findVal(row, aliases) {
+  const keys = Object.keys(row);
+  for (const alias of aliases) {
+    const cleanAlias = alias.toLowerCase().replace(/[\s_\-\.]/g, '');
+    for (const k of keys) {
+      const cleanKey = k.toLowerCase().trim().replace(/[\s_\-\.]/g, '');
+      if (cleanKey === cleanAlias) {
+        const val = cleanStr(row[k]);
+        if (val) return val;
+      }
+    }
+  }
+  return '';
+}
+
 function parseCoords(rowObj) {
-  const rawLat = cleanStr(rowObj['Latitude'] ?? rowObj['lat'] ?? rowObj['LATITUDE']);
-  const rawLng = cleanStr(rowObj['Longitude'] ?? rowObj['lng'] ?? rowObj['LONGITUDE']);
+  // Check common latitude aliases
+  let rawLat = findVal(rowObj, ['latitude', 'lat', 'gps_lat', 'gps lat', 'lat (n)', 'y', 'خط العرض', 'خط_العرض']);
+  // Check common longitude aliases
+  let rawLng = findVal(rowObj, ['longitude', 'long', 'lng', 'gps_lng', 'gps lng', 'lng (e)', 'x', 'خط الطول', 'خط_الطول']);
+
+  // Fallback to checking rawObj keys directly
+  if (!rawLat) rawLat = cleanStr(rowObj['Latitude'] ?? rowObj['lat'] ?? rowObj['LATITUDE'] ?? rowObj['Lat']);
+  if (!rawLng) rawLng = cleanStr(rowObj['Longitude'] ?? rowObj['long'] ?? rowObj['lng'] ?? rowObj['LONGITUDE'] ?? rowObj['Lng']);
+
+  // Handle potential comma as decimal separator (e.g. 30,0906)
+  if (typeof rawLat === 'string') rawLat = rawLat.replace(',', '.');
+  if (typeof rawLng === 'string') rawLng = rawLng.replace(',', '.');
 
   let numLat = parseFloat(rawLat);
   let numLng = parseFloat(rawLng);
@@ -109,10 +134,23 @@ function parseCoords(rowObj) {
 
 function parseExcelBuffer(buffer) {
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, cellText: false });
-  const activeColumns = dbStore.columns.filter(c => c.is_active === 1);
-  const requiredKeys = activeColumns.filter(c => c.is_required === 1).map(c => c.key_name);
 
-  let sheetName = workbook.SheetNames.find(s => s === 'CE_Database' || s === 'CW_Database') || workbook.SheetNames[0];
+  // Find best sheet: prefer CE_Database or CW_Database, else sheet with most rows
+  let sheetName = workbook.SheetNames.find(s => s === 'CE_Database' || s === 'CW_Database');
+  if (!sheetName) {
+    let maxRows = -1;
+    for (const name of workbook.SheetNames) {
+      const sheet = workbook.Sheets[name];
+      const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
+      const rowCount = range.e.r - range.s.r + 1;
+      if (rowCount > maxRows) {
+        maxRows = rowCount;
+        sheetName = name;
+      }
+    }
+  }
+  sheetName = sheetName || workbook.SheetNames[0];
+
   const worksheet = workbook.Sheets[sheetName];
   const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: null });
 
@@ -125,51 +163,51 @@ function parseExcelBuffer(buffer) {
     const missingFields = [];
     const errors = [];
 
+    // Clean keys and values
     Object.keys(row).forEach(key => {
-      if (key && !key.startsWith('__EMPTY')) {
+      const trimmedKey = key ? key.trim() : '';
+      if (trimmedKey && !trimmedKey.startsWith('__EMPTY')) {
         const val = row[key];
-        rowObj[key] = val instanceof Date ? val.toISOString().split('T')[0] : (val !== null && val !== undefined ? String(val).trim() : '');
+        rowObj[trimmedKey] = val instanceof Date ? val.toISOString().split('T')[0] : (val !== null && val !== undefined ? String(val).trim() : '');
       }
     });
 
-    for (const reqKey of requiredKeys) {
-      const cellVal = cleanStr(rowObj[reqKey]);
-      if (!cellVal) {
-        missingFields.push(reqKey);
-        errors.push(`Missing required field: '${reqKey}'`);
-      }
-    }
-
-    for (const col of activeColumns) {
-      const cellVal = cleanStr(rowObj[col.key_name]);
-      if (!cellVal && !missingFields.includes(col.key_name)) {
-        missingFields.push(col.key_name);
-      }
-    }
+    // Smart field extraction with flexible aliases
+    const code = findVal(rowObj, ['chiller code', 'chillercode', 'code', 'serial number', 'serial', 'chiller id', 'id', 'كود']) || `CH-${idx + 1}`;
+    const branch = findVal(rowObj, ['branch', 'فرع']) || cleanStr(rowObj['Branch']);
+    const customerType = findVal(rowObj, ['customer type', 'customertype', 'type', 'channel', 'نوع العميل']) || 'Retail';
+    const efficiency = findVal(rowObj, ['month ach. status', 'month ach status', 'efficiency', 'status', 'ach. status', 'achievement', 'الكفاءة']) || 'Performing';
+    const customerName = findVal(rowObj, ['customer name', 'customername', 'customer', 'client', 'name', 'اسم العميل']) || cleanStr(rowObj['Customer Name']);
+    const chillerType = findVal(rowObj, ['chiller type', 'chillertype']) || cleanStr(rowObj['Chiller Type']);
+    const chillerStatus = findVal(rowObj, ['chiller status', 'chillerstatus']) || cleanStr(rowObj['Chiller Status']);
+    const condition = findVal(rowObj, ['condition', 'condiiton']) || cleanStr(rowObj['Condition'] || rowObj['Condiiton']);
+    const customerAddress = findVal(rowObj, ['customer address', 'address', 'عنوان']) || cleanStr(rowObj['Customer Address']);
+    const mobileNumber = findVal(rowObj, ['mobile number', 'mobile', 'phone', 'هاتف']) || cleanStr(rowObj['Mobile Number']);
 
     const coordCheck = parseCoords(rowObj);
     if (!coordCheck.isValid) {
       errors.push('Missing or invalid GPS Latitude/Longitude coordinates');
+      missingFields.push('Latitude/Longitude');
     }
 
-    const isValid = errors.length === 0;
+    const isValid = coordCheck.isValid && code.length > 0;
     if (isValid) validCount++;
     else invalidCount++;
 
     parsedRows.push({
       rowIndex: idx + 2,
-      chillerCode: rowObj['Chiller Code'] || `CH-${idx + 1}`,
+      chillerCode: code,
       latitude: coordCheck.lat,
       longitude: coordCheck.lng,
-      customerType: rowObj['Customer Type'] || 'Retail',
-      efficiency: rowObj['Month Ach. Status'] || 'Non-Performing',
-      branch: rowObj['Branch'] || '',
-      chillerType: rowObj['Chiller Type'] || '',
-      chillerStatus: rowObj['Chiller Status'] || '',
-      condition: rowObj['Condiiton'] || rowObj['Condition'] || '',
-      customerName: rowObj['Customer Name'] || '',
-      customerAddress: rowObj['Customer Address'] || '',
-      mobileNumber: rowObj['Mobile Number'] || '',
+      customerType,
+      efficiency,
+      branch,
+      chillerType,
+      chillerStatus,
+      condition,
+      customerName,
+      customerAddress,
+      mobileNumber,
       rowObj,
       isValid,
       missingFields,
@@ -268,15 +306,15 @@ router.get('/excel/scratch-sample', (req, res) => {
 
 router.post('/excel/confirm', (req, res) => {
   const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false } = req.body;
-  const rowsToSave = bypassValidation ? rows : rows.filter(r => r.isValid);
+  const rowsToSave = bypassValidation ? rows : rows.filter(r => r.isValid !== false);
   const batchId = dbStore.batches.length + 1;
 
   dbStore.batches.push({
     id: batchId,
     filename,
     total_rows: rows.length,
-    valid_rows: rows.filter(r => r.isValid).length,
-    invalid_rows: rows.length - rows.filter(r => r.isValid).length,
+    valid_rows: rowsToSave.length,
+    invalid_rows: rows.length - rowsToSave.length,
     bypassed_validation: bypassValidation ? 1 : 0,
     uploaded_at: new Date().toISOString()
   });
@@ -297,7 +335,7 @@ router.post('/excel/confirm', (req, res) => {
       chiller_status: r.chillerStatus,
       condition: r.condition,
       customer_name: r.customerName,
-      raw_data_json: JSON.stringify(r.rowObj || {}),
+      raw_data_json: JSON.stringify(r.rowObj || r.rawData || {}),
       updated_at: new Date().toISOString()
     };
     if (existingIdx >= 0) dbStore.chillers[existingIdx] = item;

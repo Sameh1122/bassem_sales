@@ -5,10 +5,10 @@ class DataTableViewScreen extends StatefulWidget {
   const DataTableViewScreen({super.key});
 
   @override
-  State<DataTableViewScreen> createState() => _DataTableViewScreenState();
+  State<DataTableViewScreen> createState() => DataTableViewScreenState();
 }
 
-class _DataTableViewScreenState extends State<DataTableViewScreen> {
+class DataTableViewScreenState extends State<DataTableViewScreen> {
   List<dynamic> _chillers = [];
   bool _isLoading = true;
   String _searchQuery = '';
@@ -17,6 +17,10 @@ class _DataTableViewScreenState extends State<DataTableViewScreen> {
   @override
   void initState() {
     super.initState();
+    _loadData();
+  }
+
+  void reload({bool forceApi = false}) {
     _loadData();
   }
 
