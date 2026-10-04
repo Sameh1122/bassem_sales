@@ -54,27 +54,53 @@ const DEFAULT_COLUMNS = [
   { id: 36, key_name: 'Notes', display_label: 'Notes', data_type: 'string', is_required: 0, is_active: 1, display_order: 36 }
 ];
 
-let dbStore = {
-  columns: [...DEFAULT_COLUMNS],
-  batches: [],
-  chillers: [],
-  history: []
-};
+import os from 'os';
 
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+const DB_FILE = process.env.VERCEL ? '/tmp/chillers_db.json' : path.resolve(os.tmpdir(), 'chillers_db.json');
 
-// Auto-load seed data
-try {
-  const seed = require('./seedData.json');
-  if (seed.columns && seed.columns.length > 0) dbStore.columns = seed.columns;
-  if (seed.batches && seed.batches.length > 0) dbStore.batches = seed.batches;
-  if (seed.chillers && seed.chillers.length > 0) dbStore.chillers = seed.chillers;
-  if (seed.history && seed.history.length > 0) dbStore.history = seed.history;
-  console.log(`✅ Loaded seed data: ${dbStore.chillers.length} chillers, ${dbStore.batches.length} batches`);
-} catch (err) {
-  console.warn('⚠️ Warning: Could not load seedData.json:', err.message);
+function loadDbStore() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const content = fs.readFileSync(DB_FILE, 'utf8');
+      const parsed = JSON.parse(content);
+      if (parsed && Array.isArray(parsed.chillers)) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ Error reading persistent DB file:', e.message);
+  }
+
+  let store = {
+    columns: [...DEFAULT_COLUMNS],
+    batches: [],
+    chillers: [],
+    history: []
+  };
+
+  try {
+    const seedPath = path.resolve('api/seedData.json');
+    if (fs.existsSync(seedPath)) {
+      const seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+      if (seed.columns && seed.columns.length > 0) store.columns = seed.columns;
+      if (seed.batches && seed.batches.length > 0) store.batches = seed.batches;
+      if (seed.chillers && seed.chillers.length > 0) store.chillers = seed.chillers;
+      if (seed.history && seed.history.length > 0) store.history = seed.history;
+    }
+  } catch (err) {}
+
+  return store;
 }
+
+function saveDbStore(store) {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(store, null, 2), 'utf8');
+  } catch (e) {
+    console.error('⚠️ Error writing to persistent DB file:', e.message);
+  }
+}
+
+let dbStore = loadDbStore();
 
 function cleanStr(val) {
   if (val === null || val === undefined) return '';
@@ -305,8 +331,12 @@ router.get('/excel/scratch-sample', (req, res) => {
 });
 
 router.post('/excel/confirm', (req, res) => {
-  const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false } = req.body;
-  const rowsToSave = bypassValidation ? rows : rows.filter(r => r.isValid !== false);
+  const dbStore = loadDbStore();
+  const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false } = req.body || {};
+  const rowsToSave = bypassValidation 
+    ? rows 
+    : rows.filter(r => r.isValid !== false || (r.latitude != null && r.longitude != null));
+    
   const batchId = dbStore.batches.length + 1;
 
   dbStore.batches.push({
@@ -335,7 +365,7 @@ router.post('/excel/confirm', (req, res) => {
       chiller_status: r.chillerStatus,
       condition: r.condition,
       customer_name: r.customerName,
-      raw_data_json: JSON.stringify(r.rowObj || r.rawData || {}),
+      raw_data_json: typeof (r.rowObj || r.rawData) === 'object' ? JSON.stringify(r.rowObj || r.rawData || {}) : String(r.rowObj || r.rawData || '{}'),
       updated_at: new Date().toISOString()
     };
     if (existingIdx >= 0) dbStore.chillers[existingIdx] = item;
@@ -344,15 +374,35 @@ router.post('/excel/confirm', (req, res) => {
     dbStore.history.push({ ...item, id: dbStore.history.length + 1, snapshot_time: new Date().toISOString() });
   }
 
+  saveDbStore(dbStore);
+
+  const formattedChillers = dbStore.chillers.map(r => ({
+    id: r.id,
+    chillerCode: r.chiller_code || r.chillerCode,
+    batchId: r.batch_id || r.batchId,
+    latitude: r.latitude,
+    longitude: r.longitude,
+    customerType: r.customer_type || r.customerType,
+    efficiency: r.efficiency,
+    branch: r.branch,
+    chillerType: r.chiller_type || r.chillerType,
+    chillerStatus: r.chiller_status || r.chillerStatus,
+    condition: r.condition,
+    customerName: r.customer_name || r.customerName,
+    rawData: typeof r.raw_data_json === 'string' ? JSON.parse(r.raw_data_json || '{}') : (r.rawData || r.raw_data_json || {})
+  }));
+
   res.json({
     success: true,
     batchId,
     savedRowsCount: rowsToSave.length,
+    chillers: formattedChillers,
     message: `Successfully saved ${rowsToSave.length} records into database.`
   });
 });
 
 router.get('/chillers', (req, res) => {
+  const dbStore = loadDbStore();
   const { efficiency, customerType, search } = req.query;
   let rows = [...dbStore.chillers];
 

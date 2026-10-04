@@ -34,6 +34,10 @@ class MapViewScreenState extends State<MapViewScreen> {
     _loadChillers(forceRecenter: forceRecenter, forceApi: forceApi);
   }
 
+  void reloadChillers() {
+    _loadChillers(forceRecenter: true);
+  }
+
   void _fitBoundsToChillers() {
     final validPoints = _chillers.where((c) {
       final lat = _toDouble(c['latitude'], 0.0);

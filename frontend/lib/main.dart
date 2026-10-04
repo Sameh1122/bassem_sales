@@ -43,18 +43,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final GlobalKey<DeltaViewScreenState> _deltaKey = GlobalKey<DeltaViewScreenState>();
   final GlobalKey<DataTableViewScreenState> _tableKey = GlobalKey<DataTableViewScreenState>();
 
+  void _onUploadSuccess() {
+    setState(() {
+      _currentIndex = 0;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _mapKey.currentState?.reload(forceRecenter: true);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = [
       MapViewScreen(key: _mapKey),
-      UploadViewScreen(onUploadSuccess: () {
-        setState(() {
-          _currentIndex = 0; // Automatically switch to Map View on successful upload & save!
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _mapKey.currentState?.reload(forceRecenter: true);
-        });
-      }),
+      UploadViewScreen(onUploadSuccess: _onUploadSuccess),
       DeltaViewScreen(key: _deltaKey),
       const ColumnsViewScreen(),
       DataTableViewScreen(key: _tableKey),

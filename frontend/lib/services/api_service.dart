@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'storage.dart';
 
 class ApiService {
   static String get baseUrl {
@@ -150,32 +151,39 @@ class ApiService {
     );
     final decoded = _safeJsonDecode(response.body);
     if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
-      final List<dynamic> validList = bypassValidation
-          ? rows
-          : rows.where((r) => r['isValid'] != false).toList();
+      if (decoded['chillers'] != null && decoded['chillers'] is List) {
+        _cachedChillers = List<dynamic>.from(decoded['chillers']);
+      } else {
+        final List<dynamic> validList = bypassValidation
+            ? rows
+            : rows.where((r) => r['isValid'] != false).toList();
 
-      final newChillers = validList.map((r) {
-        final Map<String, dynamic> raw = (r['rowObj'] is Map)
-            ? Map<String, dynamic>.from(r['rowObj'])
-            : ((r['rawData'] is Map) ? Map<String, dynamic>.from(r['rawData']) : <String, dynamic>{});
-        return {
-          'id': r['rowIndex'] ?? (_cachedChillers?.length ?? 0) + 1,
-          'chillerCode': r['chillerCode'] ?? '',
-          'batchId': decoded['batchId'] ?? 1,
-          'latitude': r['latitude'],
-          'longitude': r['longitude'],
-          'customerType': r['customerType'] ?? 'Retail',
-          'efficiency': r['efficiency'] ?? 'Performing',
-          'branch': r['branch'] ?? '',
-          'chillerType': r['chillerType'] ?? '',
-          'chillerStatus': r['chillerStatus'] ?? '',
-          'condition': r['condition'] ?? '',
-          'customerName': r['customerName'] ?? '',
-          'rawData': raw,
-        };
-      }).toList();
+        _cachedChillers = validList.map((r) {
+          final Map<String, dynamic> raw = (r['rowObj'] is Map)
+              ? Map<String, dynamic>.from(r['rowObj'])
+              : ((r['rawData'] is Map) ? Map<String, dynamic>.from(r['rawData']) : <String, dynamic>{});
+          return {
+            'id': r['rowIndex'] ?? (_cachedChillers?.length ?? 0) + 1,
+            'chillerCode': r['chillerCode'] ?? '',
+            'batchId': decoded['batchId'] ?? 1,
+            'latitude': r['latitude'],
+            'longitude': r['longitude'],
+            'customerType': r['customerType'] ?? 'Retail',
+            'efficiency': r['efficiency'] ?? 'Performing',
+            'branch': r['branch'] ?? '',
+            'chillerType': r['chillerType'] ?? '',
+            'chillerStatus': r['chillerStatus'] ?? '',
+            'condition': r['condition'] ?? '',
+            'customerName': r['customerName'] ?? '',
+            'rawData': raw,
+          };
+        }).toList();
+      }
 
-      _cachedChillers = newChillers;
+      if (_cachedChillers != null && _cachedChillers!.isNotEmpty) {
+        setLocalStorage('chillers_dataset', jsonEncode(_cachedChillers));
+      }
+
       return decoded;
     }
     final errorMsg = (decoded is Map && decoded['error'] != null) ? decoded['error'] : 'Failed to confirm upload (${response.statusCode})';
@@ -204,11 +212,12 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = _safeJsonDecode(response.body);
         if (data is Map && data.containsKey('chillers')) {
-          final list = (data['chillers'] as List<dynamic>?) ?? [];
-          if (efficiency == 'All' && customerType == 'All' && search.isEmpty) {
-            _cachedChillers = list;
+          final List<dynamic> fetched = data['chillers'] ?? [];
+          if (fetched.isNotEmpty) {
+            _cachedChillers = fetched;
+            setLocalStorage('chillers_dataset', jsonEncode(fetched));
+            return _filterLocalChillers(fetched, efficiency, customerType, search);
           }
-          return list;
         }
       }
     } catch (_) {
@@ -219,7 +228,18 @@ class ApiService {
       return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search);
     }
 
-    throw Exception('Failed to fetch chillers data');
+    final stored = getLocalStorage('chillers_dataset');
+    if (stored != null && stored.isNotEmpty) {
+      try {
+        final decodedStored = jsonDecode(stored);
+        if (decodedStored is List && decodedStored.isNotEmpty) {
+          _cachedChillers = decodedStored;
+          return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search);
+        }
+      } catch (_) {}
+    }
+
+    return [];
   }
 
   static List<dynamic> _filterLocalChillers(
