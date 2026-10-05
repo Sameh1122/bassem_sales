@@ -195,16 +195,20 @@ class ApiService {
     String efficiency = 'All',
     String customerType = 'All',
     String search = '',
+    dynamic batchId = 'All',
     bool forceApi = false,
   }) async {
-    if (!forceApi && _cachedChillers != null && _cachedChillers!.isNotEmpty) {
-      return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search);
+    final bool hasBatchFilter = batchId != null && batchId != 'All' && batchId != 'all';
+
+    if (!forceApi && !hasBatchFilter && _cachedChillers != null && _cachedChillers!.isNotEmpty) {
+      return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search, batchId);
     }
 
     final uri = Uri.parse('$baseUrl/chillers').replace(queryParameters: {
       if (efficiency != 'All') 'efficiency': efficiency,
       if (customerType != 'All') 'customerType': customerType,
       if (search.isNotEmpty) 'search': search,
+      if (hasBatchFilter) 'batchId': batchId.toString(),
     });
 
     try {
@@ -213,11 +217,11 @@ class ApiService {
         final data = _safeJsonDecode(response.body);
         if (data is Map && data.containsKey('chillers')) {
           final List<dynamic> fetched = data['chillers'] ?? [];
-          if (fetched.isNotEmpty) {
+          if (!hasBatchFilter) {
             _cachedChillers = fetched;
             setLocalStorage('chillers_dataset', jsonEncode(fetched));
-            return _filterLocalChillers(fetched, efficiency, customerType, search);
           }
+          return _filterLocalChillers(fetched, efficiency, customerType, search, batchId);
         }
       }
     } catch (_) {
@@ -225,7 +229,7 @@ class ApiService {
     }
 
     if (_cachedChillers != null && _cachedChillers!.isNotEmpty) {
-      return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search);
+      return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search, batchId);
     }
 
     final stored = getLocalStorage('chillers_dataset');
@@ -234,7 +238,7 @@ class ApiService {
         final decodedStored = jsonDecode(stored);
         if (decodedStored is List && decodedStored.isNotEmpty) {
           _cachedChillers = decodedStored;
-          return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search);
+          return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search, batchId);
         }
       } catch (_) {}
     }
@@ -246,9 +250,17 @@ class ApiService {
     List<dynamic> all,
     String efficiency,
     String customerType,
-    String search,
-  ) {
+    String search, [
+    dynamic batchId = 'All',
+  ]) {
+    final bool hasBatchFilter = batchId != null && batchId != 'All' && batchId != 'all';
+    final int? filterBatchId = hasBatchFilter ? int.tryParse(batchId.toString()) : null;
+
     return all.where((c) {
+      if (filterBatchId != null) {
+        final bId = c['batchId'] ?? c['batch_id'];
+        if (bId != null && bId != filterBatchId) return false;
+      }
       if (efficiency != 'All') {
         final eff = (c['efficiency'] ?? '').toString().toLowerCase();
         if (eff != efficiency.toLowerCase()) return false;
@@ -280,6 +292,22 @@ class ApiService {
       }
     }
     throw Exception('Failed to fetch upload batches');
+  }
+
+  // Delete an upload batch
+  static Future<Map<String, dynamic>> deleteBatch(int batchId) async {
+    final response = await http.delete(Uri.parse('$baseUrl/batches/$batchId'));
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
+      // Invalidate cached chillers so fresh state is fetched
+      _cachedChillers = null;
+      removeLocalStorage('chillers_dataset');
+      return decoded;
+    }
+    final errorMsg = (decoded is Map && decoded['error'] != null)
+        ? decoded['error']
+        : 'Failed to delete batch #$batchId (${response.statusCode})';
+    throw Exception(errorMsg);
   }
 
   // Fetch delta comparison between batches

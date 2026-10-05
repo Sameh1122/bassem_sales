@@ -417,8 +417,21 @@ router.post('/excel/confirm', (req, res) => {
 
 router.get('/chillers', (req, res) => {
   const dbStore = loadDbStore();
-  const { efficiency, customerType, search } = req.query;
+  const { efficiency, customerType, search, batchId } = req.query;
   let rows = [...dbStore.chillers];
+
+  if (batchId && batchId !== 'All' && batchId !== 'all') {
+    const bId = parseInt(batchId);
+    if (!isNaN(bId)) {
+      // Check if batch exists in history snapshots for exact point-in-time state
+      const historicalRows = dbStore.history.filter(h => (h.batch_id || h.batchId) === bId);
+      if (historicalRows.length > 0) {
+        rows = historicalRows;
+      } else {
+        rows = rows.filter(r => (r.batch_id || r.batchId) === bId);
+      }
+    }
+  }
 
   if (efficiency && efficiency !== 'All') {
     rows = rows.filter(r => (r.efficiency || '').toLowerCase() === efficiency.toLowerCase());
@@ -464,6 +477,37 @@ router.delete('/chillers/clear', (req, res) => {
 router.get('/batches', (req, res) => {
   res.json({ success: true, batches: [...dbStore.batches].reverse() });
 });
+
+router.delete('/batches/:id', (req, res) => {
+  const batchId = parseInt(req.params.id);
+  if (isNaN(batchId)) {
+    return res.status(400).json({ success: false, error: 'Invalid batch ID' });
+  }
+
+  const batchIdx = dbStore.batches.findIndex(b => b.id === batchId);
+  if (batchIdx === -1) {
+    return res.status(404).json({ success: false, error: `Batch #${batchId} not found` });
+  }
+
+  const deletedBatch = dbStore.batches.splice(batchIdx, 1)[0];
+
+  // Remove chillers belonging directly to this batch
+  const initialChillersCount = dbStore.chillers.length;
+  dbStore.chillers = dbStore.chillers.filter(c => (c.batch_id || c.batchId) !== batchId);
+  const deletedChillersCount = initialChillersCount - dbStore.chillers.length;
+
+  // Remove history snapshots for this batch
+  dbStore.history = dbStore.history.filter(h => (h.batch_id || h.batchId) !== batchId);
+
+  saveDbStore(dbStore);
+
+  res.json({
+    success: true,
+    message: `Batch #${batchId} ('${deletedBatch.filename}') deleted successfully. Removed ${deletedChillersCount} chiller records.`,
+    deletedBatchId: batchId
+  });
+});
+
 
 router.get('/delta', (req, res) => {
   const { startBatchId, endBatchId } = req.query;

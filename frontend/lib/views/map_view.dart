@@ -14,6 +14,8 @@ class MapViewScreen extends StatefulWidget {
 class MapViewScreenState extends State<MapViewScreen> {
   final MapController _mapController = MapController();
   List<dynamic> _chillers = [];
+  List<dynamic> _batches = [];
+  dynamic _selectedBatchId = 'All';
   bool _isLoading = true;
   bool _hasInitialFitted = false;
   String _selectedEfficiency = 'All';
@@ -27,15 +29,37 @@ class MapViewScreenState extends State<MapViewScreen> {
   @override
   void initState() {
     super.initState();
+    _loadBatches();
     _loadChillers(forceRecenter: true);
   }
 
+  Future<void> _loadBatches() async {
+    try {
+      final batches = await ApiService.fetchBatches();
+      if (mounted) {
+        setState(() {
+          _batches = batches;
+        });
+      }
+    } catch (_) {}
+  }
+
   void reload({bool forceRecenter = false, bool forceApi = false}) {
+    _loadBatches();
     _loadChillers(forceRecenter: forceRecenter, forceApi: forceApi);
   }
 
   void reloadChillers() {
+    _loadBatches();
     _loadChillers(forceRecenter: true);
+  }
+
+  void selectBatch(dynamic batchId) {
+    setState(() {
+      _selectedBatchId = batchId;
+    });
+    _loadBatches();
+    _loadChillers(forceRecenter: true, forceApi: true);
   }
 
   void _fitBoundsToChillers() {
@@ -74,6 +98,7 @@ class MapViewScreenState extends State<MapViewScreen> {
         efficiency: _selectedEfficiency,
         customerType: _selectedCustomerType,
         search: _searchQuery,
+        batchId: _selectedBatchId,
         forceApi: forceApi,
       );
       setState(() {
@@ -418,6 +443,51 @@ class MapViewScreenState extends State<MapViewScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
+
+                      // Upload Batch / Date Filter
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.cyan.withOpacity(0.5)),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<dynamic>(
+                            value: _selectedBatchId,
+                            dropdownColor: const Color(0xFF1E293B),
+                            style: const TextStyle(color: Colors.cyanAccent, fontSize: 13, fontWeight: FontWeight.w600),
+                            icon: const Icon(Icons.history_toggle_off, color: Colors.cyan, size: 18),
+                            items: [
+                              const DropdownMenuItem(
+                                value: 'All',
+                                child: Text('📅 All Uploads (Latest Active)'),
+                              ),
+                              ..._batches.map((b) {
+                                final id = b['id'];
+                                final filename = b['filename'] ?? 'Upload';
+                                final rawDate = b['uploaded_at'] ?? '';
+                                String shortDate = rawDate;
+                                if (rawDate.length >= 16) {
+                                  shortDate = rawDate.substring(0, 16).replaceAll('T', ' ');
+                                }
+                                return DropdownMenuItem(
+                                  value: id,
+                                  child: Text('📦 Batch #$id: $filename ($shortDate)'),
+                                );
+                              }).toList(),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() => _selectedBatchId = val);
+                                _loadChillers(forceRecenter: true, forceApi: true);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
 
                       // Search box
                       SizedBox(

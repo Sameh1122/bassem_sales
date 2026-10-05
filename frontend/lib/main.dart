@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'views/map_view.dart';
 import 'views/upload_view.dart';
+import 'views/batch_manager_view.dart';
 import 'views/delta_view.dart';
 import 'views/columns_view.dart';
 import 'views/data_table_view.dart';
@@ -40,6 +41,7 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   final GlobalKey<MapViewScreenState> _mapKey = GlobalKey<MapViewScreenState>();
+  final GlobalKey<BatchManagerViewScreenState> _batchManagerKey = GlobalKey<BatchManagerViewScreenState>();
   final GlobalKey<DeltaViewScreenState> _deltaKey = GlobalKey<DeltaViewScreenState>();
   final GlobalKey<DataTableViewScreenState> _tableKey = GlobalKey<DataTableViewScreenState>();
 
@@ -52,11 +54,21 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
+  void _onOpenBatch(dynamic batchId) {
+    setState(() {
+      _currentIndex = 0;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _mapKey.currentState?.selectBatch(batchId);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = [
       MapViewScreen(key: _mapKey),
       UploadViewScreen(onUploadSuccess: _onUploadSuccess),
+      BatchManagerViewScreen(key: _batchManagerKey, onOpenBatch: _onOpenBatch),
       DeltaViewScreen(key: _deltaKey),
       const ColumnsViewScreen(),
       DataTableViewScreen(key: _tableKey),
@@ -105,8 +117,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 if (index == 0) {
                   _mapKey.currentState?.reload();
                 } else if (index == 2) {
+                  _batchManagerKey.currentState?.reload();
+                } else if (index == 3) {
                   _deltaKey.currentState?.reload();
-                } else if (index == 4) {
+                } else if (index == 5) {
                   _tableKey.currentState?.reload();
                 }
               });
@@ -127,6 +141,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 icon: Icon(Icons.upload_file_outlined),
                 selectedIcon: Icon(Icons.upload_file),
                 label: Text('Upload & Validate'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.folder_copy_outlined),
+                selectedIcon: Icon(Icons.folder_copy),
+                label: Text('Batch Manager'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.compare_arrows_outlined),
