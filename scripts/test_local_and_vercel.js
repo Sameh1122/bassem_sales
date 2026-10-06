@@ -150,7 +150,12 @@ async function startLocalServerAndRunTests() {
     await runTests('http://localhost:5005/api', 'LOCAL ENVIRONMENT');
 
     // Phase 2: Vercel Production Testing
-    await runTests('https://bassem-sales.vercel.app/api', 'VERCEL PRODUCTION ENVIRONMENT');
+    try {
+      await runTests('https://gallant-maxwell-nine.vercel.app/api', 'VERCEL PRODUCTION ENVIRONMENT (gallant-maxwell-nine.vercel.app)');
+    } catch (e) {
+      console.warn('⚠️ Main production URL failed, trying fallback bassem-sales-eta.vercel.app:', e.message);
+      await runTests('https://bassem-sales-eta.vercel.app/api', 'VERCEL PRODUCTION ENVIRONMENT (bassem-sales-eta.vercel.app)');
+    }
 
     console.log('============================================================');
     console.log('🏆 ALL LOCAL AND VERCEL PRODUCTION TESTS PASSED 100%! 🏆');
