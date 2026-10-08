@@ -68,6 +68,17 @@ function loadDbStore() {
       const content = fs.readFileSync(DB_FILE, 'utf8');
       const parsed = JSON.parse(content);
       if (parsed && Array.isArray(parsed.chillers) && parsed.chillers.length > 0) {
+        if (!Array.isArray(parsed.agents) || parsed.agents.length === 0) {
+          parsed.agents = [
+            { id: 1, name: 'Ahmed Hassan', area: 'Cairo East (Nasr City, New Cairo)', phone: '+20 100 123 4567', email: 'ahmed.hassan@example.com', created_at: new Date().toISOString() },
+            { id: 2, name: 'Mahmoud Ali', area: 'Giza & 6th of October', phone: '+20 101 234 5678', email: 'mahmoud.ali@example.com', created_at: new Date().toISOString() },
+            { id: 3, name: 'Karim Mostafa', area: 'Alexandria & Coastal', phone: '+20 102 345 6789', email: 'karim.m@example.com', created_at: new Date().toISOString() },
+            { id: 4, name: 'Tarek Ibrahim', area: 'Delta (Delta/Tanta)', phone: '+20 103 456 7890', email: 'tarek.i@example.com', created_at: new Date().toISOString() }
+          ];
+        }
+        if (!Array.isArray(parsed.assignments)) {
+          parsed.assignments = [];
+        }
         return parsed;
       }
     }
@@ -79,7 +90,14 @@ function loadDbStore() {
     columns: [...DEFAULT_COLUMNS],
     batches: [],
     chillers: [],
-    history: []
+    history: [],
+    agents: [
+      { id: 1, name: 'Ahmed Hassan', area: 'Cairo East (Nasr City, New Cairo)', phone: '+20 100 123 4567', email: 'ahmed.hassan@example.com', created_at: new Date().toISOString() },
+      { id: 2, name: 'Mahmoud Ali', area: 'Giza & 6th of October', phone: '+20 101 234 5678', email: 'mahmoud.ali@example.com', created_at: new Date().toISOString() },
+      { id: 3, name: 'Karim Mostafa', area: 'Alexandria & Coastal', phone: '+20 102 345 6789', email: 'karim.m@example.com', created_at: new Date().toISOString() },
+      { id: 4, name: 'Tarek Ibrahim', area: 'Delta (Tanta, Mansoura)', phone: '+20 103 456 7890', email: 'tarek.i@example.com', created_at: new Date().toISOString() }
+    ],
+    assignments: []
   };
 
   try {
@@ -97,10 +115,24 @@ function loadDbStore() {
       if (seed.batches && seed.batches.length > 0) store.batches = seed.batches;
       if (seed.chillers && seed.chillers.length > 0) store.chillers = seed.chillers;
       if (seed.history && seed.history.length > 0) store.history = seed.history;
+      if (seed.agents && seed.agents.length > 0) store.agents = seed.agents;
+      if (seed.assignments && seed.assignments.length > 0) store.assignments = seed.assignments;
       console.log(`✅ Loaded ${store.chillers.length} initial chillers from seedData`);
     }
   } catch (err) {
     console.warn('⚠️ Could not load seedData:', err.message);
+  }
+
+  if (!Array.isArray(store.agents)) {
+    store.agents = [
+      { id: 1, name: 'Ahmed Hassan', area: 'Cairo East (Nasr City, New Cairo)', phone: '+20 100 123 4567', email: 'ahmed.hassan@example.com', created_at: new Date().toISOString() },
+      { id: 2, name: 'Mahmoud Ali', area: 'Giza & 6th of October', phone: '+20 101 234 5678', email: 'mahmoud.ali@example.com', created_at: new Date().toISOString() },
+      { id: 3, name: 'Karim Mostafa', area: 'Alexandria & Coastal', phone: '+20 102 345 6789', email: 'karim.m@example.com', created_at: new Date().toISOString() },
+      { id: 4, name: 'Tarek Ibrahim', area: 'Delta (Tanta, Mansoura)', phone: '+20 103 456 7890', email: 'tarek.i@example.com', created_at: new Date().toISOString() }
+    ];
+  }
+  if (!Array.isArray(store.assignments)) {
+    store.assignments = [];
   }
 
   return store;
@@ -553,6 +585,273 @@ router.get('/delta', (req, res) => {
     added,
     removed,
     modified
+  });
+});
+
+// ==========================================
+// Sales Agents & Assignments Endpoints
+// ==========================================
+
+// GET all sales agents
+router.get('/agents', (req, res) => {
+  const agents = (dbStore.agents || []).map(a => {
+    // calculate how many customers/chillers assigned
+    const assignedCount = (dbStore.assignments || []).filter(as => as.agent_id === a.id).length;
+    return { ...a, assigned_count: assignedCount };
+  });
+  res.json({ success: true, count: agents.length, agents });
+});
+
+// POST create new sales agent
+router.post('/agents', (req, res) => {
+  const { name, area, phone = '', email = '' } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, error: 'Agent name is required' });
+  }
+
+  const newId = (dbStore.agents && dbStore.agents.length > 0)
+    ? Math.max(...dbStore.agents.map(a => a.id || 0)) + 1
+    : 1;
+
+  const newAgent = {
+    id: newId,
+    name: name.trim(),
+    area: (area || '').trim(),
+    phone: (phone || '').trim(),
+    email: (email || '').trim(),
+    created_at: new Date().toISOString()
+  };
+
+  dbStore.agents.push(newAgent);
+  saveDbStore(dbStore);
+  res.json({ success: true, message: `Agent '${newAgent.name}' created successfully`, agent: newAgent });
+});
+
+// PUT update existing sales agent
+router.put('/agents/:id', (req, res) => {
+  const agentId = parseInt(req.params.id);
+  const agent = (dbStore.agents || []).find(a => a.id === agentId);
+  if (!agent) {
+    return res.status(404).json({ success: false, error: `Agent #${agentId} not found` });
+  }
+
+  const { name, area, phone, email } = req.body;
+  if (name !== undefined) agent.name = name.trim();
+  if (area !== undefined) agent.area = (area || '').trim();
+  if (phone !== undefined) agent.phone = (phone || '').trim();
+  if (email !== undefined) agent.email = (email || '').trim();
+
+  // Also update agent_name across assignments
+  if (name !== undefined && dbStore.assignments) {
+    dbStore.assignments.forEach(as => {
+      if (as.agent_id === agentId) {
+        as.agent_name = agent.name;
+        as.agent_area = agent.area;
+      }
+    });
+  }
+
+  saveDbStore(dbStore);
+  res.json({ success: true, message: `Agent #${agentId} updated successfully`, agent });
+});
+
+// DELETE sales agent
+router.delete('/agents/:id', (req, res) => {
+  const agentId = parseInt(req.params.id);
+  const idx = (dbStore.agents || []).findIndex(a => a.id === agentId);
+  if (idx === -1) {
+    return res.status(404).json({ success: false, error: `Agent #${agentId} not found` });
+  }
+
+  const removed = dbStore.agents.splice(idx, 1)[0];
+  // Unassign any customers previously assigned to this agent
+  if (dbStore.assignments) {
+    dbStore.assignments = dbStore.assignments.filter(as => as.agent_id !== agentId);
+  }
+
+  saveDbStore(dbStore);
+  res.json({ success: true, message: `Agent '${removed.name}' deleted successfully`, deletedId: agentId });
+});
+
+// GET assignments
+router.get('/assignments', (req, res) => {
+  res.json({ success: true, count: (dbStore.assignments || []).length, assignments: dbStore.assignments || [] });
+});
+
+// POST assign location(s) / customer(s) to an agent
+router.post('/assignments', (req, res) => {
+  const { agent_id, chiller_codes, chiller_ids, customer_names } = req.body;
+  const agentId = parseInt(agent_id);
+  const agent = (dbStore.agents || []).find(a => a.id === agentId);
+
+  if (!agent) {
+    return res.status(400).json({ success: false, error: 'Valid sales agent ID is required' });
+  }
+
+  if (!Array.isArray(dbStore.assignments)) {
+    dbStore.assignments = [];
+  }
+
+  let assignedCount = 0;
+
+  // Support assigning by customer_names or chiller_codes
+  if (Array.isArray(customer_names) && customer_names.length > 0) {
+    for (const cName of customer_names) {
+      if (!cName) continue;
+      // Remove any existing assignment for this customer name
+      dbStore.assignments = dbStore.assignments.filter(as => as.customer_name?.toLowerCase() !== cName.toLowerCase());
+      dbStore.assignments.push({
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        customer_name: cName,
+        agent_id: agent.id,
+        agent_name: agent.name,
+        agent_area: agent.area,
+        assigned_at: new Date().toISOString()
+      });
+      assignedCount++;
+    }
+  } else if (Array.isArray(chiller_codes) && chiller_codes.length > 0) {
+    for (const code of chiller_codes) {
+      if (!code) continue;
+      // find chiller info
+      const ch = dbStore.chillers.find(c => (c.chiller_code || c.chillerCode) === code);
+      const custName = ch ? (ch.customer_name || ch.customerName) : '';
+
+      dbStore.assignments = dbStore.assignments.filter(as => as.chiller_code !== code);
+      dbStore.assignments.push({
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        chiller_code: code,
+        chiller_id: ch?.id,
+        customer_name: custName,
+        agent_id: agent.id,
+        agent_name: agent.name,
+        agent_area: agent.area,
+        assigned_at: new Date().toISOString()
+      });
+      assignedCount++;
+    }
+  } else {
+    return res.status(400).json({ success: false, error: 'Please provide chiller_codes or customer_names to assign' });
+  }
+
+  saveDbStore(dbStore);
+  res.json({
+    success: true,
+    message: `Successfully assigned ${assignedCount} location(s) to ${agent.name}`,
+    assignedCount,
+    agent
+  });
+});
+
+// DELETE unassign
+router.delete('/assignments', (req, res) => {
+  const { customer_name, chiller_code } = req.body;
+  if (!customer_name && !chiller_code) {
+    return res.status(400).json({ success: false, error: 'customer_name or chiller_code required' });
+  }
+
+  const initialCount = (dbStore.assignments || []).length;
+  if (customer_name) {
+    dbStore.assignments = dbStore.assignments.filter(as => as.customer_name?.toLowerCase() !== customer_name.toLowerCase());
+  } else if (chiller_code) {
+    dbStore.assignments = dbStore.assignments.filter(as => as.chiller_code !== chiller_code);
+  }
+
+  const removedCount = initialCount - dbStore.assignments.length;
+  saveDbStore(dbStore);
+  res.json({ success: true, message: `Removed ${removedCount} assignment(s)`, removedCount });
+});
+
+// GET latest batch chillers with assignment info and customer search
+router.get('/chillers/latest-batch', (req, res) => {
+  const { search, agentId, assignmentStatus } = req.query;
+
+  // Determine latest batch
+  let latestBatchId = null;
+  if (dbStore.batches && dbStore.batches.length > 0) {
+    const sorted = [...dbStore.batches].sort((a, b) => (b.id || 0) - (a.id || 0));
+    latestBatchId = sorted[0].id;
+  }
+
+  let rows = [];
+  if (latestBatchId) {
+    const historicalRows = dbStore.history.filter(h => (h.batch_id || h.batchId) === latestBatchId);
+    if (historicalRows.length > 0) {
+      rows = historicalRows;
+    } else {
+      rows = dbStore.chillers.filter(r => (r.batch_id || r.batchId) === latestBatchId);
+    }
+  } else {
+    rows = [...dbStore.chillers];
+  }
+
+  // Create assignments lookup map
+  const assignmentMap = new Map();
+  (dbStore.assignments || []).forEach(as => {
+    if (as.chiller_code) assignmentMap.set(as.chiller_code, as);
+    if (as.customer_name) assignmentMap.set(as.customer_name.toLowerCase(), as);
+  });
+
+  let chillers = rows.map(r => {
+    const code = r.chiller_code || r.chillerCode;
+    const custName = r.customer_name || r.customerName || '';
+    const assignment = assignmentMap.get(code) || (custName ? assignmentMap.get(custName.toLowerCase()) : null);
+
+    return {
+      id: r.id,
+      chillerCode: code,
+      batchId: r.batch_id || r.batchId,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      customerType: r.customer_type || r.customerType,
+      efficiency: r.efficiency,
+      branch: r.branch,
+      chillerType: r.chiller_type || r.chillerType,
+      chillerStatus: r.chiller_status || r.chillerStatus,
+      condition: r.condition,
+      customerName: custName,
+      customerAddress: r.customer_address || r.customerAddress || '',
+      mobileNumber: r.mobile_number || r.mobileNumber || '',
+      assignedAgentId: assignment?.agent_id || null,
+      assignedAgentName: assignment?.agent_name || null,
+      assignedAgentArea: assignment?.agent_area || null,
+      assignedAt: assignment?.assigned_at || null,
+      rawData: typeof r.raw_data_json === 'string' ? JSON.parse(r.raw_data_json || '{}') : (r.rawData || r.raw_data_json || {})
+    };
+  });
+
+  // Filter by customer name / general search
+  if (search && search.trim()) {
+    const term = search.trim().toLowerCase();
+    chillers = chillers.filter(c =>
+      (c.customerName || '').toLowerCase().includes(term) ||
+      (c.chillerCode || '').toLowerCase().includes(term) ||
+      (c.branch || '').toLowerCase().includes(term) ||
+      (c.customerAddress || '').toLowerCase().includes(term)
+    );
+  }
+
+  // Filter by assignment status
+  if (assignmentStatus === 'assigned') {
+    chillers = chillers.filter(c => c.assignedAgentId !== null);
+  } else if (assignmentStatus === 'unassigned') {
+    chillers = chillers.filter(c => c.assignedAgentId === null);
+  }
+
+  // Filter by specific agent
+  if (agentId && agentId !== 'All') {
+    const aId = parseInt(agentId);
+    chillers = chillers.filter(c => c.assignedAgentId === aId);
+  }
+
+  const latestBatch = dbStore.batches.find(b => b.id === latestBatchId) || null;
+
+  res.json({
+    success: true,
+    latestBatchId,
+    latestBatch,
+    count: chillers.length,
+    chillers
   });
 });
 

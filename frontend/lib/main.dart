@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'views/map_view.dart';
 import 'views/upload_view.dart';
 import 'views/batch_manager_view.dart';
+import 'views/assign_locations_view.dart';
+import 'views/agents_view.dart';
 import 'views/delta_view.dart';
 import 'views/columns_view.dart';
 import 'views/data_table_view.dart';
@@ -42,6 +44,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   final GlobalKey<MapViewScreenState> _mapKey = GlobalKey<MapViewScreenState>();
   final GlobalKey<BatchManagerViewScreenState> _batchManagerKey = GlobalKey<BatchManagerViewScreenState>();
+  final GlobalKey<AssignLocationsViewScreenState> _assignKey = GlobalKey<AssignLocationsViewScreenState>();
+  final GlobalKey<AgentsViewScreenState> _agentsKey = GlobalKey<AgentsViewScreenState>();
   final GlobalKey<DeltaViewScreenState> _deltaKey = GlobalKey<DeltaViewScreenState>();
   final GlobalKey<DataTableViewScreenState> _tableKey = GlobalKey<DataTableViewScreenState>();
 
@@ -69,6 +73,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       MapViewScreen(key: _mapKey),
       UploadViewScreen(onUploadSuccess: _onUploadSuccess),
       BatchManagerViewScreen(key: _batchManagerKey, onOpenBatch: _onOpenBatch),
+      AssignLocationsViewScreen(key: _assignKey),
+      AgentsViewScreen(key: _agentsKey),
       DeltaViewScreen(key: _deltaKey),
       const ColumnsViewScreen(),
       DataTableViewScreen(key: _tableKey),
@@ -119,8 +125,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 } else if (index == 2) {
                   _batchManagerKey.currentState?.reload();
                 } else if (index == 3) {
-                  _deltaKey.currentState?.reload();
+                  _assignKey.currentState?.reload();
+                } else if (index == 4) {
+                  _agentsKey.currentState?.reload();
                 } else if (index == 5) {
+                  _deltaKey.currentState?.reload();
+                } else if (index == 7) {
                   _tableKey.currentState?.reload();
                 }
               });
@@ -146,6 +156,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 icon: Icon(Icons.folder_copy_outlined),
                 selectedIcon: Icon(Icons.folder_copy),
                 label: Text('Batch Manager'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.assignment_ind_outlined),
+                selectedIcon: Icon(Icons.assignment_ind),
+                label: Text('Assign Locations'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.badge_outlined),
+                selectedIcon: Icon(Icons.badge),
+                label: Text('Sales Agents'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.compare_arrows_outlined),

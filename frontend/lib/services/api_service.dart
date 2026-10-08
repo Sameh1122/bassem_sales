@@ -331,4 +331,125 @@ class ApiService {
     final response = await http.delete(Uri.parse('$baseUrl/chillers/clear'));
     return response.statusCode == 200;
   }
+
+  // ==========================================
+  // Sales Agents Methods
+  // ==========================================
+
+  static Future<List<dynamic>> fetchAgents() async {
+    final response = await http.get(Uri.parse('$baseUrl/agents'));
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded.containsKey('agents')) {
+      return decoded['agents'] ?? [];
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to fetch sales agents');
+  }
+
+  static Future<Map<String, dynamic>> createAgent({
+    required String name,
+    required String area,
+    String phone = '',
+    String email = '',
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/agents'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': name,
+        'area': area,
+        'phone': phone,
+        'email': email,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to create sales agent');
+  }
+
+  static Future<Map<String, dynamic>> updateAgent({
+    required int id,
+    required String name,
+    required String area,
+    String phone = '',
+    String email = '',
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/agents/$id'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': name,
+        'area': area,
+        'phone': phone,
+        'email': email,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to update sales agent');
+  }
+
+  static Future<bool> deleteAgent(int id) async {
+    final response = await http.delete(Uri.parse('$baseUrl/agents/$id'));
+    return response.statusCode == 200;
+  }
+
+  // ==========================================
+  // Location Assignments Methods
+  // ==========================================
+
+  static Future<Map<String, dynamic>> fetchLatestBatchChillers({
+    String search = '',
+    String agentId = 'All',
+    String assignmentStatus = 'all',
+  }) async {
+    final uri = Uri.parse('$baseUrl/chillers/latest-batch').replace(queryParameters: {
+      if (search.isNotEmpty) 'search': search,
+      if (agentId != 'All') 'agentId': agentId,
+      if (assignmentStatus != 'all') 'assignmentStatus': assignmentStatus,
+    });
+
+    final response = await http.get(uri);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to fetch latest batch chillers');
+  }
+
+  static Future<Map<String, dynamic>> assignLocations({
+    required int agentId,
+    List<String>? chillerCodes,
+    List<String>? customerNames,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/assignments'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'agent_id': agentId,
+        if (chillerCodes != null) 'chiller_codes': chillerCodes,
+        if (customerNames != null) 'customer_names': customerNames,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to assign locations');
+  }
+
+  static Future<bool> unassignLocation({String? customerName, String? chillerCode}) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/assignments'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        if (customerName != null) 'customer_name': customerName,
+        if (chillerCode != null) 'chiller_code': chillerCode,
+      }),
+    );
+    return response.statusCode == 200;
+  }
 }
