@@ -159,11 +159,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
     // Clamp current index if user switched roles
     final safeIndex = _currentIndex.clamp(0, screens.length - 1);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isMobile = screenWidth < 768;
+    final bool isDesktop = screenWidth >= 1100;
 
     return Scaffold(
+      drawer: (isMobile && isAdmin) ? _buildDrawer(context, safeIndex) : null,
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
+        leading: (isMobile && isAdmin)
+            ? Builder(
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu, color: Colors.cyan),
+                  tooltip: 'Navigation Menu',
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                ),
+              )
+            : null,
         title: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -174,19 +187,21 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   gradient: const LinearGradient(colors: [Color(0xFF06B6D4), Color(0xFF10B981)]),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.analytics_outlined, color: Colors.black, size: 22),
+                child: const Icon(Icons.analytics_outlined, color: Colors.black, size: 20),
               ),
-              const SizedBox(width: 12),
-              const Text(
-                'Excel Map Analytics Platform',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+              const SizedBox(width: 10),
+              Text(
+                isMobile ? 'Sales Analytics' : 'Excel Map Analytics Platform',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: Colors.cyan.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
-                child: const Text('Node.js + Flutter + SQLite', style: TextStyle(color: Colors.cyan, fontSize: 11)),
-              ),
+              if (!isMobile) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.cyan.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
+                  child: const Text('Node.js + Flutter + SQLite', style: TextStyle(color: Colors.cyan, fontSize: 11)),
+                ),
+              ],
             ],
           ),
         ),
@@ -194,7 +209,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           // Current User & Role Badge
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: isAdmin
                   ? const Color(0xFF06B6D4).withValues(alpha: 0.15)
@@ -209,12 +224,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               children: [
                 Icon(
                   isAdmin ? Icons.admin_panel_settings : Icons.person,
-                  size: 16,
+                  size: 15,
                   color: isAdmin ? const Color(0xFF06B6D4) : const Color(0xFF10B981),
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '$roleName: $displayName${agentArea != null && agentArea.isNotEmpty ? ' ($agentArea)' : ''}',
+                  isMobile ? displayName : '$roleName: $displayName${agentArea != null && agentArea.isNotEmpty ? ' ($agentArea)' : ''}',
                   style: TextStyle(
                     color: isAdmin ? const Color(0xFF06B6D4) : const Color(0xFF10B981),
                     fontSize: 12,
@@ -236,53 +251,184 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               });
             },
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
         ],
       ),
-      body: Row(
-        children: [
-          // Sidebar Navigation Drawer
-          NavigationRail(
-            backgroundColor: const Color(0xFF1E293B),
-            selectedIndex: safeIndex,
-            onDestinationSelected: (index) {
-              setState(() => _currentIndex = index);
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (index == 0) {
-                  _mapKey.currentState?.reload();
-                } else if (isAdmin) {
-                  if (index == 2) {
-                    _batchManagerKey.currentState?.reload();
-                  } else if (index == 3) {
-                    _assignKey.currentState?.reload();
-                  } else if (index == 4) {
-                    _agentsKey.currentState?.reload();
-                  } else if (index == 5) {
-                    _deltaKey.currentState?.reload();
-                  } else if (index == 7) {
-                    _tableKey.currentState?.reload();
-                  }
-                }
-              });
-            },
-            extended: true,
-            minExtendedWidth: 220,
-            selectedIconTheme: const IconThemeData(color: Colors.cyan),
-            selectedLabelTextStyle: const TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
-            unselectedIconTheme: const IconThemeData(color: Colors.white60),
-            unselectedLabelTextStyle: const TextStyle(color: Colors.white60),
-            destinations: destinations,
-          ),
-          const VerticalDivider(thickness: 1, width: 1, color: Colors.white12),
-
-          // Main View Content
-          Expanded(
-            child: IndexedStack(
+      body: isMobile
+          ? IndexedStack(
               index: safeIndex,
               children: screens,
+            )
+          : Row(
+              children: [
+                // Sidebar Navigation Drawer
+                NavigationRail(
+                  backgroundColor: const Color(0xFF1E293B),
+                  selectedIndex: safeIndex,
+                  onDestinationSelected: (index) => _onSelectDestination(index, isAdmin),
+                  extended: isDesktop,
+                  minExtendedWidth: 220,
+                  selectedIconTheme: const IconThemeData(color: Colors.cyan),
+                  selectedLabelTextStyle: const TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
+                  unselectedIconTheme: const IconThemeData(color: Colors.white60),
+                  unselectedLabelTextStyle: const TextStyle(color: Colors.white60),
+                  destinations: destinations,
+                ),
+                const VerticalDivider(thickness: 1, width: 1, color: Colors.white12),
+
+                // Main View Content
+                Expanded(
+                  child: IndexedStack(
+                    index: safeIndex,
+                    children: screens,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+    );
+  }
+
+  void _onSelectDestination(int index, bool isAdmin) {
+    setState(() => _currentIndex = index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (index == 0) {
+        _mapKey.currentState?.reload();
+      } else if (isAdmin) {
+        if (index == 2) {
+          _batchManagerKey.currentState?.reload();
+        } else if (index == 3) {
+          _assignKey.currentState?.reload();
+        } else if (index == 4) {
+          _agentsKey.currentState?.reload();
+        } else if (index == 5) {
+          _deltaKey.currentState?.reload();
+        } else if (index == 7) {
+          _tableKey.currentState?.reload();
+        }
+      }
+    });
+  }
+
+  Widget _buildDrawer(BuildContext context, int safeIndex) {
+    final currentUser = ApiService.currentUser ?? {};
+    final displayName = (currentUser['name'] ?? currentUser['email'] ?? 'User').toString();
+    final email = (currentUser['login_email'] ?? currentUser['email'] ?? '').toString();
+
+    final List<Map<String, dynamic>> menuItems = [
+      {'icon': Icons.map_outlined, 'activeIcon': Icons.map, 'label': 'Map View'},
+      {'icon': Icons.upload_file_outlined, 'activeIcon': Icons.upload_file, 'label': 'Upload & Validate'},
+      {'icon': Icons.folder_copy_outlined, 'activeIcon': Icons.folder_copy, 'label': 'Batch Manager'},
+      {'icon': Icons.assignment_ind_outlined, 'activeIcon': Icons.assignment_ind, 'label': 'Assign Locations'},
+      {'icon': Icons.badge_outlined, 'activeIcon': Icons.badge, 'label': 'Sales Agents'},
+      {'icon': Icons.compare_arrows_outlined, 'activeIcon': Icons.compare_arrows, 'label': 'Delta Changes'},
+      {'icon': Icons.view_column_outlined, 'activeIcon': Icons.view_column, 'label': 'Column Manager'},
+      {'icon': Icons.table_chart_outlined, 'activeIcon': Icons.table_chart, 'label': 'Data Table'},
+    ];
+
+    return Drawer(
+      backgroundColor: const Color(0xFF0F172A),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E293B),
+                border: Border(bottom: BorderSide(color: Colors.white12)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFF06B6D4), Color(0xFF10B981)]),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.analytics_outlined, color: Colors.black, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Excel Map Analytics',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Admin: $displayName',
+                          style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (email.isNotEmpty)
+                          Text(
+                            email,
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: menuItems.length,
+                itemBuilder: (ctx, index) {
+                  final item = menuItems[index];
+                  final isSelected = safeIndex == index;
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFF06B6D4).withValues(alpha: 0.15) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: isSelected ? Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.4)) : null,
+                    ),
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(
+                        isSelected ? item['activeIcon'] : item['icon'],
+                        color: isSelected ? const Color(0xFF06B6D4) : Colors.white70,
+                        size: 20,
+                      ),
+                      title: Text(
+                        item['label'],
+                        style: TextStyle(
+                          color: isSelected ? const Color(0xFF06B6D4) : Colors.white,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 14,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _onSelectDestination(index, true);
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.white12)),
+              ),
+              child: ListTile(
+                dense: true,
+                leading: const Icon(Icons.logout, color: Colors.redAccent, size: 20),
+                title: const Text('Sign Out', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  ApiService.logout();
+                  setState(() => _currentIndex = 0);
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

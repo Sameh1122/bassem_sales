@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -184,19 +185,19 @@ class MapViewScreenState extends State<MapViewScreen> {
           ],
         ),
         content: SizedBox(
-          width: 580,
+          width: math.min(580.0, MediaQuery.of(context).size.width - 32),
           height: 440,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Quick Badges
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
                   children: [
                     _buildBadge('Efficiency: $efficiency', _getMarkerColor(efficiency)),
-                    const SizedBox(width: 8),
                     _buildBadge('Type: $customerType', Colors.cyan),
-                    const SizedBox(width: 8),
                     _buildBadge('Status: $status', Colors.purpleAccent),
                   ],
                 ),
@@ -210,8 +211,11 @@ class MapViewScreenState extends State<MapViewScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFF4285F4).withOpacity(0.4)),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 12,
+                    runSpacing: 10,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,8 +389,10 @@ class MapViewScreenState extends State<MapViewScreen> {
                   ),
 
                   // Filters
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       // Efficiency Filter
                       Container(
@@ -414,7 +420,6 @@ class MapViewScreenState extends State<MapViewScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
 
                       // Customer Type Filter
                       Container(
@@ -442,7 +447,6 @@ class MapViewScreenState extends State<MapViewScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
 
                       // Upload Batch / Date Filter
                       Container(
@@ -486,38 +490,38 @@ class MapViewScreenState extends State<MapViewScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-
 
                       // Search box
-                      SizedBox(
-                        width: 200,
-                        height: 40,
-                        child: TextField(
-                          controller: _searchController,
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
-                          decoration: InputDecoration(
-                            hintText: 'Search code/customer...',
-                            hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
-                            filled: true,
-                            fillColor: const Color(0xFF0F172A),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white24)),
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.search, color: Colors.cyan, size: 18),
-                              onPressed: () {
-                                setState(() => _searchQuery = _searchController.text.trim());
-                                _loadChillers();
-                              },
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 150, maxWidth: 200),
+                        child: SizedBox(
+                          height: 40,
+                          child: TextField(
+                            controller: _searchController,
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: 'Search code/customer...',
+                              hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                              filled: true,
+                              fillColor: const Color(0xFF0F172A),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white24)),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.search, color: Colors.cyan, size: 18),
+                                onPressed: () {
+                                  setState(() => _searchQuery = _searchController.text.trim());
+                                  _loadChillers();
+                                },
+                              ),
                             ),
+                            onSubmitted: (val) {
+                              setState(() => _searchQuery = val.trim());
+                              _loadChillers();
+                            },
                           ),
-                          onSubmitted: (val) {
-                            setState(() => _searchQuery = val.trim());
-                            _loadChillers();
-                          },
                         ),
                       ),
-                      const SizedBox(width: 8),
+
                       Container(
                         decoration: BoxDecoration(
                           color: const Color(0xFF0F172A),

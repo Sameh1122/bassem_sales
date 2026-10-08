@@ -103,86 +103,102 @@ class DeltaViewScreenState extends State<DeltaViewScreen> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white12),
               ),
-              child: Row(
-                children: [
-                  // Start Batch Dropdown
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Start Snapshot Batch (Baseline):', style: TextStyle(color: Colors.cyan, fontSize: 12, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white24)),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<int>(
-                              value: _startBatchId,
-                              isExpanded: true,
-                              dropdownColor: const Color(0xFF1E293B),
-                              style: const TextStyle(color: Colors.white, fontSize: 13),
-                              items: _batches.map<DropdownMenuItem<int>>((b) {
-                                return DropdownMenuItem<int>(
-                                  value: b['id'],
-                                  child: Text('Batch #${b['id']} - ${b['filename']} (${b['uploaded_at']})'),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                setState(() => _startBatchId = val);
-                              },
-                            ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final bool isNarrow = constraints.maxWidth < 750;
+
+                  final startDropdown = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Start Snapshot Batch (Baseline):', style: TextStyle(color: Colors.cyan, fontSize: 12, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white24)),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _startBatchId,
+                            isExpanded: true,
+                            dropdownColor: const Color(0xFF1E293B),
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            items: _batches.map<DropdownMenuItem<int>>((b) {
+                              return DropdownMenuItem<int>(
+                                value: b['id'],
+                                child: Text('Batch #${b['id']} - ${b['filename']} (${b['uploaded_at']})'),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              setState(() => _startBatchId = val);
+                            },
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 20),
+                      ),
+                    ],
+                  );
 
-                  // End Batch Dropdown
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('End Snapshot Batch (Comparison):', style: TextStyle(color: Colors.cyan, fontSize: 12, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white24)),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<int>(
-                              value: _endBatchId,
-                              isExpanded: true,
-                              dropdownColor: const Color(0xFF1E293B),
-                              style: const TextStyle(color: Colors.white, fontSize: 13),
-                              items: _batches.map<DropdownMenuItem<int>>((b) {
-                                return DropdownMenuItem<int>(
-                                  value: b['id'],
-                                  child: Text('Batch #${b['id']} - ${b['filename']} (${b['uploaded_at']})'),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                setState(() => _endBatchId = val);
-                              },
-                            ),
+                  final endDropdown = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('End Snapshot Batch (Comparison):', style: TextStyle(color: Colors.cyan, fontSize: 12, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white24)),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _endBatchId,
+                            isExpanded: true,
+                            dropdownColor: const Color(0xFF1E293B),
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            items: _batches.map<DropdownMenuItem<int>>((b) {
+                              return DropdownMenuItem<int>(
+                                value: b['id'],
+                                child: Text('Batch #${b['id']} - ${b['filename']} (${b['uploaded_at']})'),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              setState(() => _endBatchId = val);
+                            },
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 20),
+                      ),
+                    ],
+                  );
 
-                  // Run Compare Button
-                  ElevatedButton.icon(
+                  final compareBtn = ElevatedButton.icon(
                     onPressed: _isLoading ? null : _compareDelta,
                     icon: const Icon(Icons.compare_arrows, color: Colors.black),
                     label: const Text('Compare Delta', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF06B6D4),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                  ),
-                ],
+                  );
+
+                  if (isNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        startDropdown,
+                        const SizedBox(height: 12),
+                        endDropdown,
+                        const SizedBox(height: 16),
+                        compareBtn,
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: startDropdown),
+                      const SizedBox(width: 20),
+                      Expanded(child: endDropdown),
+                      const SizedBox(width: 20),
+                      compareBtn,
+                    ],
+                  );
+                },
               ),
             ),
             const SizedBox(height: 24),
@@ -191,16 +207,36 @@ class DeltaViewScreenState extends State<DeltaViewScreen> {
               const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: Colors.cyan)))
             else if (_deltaResult != null) ...[
               // KPI Stat Cards
-              Row(
-                children: [
-                  _buildDeltaStatCard('+ Added', '${summary['addedCount'] ?? 0}', const Color(0xFF10B981), Icons.add_circle_outline),
-                  const SizedBox(width: 16),
-                  _buildDeltaStatCard('- Removed', '${summary['removedCount'] ?? 0}', const Color(0xFFEF4444), Icons.remove_circle_outline),
-                  const SizedBox(width: 16),
-                  _buildDeltaStatCard('Δ Modified', '${summary['modifiedCount'] ?? 0}', const Color(0xFFF59E0B), Icons.published_with_changes),
-                  const SizedBox(width: 16),
-                  _buildDeltaStatCard('= Unchanged', '${summary['unchangedCount'] ?? 0}', Colors.blueAccent, Icons.drag_handle),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final bool isSmall = constraints.maxWidth < 650;
+                  final double cardWidth = isSmall ? (constraints.maxWidth - 12) / 2 : 0;
+
+                  if (isSmall) {
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _buildDeltaStatCard('+ Added', '${summary['addedCount'] ?? 0}', const Color(0xFF10B981), Icons.add_circle_outline, width: cardWidth),
+                        _buildDeltaStatCard('- Removed', '${summary['removedCount'] ?? 0}', const Color(0xFFEF4444), Icons.remove_circle_outline, width: cardWidth),
+                        _buildDeltaStatCard('Δ Modified', '${summary['modifiedCount'] ?? 0}', const Color(0xFFF59E0B), Icons.published_with_changes, width: cardWidth),
+                        _buildDeltaStatCard('= Unchanged', '${summary['unchangedCount'] ?? 0}', Colors.blueAccent, Icons.drag_handle, width: cardWidth),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      _buildDeltaStatCard('+ Added', '${summary['addedCount'] ?? 0}', const Color(0xFF10B981), Icons.add_circle_outline),
+                      const SizedBox(width: 16),
+                      _buildDeltaStatCard('- Removed', '${summary['removedCount'] ?? 0}', const Color(0xFFEF4444), Icons.remove_circle_outline),
+                      const SizedBox(width: 16),
+                      _buildDeltaStatCard('Δ Modified', '${summary['modifiedCount'] ?? 0}', const Color(0xFFF59E0B), Icons.published_with_changes),
+                      const SizedBox(width: 16),
+                      _buildDeltaStatCard('= Unchanged', '${summary['unchangedCount'] ?? 0}', Colors.blueAccent, Icons.drag_handle),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 32),
 
@@ -285,36 +321,39 @@ class DeltaViewScreenState extends State<DeltaViewScreen> {
     );
   }
 
-  Widget _buildDeltaStatCard(String label, String value, Color color, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, color: color, size: 24),
+  Widget _buildDeltaStatCard(String label, String value, Color color, IconData icon, {double? width}) {
+    final card = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                const SizedBox(height: 2),
+                Text(value, style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold)),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
-                  const SizedBox(height: 2),
-                  Text(value, style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+
+    if (width != null) {
+      return SizedBox(width: width, child: card);
+    }
+    return Expanded(child: card);
   }
 }

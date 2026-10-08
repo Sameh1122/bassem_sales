@@ -229,13 +229,17 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header Bar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
+            runSpacing: 12,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
@@ -259,10 +263,12 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                   ),
                   const SizedBox(height: 8),
                   // Target Batch Selector
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 6,
+                    runSpacing: 4,
                     children: [
                       const Icon(Icons.inventory_2_outlined, color: Colors.white54, size: 16),
-                      const SizedBox(width: 6),
                       const Text('Target Batch: ', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -296,7 +302,10 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                   ),
                 ],
               ),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   ElevatedButton.icon(
                     onPressed: _loadData,
@@ -310,7 +319,6 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                     ),
                   ),
                   if (_selectedChillerCodes.isNotEmpty) ...[
-                    const SizedBox(width: 12),
                     ElevatedButton.icon(
                       onPressed: () {
                         final selectedRows = _chillers.where((c) => _selectedChillerCodes.contains(c['chillerCode'])).toList();
@@ -329,7 +337,6 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
-                    const SizedBox(width: 8),
                     OutlinedButton(
                       onPressed: () => setState(() => _selectedChillerCodes.clear()),
                       style: OutlinedButton.styleFrom(
@@ -360,10 +367,11 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 // Search by Customer Name
-                SizedBox(
-                  width: 320,
-                  height: 42,
-                  child: TextField(
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 180, maxWidth: 320),
+                  child: SizedBox(
+                    height: 42,
+                    child: TextField(
                     controller: _searchController,
                     onChanged: (v) {
                       setState(() {
@@ -399,6 +407,7 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                     ),
                   ),
                 ),
+              ),
 
                 // Assignment Status Filter
                 Container(

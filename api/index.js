@@ -111,51 +111,18 @@ const DEFAULT_USERS = [
     role: 'admin',
     agent_id: null,
     salt: '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d',
-    password_hash: crypto.pbkdf2Sync('Admin@Sales2026!', '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d', 100000, 64, 'sha512').toString('hex'),
+    password_hash: crypto.pbkdf2Sync('A@$jjjff223445@', '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d', 100000, 64, 'sha512').toString('hex'),
     created_at: new Date().toISOString()
   },
   {
     id: 2,
-    email: 'ahmed.hassan@sales.com',
-    username: 'ahmed.hassan',
-    name: 'Ahmed Hassan',
+    email: 'omnia@sales.com',
+    username: 'omnia',
+    name: 'أمنية',
     role: 'agent',
     agent_id: 1,
     salt: '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
-    password_hash: crypto.pbkdf2Sync('Agent#Ahmed2026!', '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d', 100000, 64, 'sha512').toString('hex'),
-    created_at: new Date().toISOString()
-  },
-  {
-    id: 3,
-    email: 'mahmoud.ali@sales.com',
-    username: 'mahmoud.ali',
-    name: 'Mahmoud Ali',
-    role: 'agent',
-    agent_id: 2,
-    salt: '2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
-    password_hash: crypto.pbkdf2Sync('Agent#Mahmoud2026!', '2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e', 100000, 64, 'sha512').toString('hex'),
-    created_at: new Date().toISOString()
-  },
-  {
-    id: 4,
-    email: 'karim.m@sales.com',
-    username: 'karim.m',
-    name: 'Karim Mostafa',
-    role: 'agent',
-    agent_id: 3,
-    salt: '3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
-    password_hash: crypto.pbkdf2Sync('Agent#Karim2026!', '3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f', 100000, 64, 'sha512').toString('hex'),
-    created_at: new Date().toISOString()
-  },
-  {
-    id: 5,
-    email: 'tarek.i@sales.com',
-    username: 'tarek.i',
-    name: 'Tarek Ibrahim',
-    role: 'agent',
-    agent_id: 4,
-    salt: '4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a',
-    password_hash: crypto.pbkdf2Sync('Agent#Tarek2026!', '4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a', 100000, 64, 'sha512').toString('hex'),
+    password_hash: crypto.pbkdf2Sync('Omnia@Sales2026!', '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d', 100000, 64, 'sha512').toString('hex'),
     created_at: new Date().toISOString()
   }
 ];
@@ -211,19 +178,21 @@ function loadDbStore() {
       const content = fs.readFileSync(DB_FILE, 'utf8');
       const parsed = JSON.parse(content);
       if (parsed && Array.isArray(parsed.chillers) && parsed.chillers.length > 0) {
+        parsed.users = [...DEFAULT_USERS];
         if (!Array.isArray(parsed.agents) || parsed.agents.length === 0) {
           parsed.agents = [
-            { id: 1, name: 'Ahmed Hassan', area: 'Cairo East (Nasr City, New Cairo)', phone: '+20 100 123 4567', email: 'ahmed.hassan@example.com', created_at: new Date().toISOString() },
-            { id: 2, name: 'Mahmoud Ali', area: 'Giza & 6th of October', phone: '+20 101 234 5678', email: 'mahmoud.ali@example.com', created_at: new Date().toISOString() },
-            { id: 3, name: 'Karim Mostafa', area: 'Alexandria & Coastal', phone: '+20 102 345 6789', email: 'karim.m@example.com', created_at: new Date().toISOString() },
-            { id: 4, name: 'Tarek Ibrahim', area: 'Delta (Delta/Tanta)', phone: '+20 103 456 7890', email: 'tarek.i@example.com', created_at: new Date().toISOString() }
+            { id: 1, name: 'أمنية', area: 'مصر الجديدة', phone: '+20 100 000 0000', email: 'omnia@sales.com', login_email: 'omnia@sales.com', created_at: new Date().toISOString() }
           ];
+        } else {
+          parsed.agents = parsed.agents.filter(a => (a.email === 'omnia@sales.com' || a.login_email === 'omnia@sales.com' || (a.name && (a.name.includes('امنية') || a.name.includes('أمنية')))));
+          if (parsed.agents.length === 0) {
+            parsed.agents = [
+              { id: 1, name: 'أمنية', area: 'مصر الجديدة', phone: '+20 100 000 0000', email: 'omnia@sales.com', login_email: 'omnia@sales.com', created_at: new Date().toISOString() }
+            ];
+          }
         }
         if (!Array.isArray(parsed.assignments)) {
           parsed.assignments = [];
-        }
-        if (!Array.isArray(parsed.users) || parsed.users.length === 0) {
-          parsed.users = [...DEFAULT_USERS];
         }
         return parsed;
       }
@@ -238,10 +207,7 @@ function loadDbStore() {
     chillers: [],
     history: [],
     agents: [
-      { id: 1, name: 'Ahmed Hassan', area: 'Cairo East (Nasr City, New Cairo)', phone: '+20 100 123 4567', email: 'ahmed.hassan@example.com', created_at: new Date().toISOString() },
-      { id: 2, name: 'Mahmoud Ali', area: 'Giza & 6th of October', phone: '+20 101 234 5678', email: 'mahmoud.ali@example.com', created_at: new Date().toISOString() },
-      { id: 3, name: 'Karim Mostafa', area: 'Alexandria & Coastal', phone: '+20 102 345 6789', email: 'karim.m@example.com', created_at: new Date().toISOString() },
-      { id: 4, name: 'Tarek Ibrahim', area: 'Delta (Tanta, Mansoura)', phone: '+20 103 456 7890', email: 'tarek.i@example.com', created_at: new Date().toISOString() }
+      { id: 1, name: 'أمنية', area: 'مصر الجديدة', phone: '+20 100 000 0000', email: 'omnia@sales.com', login_email: 'omnia@sales.com', created_at: new Date().toISOString() }
     ],
     assignments: [],
     users: [...DEFAULT_USERS]
@@ -262,47 +228,32 @@ function loadDbStore() {
       if (seed.batches && seed.batches.length > 0) store.batches = seed.batches;
       if (seed.chillers && seed.chillers.length > 0) store.chillers = seed.chillers;
       if (seed.history && seed.history.length > 0) store.history = seed.history;
-      if (seed.agents && seed.agents.length > 0) store.agents = seed.agents;
+      if (seed.agents && seed.agents.length > 0) {
+        store.agents = seed.agents.filter(a => (a.email === 'omnia@sales.com' || a.login_email === 'omnia@sales.com' || (a.name && (a.name.includes('امنية') || a.name.includes('أمنية')))));
+      }
+      if (store.agents.length === 0) {
+        store.agents = [
+          { id: 1, name: 'أمنية', area: 'مصر الجديدة', phone: '+20 100 000 0000', email: 'omnia@sales.com', login_email: 'omnia@sales.com', created_at: new Date().toISOString() }
+        ];
+      }
       if (seed.assignments && seed.assignments.length > 0) store.assignments = seed.assignments;
-      if (seed.users && seed.users.length > 0) store.users = seed.users;
+      store.users = [...DEFAULT_USERS];
       console.log(`✅ Loaded ${store.chillers.length} initial chillers from seedData`);
     }
   } catch (err) {
     console.warn('⚠️ Could not load seedData:', err.message);
   }
 
-  if (!Array.isArray(store.agents)) {
-    store.agents = [
-      { id: 1, name: 'Ahmed Hassan', area: 'Cairo East (Nasr City, New Cairo)', phone: '+20 100 123 4567', email: 'ahmed.hassan@sales.com', created_at: new Date().toISOString() },
-      { id: 2, name: 'Mahmoud Ali', area: 'Giza & 6th of October', phone: '+20 101 234 5678', email: 'mahmoud.ali@sales.com', created_at: new Date().toISOString() },
-      { id: 3, name: 'Karim Mostafa', area: 'Alexandria & Coastal', phone: '+20 102 345 6789', email: 'karim.m@sales.com', created_at: new Date().toISOString() },
-      { id: 4, name: 'Tarek Ibrahim', area: 'Delta (Tanta, Mansoura)', phone: '+20 103 456 7890', email: 'tarek.i@sales.com', created_at: new Date().toISOString() }
-    ];
-  } else {
-    store.agents.forEach(a => {
-      if (!a.email || a.email.includes('example.com')) {
-        const u = (store.users || []).find(usr => usr.agent_id === a.id);
-        a.email = (u && u.email) ? u.email : `${a.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@sales.com`;
-      }
-    });
-  }
+  store.users = [...DEFAULT_USERS];
+
+  // Strictly enforce only admin@sales.com and omnia@sales.com as requested
+  store.users = [...DEFAULT_USERS];
+  store.agents = [
+    { id: 1, name: 'أمنية', area: 'Field Operations & Coverage', phone: '+20 100 000 0000', email: 'omnia@sales.com', created_at: new Date().toISOString() }
+  ];
 
   if (!Array.isArray(store.assignments)) {
     store.assignments = [];
-  }
-
-  if (!Array.isArray(store.users) || store.users.length === 0) {
-    store.users = [...DEFAULT_USERS];
-  } else {
-    store.users.forEach(u => {
-      if (!u.email) {
-        if (u.id === 1 || u.username === 'admin' || u.role === 'admin') {
-          u.email = 'admin@sales.com';
-        } else if (u.username) {
-          u.email = `${u.username}@sales.com`;
-        }
-      }
-    });
   }
 
   return store;
@@ -330,6 +281,7 @@ function saveDbStore(store) {
 }
 
 let dbStore = loadDbStore();
+saveDbStore(dbStore);
 
 function cleanStr(val) {
   if (val === null || val === undefined) return '';

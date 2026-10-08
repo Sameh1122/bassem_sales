@@ -64,6 +64,9 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final bool isMobile = screenWidth < 600;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0B1120),
       body: Stack(
@@ -107,11 +110,14 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
           // Main Center Content
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 16 : 24,
+                vertical: isMobile ? 20 : 36,
+              ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 460),
                 child: Container(
-                  padding: const EdgeInsets.all(36),
+                  padding: EdgeInsets.all(isMobile ? 22 : 36),
                   decoration: BoxDecoration(
                     color: const Color(0xFF131D31).withValues(alpha: 0.95),
                     borderRadius: BorderRadius.circular(24),
@@ -401,20 +407,14 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
                               _buildCredentialTile(
                                 role: 'Admin (All Permissions)',
                                 email: 'admin@sales.com',
-                                pass: 'Admin@Sales2026!',
+                                pass: 'A@\$jjjff223445@',
                                 isPrimary: true,
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 8),
                               _buildCredentialTile(
-                                role: 'Agent Ahmed Hassan',
-                                email: 'ahmed.hassan@sales.com',
-                                pass: 'Agent#Ahmed2026!',
-                              ),
-                              const SizedBox(height: 6),
-                              _buildCredentialTile(
-                                role: 'Agent Mahmoud Ali',
-                                email: 'mahmoud.ali@sales.com',
-                                pass: 'Agent#Mahmoud2026!',
+                                role: 'Agent Omnia (أمنية)',
+                                email: 'omnia@sales.com',
+                                pass: 'Omnia@Sales2026!',
                               ),
                             ],
                           ),

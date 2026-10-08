@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
@@ -73,7 +74,7 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
             ],
           ),
           content: SizedBox(
-            width: 440,
+            width: math.min(440.0, MediaQuery.of(ctx).size.width - 32),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -350,58 +351,63 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
               ),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Login Email: ${agent['login_email'] ?? agent['email'] ?? ''}',
-                style: const TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              const SizedBox(height: 14),
-              const Text('New Password', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: passwordController,
-                obscureText: obscure,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: 'e.g. Agent#2026Pass!',
-                  hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
-                  prefixIcon: const Icon(Icons.lock_outline, color: Colors.white54, size: 20),
-                  suffixIcon: IconButton(
-                    icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.white54, size: 18),
-                    onPressed: () => setDialogState(() => obscure = !obscure),
+          content: SizedBox(
+            width: math.min(420.0, MediaQuery.of(ctx).size.width - 32),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Login Email: ${agent['login_email'] ?? agent['email'] ?? ''}',
+                    style: const TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold, fontSize: 13),
                   ),
-                  filled: true,
-                  fillColor: const Color(0xFF0F172A),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
-                ),
-              ),
-              if (localError != null) ...[
-                const SizedBox(height: 10),
-                Text(localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-              ],
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('Password Requirements:', style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 4),
-                    Text('• Minimum 8 characters', style: TextStyle(color: Colors.white38, fontSize: 11)),
-                    Text('• At least one uppercase letter (A-Z)', style: TextStyle(color: Colors.white38, fontSize: 11)),
-                    Text('• At least one lowercase letter (a-z)', style: TextStyle(color: Colors.white38, fontSize: 11)),
-                    Text('• At least one number (0-9)', style: TextStyle(color: Colors.white38, fontSize: 11)),
-                    Text('• At least one symbol (!@#\$%^&*...)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  const SizedBox(height: 14),
+                  const Text('New Password', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: obscure,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. Agent#2026Pass!',
+                      hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+                      prefixIcon: const Icon(Icons.lock_outline, color: Colors.white54, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.white54, size: 18),
+                        onPressed: () => setDialogState(() => obscure = !obscure),
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
+                    ),
+                  ),
+                  if (localError != null) ...[
+                    const SizedBox(height: 10),
+                    Text(localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                   ],
-                ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text('Password Requirements:', style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                        SizedBox(height: 4),
+                        Text('• Minimum 8 characters', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                        Text('• At least one uppercase letter (A-Z)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                        Text('• At least one lowercase letter (a-z)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                        Text('• At least one number (0-9)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                        Text('• At least one symbol (!@#\$%^&*...)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           actions: [
             TextButton(
@@ -463,13 +469,17 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header Bar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
+            runSpacing: 12,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
@@ -498,7 +508,10 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
                   ),
                 ],
               ),
-              Row(
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   ElevatedButton.icon(
                     onPressed: _loadAgents,
@@ -511,7 +524,6 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),
-                  const SizedBox(width: 12),
                   ElevatedButton.icon(
                     onPressed: () => _showAddOrEditAgentDialog(),
                     icon: const Icon(Icons.person_add, size: 18, color: Colors.black),
@@ -657,13 +669,15 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Row(
+                                      Wrap(
+                                        crossAxisAlignment: WrapCrossAlignment.center,
+                                        spacing: 10,
+                                        runSpacing: 4,
                                         children: [
                                           Text(
                                             name,
                                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                                           ),
-                                          const SizedBox(width: 10),
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                             decoration: BoxDecoration(
