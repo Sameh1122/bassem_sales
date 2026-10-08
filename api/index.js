@@ -111,7 +111,7 @@ const DEFAULT_USERS = [
     role: 'admin',
     agent_id: null,
     salt: '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d',
-    password_hash: crypto.pbkdf2Sync('A@$jjjff223445@', '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d', 100000, 64, 'sha512').toString('hex'),
+    password_hash: process.env.ADMIN_PASSWORD_HASH || '8a6a1640a2796c81255628d1e64b709729051b8ed96f24bd196e8acbc3c106d6d68b8cabdcd5ed17a63a80bcb39b8724920082145c19336c6ca0e1431bcaf954',
     created_at: new Date().toISOString()
   },
   {
@@ -122,7 +122,7 @@ const DEFAULT_USERS = [
     role: 'agent',
     agent_id: 1,
     salt: '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
-    password_hash: crypto.pbkdf2Sync('Omnia@Sales2026!', '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d', 100000, 64, 'sha512').toString('hex'),
+    password_hash: process.env.OMNIA_PASSWORD_HASH || 'b2d91461e9043a53528652f5a0d6942d13beb4a082bd5982e1bfcd93e8011bbc58c55c0dcba7225ee65145cb765655ad4990f79b3f568a6c4c410c36371edab0',
     created_at: new Date().toISOString()
   }
 ];
