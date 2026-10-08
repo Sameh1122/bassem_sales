@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
+import '../services/location_service.dart';
 import '../services/url_launcher.dart';
 import '../services/api_service.dart';
 
@@ -30,7 +30,7 @@ class MapViewScreenState extends State<MapViewScreen> {
 
   // GPS / My Location State
   bool _isLocating = false;
-  Position? _userPosition;
+  AppLocation? _userPosition;
   double _selectedRadiusKm = 0.0; // 0.0 = All (No filter)
   bool _showSurroundingPanel = false;
   final List<double> _radiusOptions = [0.0, 1.0, 3.0, 5.0, 10.0, 25.0, 50.0];
@@ -45,54 +45,7 @@ class MapViewScreenState extends State<MapViewScreen> {
   Future<void> _locateUser({bool recenter = true}) async {
     setState(() => _isLocating = true);
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('GPS / Location services are turned off. Please enable them on your device/browser.'),
-              backgroundColor: Colors.amber,
-            ),
-          );
-        }
-        setState(() => _isLocating = false);
-        return;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Location permission was denied.'),
-                backgroundColor: Colors.redAccent,
-              ),
-            );
-          }
-          setState(() => _isLocating = false);
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Location permissions are permanently denied. Please allow location in browser site settings.'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-        setState(() => _isLocating = false);
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 15),
-      );
+      final position = await getCurrentUserLocation();
 
       if (mounted) {
         setState(() {
@@ -106,7 +59,7 @@ class MapViewScreenState extends State<MapViewScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('📍 Live GPS location acquired (${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)})'),
+            content: Text('📍 Live GPS acquired: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}'),
             backgroundColor: const Color(0xFF10B981),
             duration: const Duration(seconds: 2),
           ),
@@ -115,9 +68,13 @@ class MapViewScreenState extends State<MapViewScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLocating = false);
+        String msg = e.toString();
+        if (msg.contains('Exception:')) {
+          msg = msg.replaceAll('Exception:', '').trim();
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not obtain live GPS location: $e'),
+            content: Text('Location error: $msg. Please allow location permissions in your browser.'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -125,12 +82,20 @@ class MapViewScreenState extends State<MapViewScreen> {
     }
   }
 
+  double calculateDistanceBetween(double lat1, double lon1, double lat2, double lon2) {
+    const double p = 0.017453292519943295; // pi / 180
+    final double a = 0.5 - math.cos((lat2 - lat1) * p) / 2 +
+        math.cos(lat1 * p) * math.cos(lat2 * p) *
+        (1 - math.cos((lon2 - lon1) * p)) / 2;
+    return 12742000.0 * math.asin(math.sqrt(a)); // in meters (Earth radius ~6371km)
+  }
+
   double? _getDistanceMeters(dynamic chiller) {
     if (_userPosition == null) return null;
     final lat = _toDouble(chiller['latitude'], 0.0);
     final lng = _toDouble(chiller['longitude'], 0.0);
     if (lat == 0.0 || lng == 0.0) return null;
-    return Geolocator.distanceBetween(_userPosition!.latitude, _userPosition!.longitude, lat, lng);
+    return calculateDistanceBetween(_userPosition!.latitude, _userPosition!.longitude, lat, lng);
   }
 
   String _formatDistance(double meters) {
