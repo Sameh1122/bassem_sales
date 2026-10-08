@@ -279,7 +279,6 @@ class _UploadViewScreenState extends State<UploadViewScreen> {
                     rows: _previewRows.take(100).map((r) {
                       final bool isValid = r['isValid'] == true;
                       final List<dynamic> missing = r['missingFields'] ?? [];
-                      final List<dynamic> errors = r['errors'] ?? [];
 
                       return DataRow(
                         cells: [

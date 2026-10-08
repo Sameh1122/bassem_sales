@@ -74,8 +74,6 @@ class DeltaViewScreenState extends State<DeltaViewScreen> {
   @override
   Widget build(BuildContext context) {
     final summary = _deltaResult?['summary'] ?? {};
-    final List<dynamic> added = _deltaResult?['added'] ?? [];
-    final List<dynamic> removed = _deltaResult?['removed'] ?? [];
     final List<dynamic> modified = _deltaResult?['modified'] ?? [];
 
     return Scaffold(

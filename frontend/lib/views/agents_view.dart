@@ -265,6 +265,120 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
     }
   }
 
+  Future<void> _showResetPasswordDialog(Map<String, dynamic> agent) async {
+    final passwordController = TextEditingController();
+    bool obscure = true;
+    String? localError;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.key, color: Color(0xFF06B6D4), size: 24),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Set Password: ${agent['name']}',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Username: @${agent['username'] ?? agent['name'].toString().toLowerCase().replaceAll(' ', '.')}',
+                style: const TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 14),
+              const Text('New Password', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: passwordController,
+                obscureText: obscure,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Agent#2026Pass!',
+                  hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+                  prefixIcon: const Icon(Icons.lock_outline, color: Colors.white54, size: 20),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.white54, size: 18),
+                    onPressed: () => setDialogState(() => obscure = !obscure),
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
+                ),
+              ),
+              if (localError != null) ...[
+                const SizedBox(height: 10),
+                Text(localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+              ],
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text('Password Requirements:', style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 4),
+                    Text('• Minimum 8 characters', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                    Text('• At least one uppercase letter (A-Z)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                    Text('• At least one lowercase letter (a-z)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                    Text('• At least one number (0-9)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                    Text('• At least one symbol (!@#\$%^&*...)', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF06B6D4),
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () async {
+                final newPass = passwordController.text;
+                try {
+                  final res = await ApiService.resetAgentPassword(agent['id'], newPass);
+                  Navigator.of(ctx).pop();
+                  _loadAgents();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(res['message'] ?? 'Password set successfully'),
+                        backgroundColor: const Color(0xFF10B981),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  setDialogState(() {
+                    localError = e.toString().replaceAll('Exception:', '').trim();
+                  });
+                }
+              },
+              child: const Text('Save Password', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<dynamic> get _filteredAgents {
     if (_search.isEmpty) return _agents;
     final term = _search.toLowerCase();
@@ -529,6 +643,19 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
                                                 Text(email, style: const TextStyle(color: Colors.white60, fontSize: 12)),
                                               ],
                                             ),
+                                          if (agent['username'] != null)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                                              ),
+                                              child: Text(
+                                                'Login: @${agent['username']}',
+                                                style: const TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                             decoration: BoxDecoration(
@@ -553,6 +680,16 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
                                 // Action Buttons
                                 Row(
                                   children: [
+                                    IconButton(
+                                      tooltip: 'Set / Reset Login Password',
+                                      onPressed: () => _showResetPasswordDialog(agent),
+                                      icon: const Icon(Icons.key, color: Colors.amber, size: 20),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: Colors.amber.withValues(alpha: 0.1),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
                                     IconButton(
                                       tooltip: 'Edit Agent',
                                       onPressed: () => _showAddOrEditAgentDialog(agent),

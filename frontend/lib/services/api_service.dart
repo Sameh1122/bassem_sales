@@ -4,6 +4,36 @@ import 'package:http/http.dart' as http;
 import 'storage.dart';
 
 class ApiService {
+  static String? _token;
+  static Map<String, dynamic>? _currentUser;
+
+  static void initAuth() {
+    _token = getLocalStorage('auth_token');
+    final userJson = getLocalStorage('auth_user');
+    if (userJson != null && userJson.isNotEmpty) {
+      try {
+        _currentUser = jsonDecode(userJson) as Map<String, dynamic>;
+      } catch (_) {
+        _currentUser = null;
+      }
+    }
+  }
+
+  static bool get isLoggedIn => _token != null && _token!.isNotEmpty && _currentUser != null;
+  static bool get isAdmin => _currentUser != null && _currentUser!['role'] == 'admin';
+  static bool get isAgent => _currentUser != null && _currentUser!['role'] == 'agent';
+  static Map<String, dynamic>? get currentUser => _currentUser;
+  static String? get token => _token;
+
+  static Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    if (_token != null && _token!.isNotEmpty) 'Authorization': 'Bearer $_token',
+  };
+
+  static Map<String, String> get _authHeaders => {
+    if (_token != null && _token!.isNotEmpty) 'Authorization': 'Bearer $_token',
+  };
+
   static String get baseUrl {
     final Uri currentUri = Uri.base;
     if (currentUri.host == 'localhost' || currentUri.host == '127.0.0.1') {
@@ -26,9 +56,74 @@ class ApiService {
     }
   }
 
-  // Fetch dynamic column definitions
+  // ==========================================
+  // Authentication Methods
+  // ==========================================
+
+  static Future<Map<String, dynamic>> login(String username, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'username': username.trim(), 'password': password}),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      _token = decoded['token'];
+      _currentUser = Map<String, dynamic>.from(decoded['user'] ?? {});
+      setLocalStorage('auth_token', _token ?? '');
+      setLocalStorage('auth_user', jsonEncode(_currentUser));
+      // Invalidate cache on login
+      _cachedChillers = null;
+      removeLocalStorage('chillers_dataset');
+      return Map<String, dynamic>.from(decoded);
+    }
+    final error = decoded is Map && decoded['error'] != null ? decoded['error'] : 'Login failed (${response.statusCode})';
+    throw Exception(error);
+  }
+
+  static void logout() {
+    _token = null;
+    _currentUser = null;
+    setLocalStorage('auth_token', '');
+    setLocalStorage('auth_user', '');
+    _cachedChillers = null;
+    removeLocalStorage('chillers_dataset');
+  }
+
+  static Future<Map<String, dynamic>> changePassword(String currentPassword, String newPassword) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/change-password'),
+      headers: _headers,
+      body: jsonEncode({'currentPassword': currentPassword, 'newPassword': newPassword}),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    final error = decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to change password';
+    throw Exception(error);
+  }
+
+  static Future<Map<String, dynamic>> resetAgentPassword(int agentId, String newPassword) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/reset-agent-password'),
+      headers: _headers,
+      body: jsonEncode({'agentId': agentId, 'newPassword': newPassword}),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    final error = decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to set agent password';
+    throw Exception(error);
+  }
+
+  // ==========================================
+  // Columns Definitions
+  // ==========================================
+
   static Future<List<dynamic>> getColumns() async {
-    final response = await http.get(Uri.parse('$baseUrl/columns'));
+    final response = await http.get(Uri.parse('$baseUrl/columns'), headers: _authHeaders);
     if (response.statusCode == 200) {
       final data = _safeJsonDecode(response.body);
       if (data is Map && data.containsKey('columns')) {
@@ -38,7 +133,6 @@ class ApiService {
     throw Exception('Failed to fetch column definitions');
   }
 
-  // Add new column
   static Future<bool> addColumn({
     required String keyName,
     required String displayLabel,
@@ -47,7 +141,7 @@ class ApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/columns'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'key_name': keyName,
         'display_label': displayLabel,
@@ -59,93 +153,65 @@ class ApiService {
     return response.statusCode == 200;
   }
 
-  // Toggle active/required column status
   static Future<bool> toggleColumnStatus(int id, {bool? isActive, bool? isRequired}) async {
+    final Map<String, dynamic> body = {'id': id};
+    if (isActive != null) body['is_active'] = isActive;
+    if (isRequired != null) body['is_required'] = isRequired;
     final response = await http.post(
       Uri.parse('$baseUrl/columns/toggle'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'id': id,
-        if (isActive != null) 'is_active': isActive,
-        if (isRequired != null) 'is_required': isRequired,
-      }),
+      headers: _headers,
+      body: jsonEncode(body),
     );
     return response.statusCode == 200;
   }
 
-  // Load sample Excel from Scratch folder
-  static Future<Map<String, dynamic>> loadScratchSample() async {
-    final response = await http.get(Uri.parse('$baseUrl/excel/scratch-sample'));
+  static Future<Map<String, dynamic>> uploadExcelFile(Uint8List bytes, String filename) async {
+    return parseExcelFile(bytes, filename);
+  }
+
+  // ==========================================
+  // Excel Parsing & Ingest
+  // ==========================================
+
+  static Future<Map<String, dynamic>> parseExcelFile(Uint8List bytes, String filename) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/excel/parse'));
+    request.headers.addAll(_authHeaders);
+    request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
     final decoded = _safeJsonDecode(response.body);
     if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
       return decoded;
     }
-    final errorMsg = (decoded is Map && decoded['error'] != null) ? decoded['error'] : 'Failed to load sample Excel file (${response.statusCode})';
+    final errorMsg = (decoded is Map && decoded['error'] != null) ? decoded['error'] : 'Failed to parse file (${response.statusCode})';
     throw Exception(errorMsg);
   }
 
-  // Upload custom Excel file via Base64 JSON payload for cross-platform cloud support
-  static Future<Map<String, dynamic>> uploadExcelFile(Uint8List fileBytes, String fileName) async {
-    final String base64Content = base64Encode(fileBytes);
-    final response = await http.post(
-      Uri.parse('$baseUrl/excel/parse'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'fileBase64': base64Content,
-        'filename': fileName,
-      }),
-    );
+  static Future<Map<String, dynamic>> loadScratchSample() async {
+    final response = await http.get(Uri.parse('$baseUrl/excel/scratch-sample'), headers: _authHeaders);
     final decoded = _safeJsonDecode(response.body);
     if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
       return decoded;
     }
-    final errorMsg = (decoded is Map && decoded['error'] != null) ? decoded['error'] : 'Failed to upload Excel file (${response.statusCode})';
+    final errorMsg = (decoded is Map && decoded['error'] != null) ? decoded['error'] : 'Failed to load scratch sample (${response.statusCode})';
     throw Exception(errorMsg);
   }
 
   static List<dynamic>? _cachedChillers;
 
-  static List<dynamic> _sanitizeRows(List<dynamic> rows) {
-    return rows.map((r) {
-      if (r is! Map) return r;
-      final Map<String, dynamic> clean = {
-        'rowIndex': r['rowIndex'],
-        'chillerCode': r['chillerCode'],
-        'latitude': r['latitude'],
-        'longitude': r['longitude'],
-        'customerType': r['customerType'],
-        'efficiency': r['efficiency'],
-        'branch': r['branch'],
-        'chillerType': r['chillerType'],
-        'chillerStatus': r['chillerStatus'],
-        'condition': r['condition'],
-        'customerName': r['customerName'],
-        'customerAddress': r['customerAddress'],
-        'mobileNumber': r['mobileNumber'],
-        'isValid': r['isValid'],
-      };
-      if (r['rowObj'] is Map) {
-        clean['rawData'] = Map<String, dynamic>.from(r['rowObj']);
-      } else if (r['rawData'] is Map) {
-        clean['rawData'] = Map<String, dynamic>.from(r['rawData']);
-      }
-      return clean;
-    }).toList();
-  }
-
-  // Confirm upload and save to DB
   static Future<Map<String, dynamic>> confirmUpload({
     required String filename,
     required List<dynamic> rows,
-    required bool bypassValidation,
+    bool bypassValidation = false,
   }) async {
-    final cleanRows = _sanitizeRows(rows);
     final response = await http.post(
       Uri.parse('$baseUrl/excel/confirm'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'filename': filename,
-        'rows': cleanRows,
+        'rows': rows,
         'bypassValidation': bypassValidation,
       }),
     );
@@ -190,7 +256,10 @@ class ApiService {
     throw Exception(errorMsg);
   }
 
-  // Fetch chillers for Map view
+  // ==========================================
+  // Chillers & Map Data
+  // ==========================================
+
   static Future<List<dynamic>> fetchChillers({
     String efficiency = 'All',
     String customerType = 'All',
@@ -199,8 +268,10 @@ class ApiService {
     bool forceApi = false,
   }) async {
     final bool hasBatchFilter = batchId != null && batchId != 'All' && batchId != 'all';
+    // If user is Agent, ALWAYS forceApi so the server applies their restricted assigned set!
+    final bool shouldForce = forceApi || isAgent;
 
-    if (!forceApi && !hasBatchFilter && _cachedChillers != null && _cachedChillers!.isNotEmpty) {
+    if (!shouldForce && !hasBatchFilter && _cachedChillers != null && _cachedChillers!.isNotEmpty) {
       return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search, batchId);
     }
 
@@ -212,12 +283,12 @@ class ApiService {
     });
 
     try {
-      final response = await http.get(uri);
+      final response = await http.get(uri, headers: _authHeaders);
       if (response.statusCode == 200) {
         final data = _safeJsonDecode(response.body);
         if (data is Map && data.containsKey('chillers')) {
           final List<dynamic> fetched = data['chillers'] ?? [];
-          if (!hasBatchFilter) {
+          if (!hasBatchFilter && !isAgent) {
             _cachedChillers = fetched;
             setLocalStorage('chillers_dataset', jsonEncode(fetched));
           }
@@ -225,22 +296,24 @@ class ApiService {
         }
       }
     } catch (_) {
-      // Fallback to cache if network fails
+      // Fallback
     }
 
-    if (_cachedChillers != null && _cachedChillers!.isNotEmpty) {
+    if (!isAgent && _cachedChillers != null && _cachedChillers!.isNotEmpty) {
       return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search, batchId);
     }
 
-    final stored = getLocalStorage('chillers_dataset');
-    if (stored != null && stored.isNotEmpty) {
-      try {
-        final decodedStored = jsonDecode(stored);
-        if (decodedStored is List && decodedStored.isNotEmpty) {
-          _cachedChillers = decodedStored;
-          return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search, batchId);
-        }
-      } catch (_) {}
+    if (!isAgent) {
+      final stored = getLocalStorage('chillers_dataset');
+      if (stored != null && stored.isNotEmpty) {
+        try {
+          final decodedStored = jsonDecode(stored);
+          if (decodedStored is List && decodedStored.isNotEmpty) {
+            _cachedChillers = decodedStored;
+            return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search, batchId);
+          }
+        } catch (_) {}
+      }
     }
 
     return [];
@@ -282,9 +355,12 @@ class ApiService {
     }).toList();
   }
 
-  // Fetch upload history batches
+  // ==========================================
+  // Batches & Delta
+  // ==========================================
+
   static Future<List<dynamic>> fetchBatches() async {
-    final response = await http.get(Uri.parse('$baseUrl/batches'));
+    final response = await http.get(Uri.parse('$baseUrl/batches'), headers: _authHeaders);
     if (response.statusCode == 200) {
       final data = _safeJsonDecode(response.body);
       if (data is Map && data.containsKey('batches')) {
@@ -294,12 +370,10 @@ class ApiService {
     throw Exception('Failed to fetch upload batches');
   }
 
-  // Delete an upload batch
   static Future<Map<String, dynamic>> deleteBatch(int batchId) async {
-    final response = await http.delete(Uri.parse('$baseUrl/batches/$batchId'));
+    final response = await http.delete(Uri.parse('$baseUrl/batches/$batchId'), headers: _headers);
     final decoded = _safeJsonDecode(response.body);
     if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
-      // Invalidate cached chillers so fresh state is fetched
       _cachedChillers = null;
       removeLocalStorage('chillers_dataset');
       return decoded;
@@ -310,14 +384,13 @@ class ApiService {
     throw Exception(errorMsg);
   }
 
-  // Fetch delta comparison between batches
   static Future<Map<String, dynamic>> fetchDelta(int startBatchId, int endBatchId) async {
     final uri = Uri.parse('$baseUrl/delta').replace(queryParameters: {
       'startBatchId': startBatchId.toString(),
       'endBatchId': endBatchId.toString(),
     });
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _authHeaders);
     final decoded = _safeJsonDecode(response.body);
     if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
       return decoded;
@@ -325,10 +398,9 @@ class ApiService {
     throw Exception('Failed to compare delta batches');
   }
 
-  // Clear active dataset
   static Future<bool> clearChillers() async {
     _cachedChillers = [];
-    final response = await http.delete(Uri.parse('$baseUrl/chillers/clear'));
+    final response = await http.delete(Uri.parse('$baseUrl/chillers/clear'), headers: _headers);
     return response.statusCode == 200;
   }
 
@@ -337,7 +409,7 @@ class ApiService {
   // ==========================================
 
   static Future<List<dynamic>> fetchAgents() async {
-    final response = await http.get(Uri.parse('$baseUrl/agents'));
+    final response = await http.get(Uri.parse('$baseUrl/agents'), headers: _authHeaders);
     final decoded = _safeJsonDecode(response.body);
     if (response.statusCode == 200 && decoded is Map && decoded.containsKey('agents')) {
       return decoded['agents'] ?? [];
@@ -350,15 +422,17 @@ class ApiService {
     required String area,
     String phone = '',
     String email = '',
+    String password = '',
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/agents'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'name': name,
         'area': area,
         'phone': phone,
         'email': email,
+        if (password.isNotEmpty) 'password': password,
       }),
     );
     final decoded = _safeJsonDecode(response.body);
@@ -377,7 +451,7 @@ class ApiService {
   }) async {
     final response = await http.put(
       Uri.parse('$baseUrl/agents/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'name': name,
         'area': area,
@@ -393,7 +467,7 @@ class ApiService {
   }
 
   static Future<bool> deleteAgent(int id) async {
-    final response = await http.delete(Uri.parse('$baseUrl/agents/$id'));
+    final response = await http.delete(Uri.parse('$baseUrl/agents/$id'), headers: _headers);
     return response.statusCode == 200;
   }
 
@@ -414,7 +488,7 @@ class ApiService {
       if (batchId.isNotEmpty) 'batchId': batchId,
     });
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _authHeaders);
     final decoded = _safeJsonDecode(response.body);
     if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
       return decoded;
@@ -429,7 +503,7 @@ class ApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/assignments'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'agent_id': agentId,
         if (chillerCodes != null) 'chiller_codes': chillerCodes,
@@ -446,7 +520,7 @@ class ApiService {
   static Future<bool> unassignLocation({String? customerName, String? chillerCode}) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/assignments'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         if (customerName != null) 'customer_name': customerName,
         if (chillerCode != null) 'chiller_code': chillerCode,

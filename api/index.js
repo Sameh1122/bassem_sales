@@ -4,6 +4,9 @@ import multer from 'multer';
 import XLSXModule from 'xlsx';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
+import os from 'os';
+import { fileURLToPath } from 'url';
 
 const XLSX = XLSXModule.default || XLSXModule;
 
@@ -13,6 +16,126 @@ app.use(express.json({ limit: '50mb' }));
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
+
+const JWT_SECRET = process.env.JWT_SECRET || 'bassem-sales-platform-secret-jwt-key-2026';
+
+function validateComplexPassword(password) {
+  if (!password || typeof password !== 'string') {
+    return { valid: false, error: 'Password is required' };
+  }
+  if (password.length < 8) {
+    return { valid: false, error: 'Password must be at least 8 characters long' };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one uppercase letter (A-Z)' };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one lowercase letter (a-z)' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one number (0-9)' };
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one special character (!@#$%^&*...)' };
+  }
+  return { valid: true };
+}
+
+function hashPassword(password, salt = null) {
+  const generatedSalt = salt || crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, generatedSalt, 1000, 64, 'sha512').toString('hex');
+  return { hash, salt: generatedSalt };
+}
+
+function verifyPassword(password, storedHash, salt) {
+  const check = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return check === storedHash;
+}
+
+function createToken(payload) {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({ ...payload, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 })).toString('base64url');
+  const signature = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+  return `${header}.${body}.${signature}`;
+}
+
+function verifyToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [header, body, signature] = parts;
+  const expectedSignature = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+  if (expectedSignature !== signature) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (payload.exp && Date.now() > payload.exp) return null;
+    return payload;
+  } catch (e) {
+    return null;
+  }
+}
+
+function extractUserFromReq(req) {
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    return verifyToken(token);
+  }
+  return null;
+}
+
+const DEFAULT_USERS = [
+  {
+    id: 1,
+    username: 'admin',
+    name: 'System Administrator',
+    role: 'admin',
+    agent_id: null,
+    salt: '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d',
+    password_hash: crypto.pbkdf2Sync('Admin@Sales2026!', '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d', 1000, 64, 'sha512').toString('hex'),
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 2,
+    username: 'ahmed.hassan',
+    name: 'Ahmed Hassan',
+    role: 'agent',
+    agent_id: 1,
+    salt: '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
+    password_hash: crypto.pbkdf2Sync('Agent#Ahmed2026!', '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d', 1000, 64, 'sha512').toString('hex'),
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 3,
+    username: 'mahmoud.ali',
+    name: 'Mahmoud Ali',
+    role: 'agent',
+    agent_id: 2,
+    salt: '2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
+    password_hash: crypto.pbkdf2Sync('Agent#Mahmoud2026!', '2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e', 1000, 64, 'sha512').toString('hex'),
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 4,
+    username: 'karim.m',
+    name: 'Karim Mostafa',
+    role: 'agent',
+    agent_id: 3,
+    salt: '3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
+    password_hash: crypto.pbkdf2Sync('Agent#Karim2026!', '3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f', 1000, 64, 'sha512').toString('hex'),
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 5,
+    username: 'tarek.i',
+    name: 'Tarek Ibrahim',
+    role: 'agent',
+    agent_id: 4,
+    salt: '4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a',
+    password_hash: crypto.pbkdf2Sync('Agent#Tarek2026!', '4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a', 1000, 64, 'sha512').toString('hex'),
+    created_at: new Date().toISOString()
+  }
+];
 
 // Default Columns Definitions
 const DEFAULT_COLUMNS = [
@@ -54,9 +177,6 @@ const DEFAULT_COLUMNS = [
   { id: 36, key_name: 'Notes', display_label: 'Notes', data_type: 'string', is_required: 0, is_active: 1, display_order: 36 }
 ];
 
-import os from 'os';
-import { fileURLToPath } from 'url';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -79,6 +199,9 @@ function loadDbStore() {
         if (!Array.isArray(parsed.assignments)) {
           parsed.assignments = [];
         }
+        if (!Array.isArray(parsed.users) || parsed.users.length === 0) {
+          parsed.users = [...DEFAULT_USERS];
+        }
         return parsed;
       }
     }
@@ -97,7 +220,8 @@ function loadDbStore() {
       { id: 3, name: 'Karim Mostafa', area: 'Alexandria & Coastal', phone: '+20 102 345 6789', email: 'karim.m@example.com', created_at: new Date().toISOString() },
       { id: 4, name: 'Tarek Ibrahim', area: 'Delta (Tanta, Mansoura)', phone: '+20 103 456 7890', email: 'tarek.i@example.com', created_at: new Date().toISOString() }
     ],
-    assignments: []
+    assignments: [],
+    users: [...DEFAULT_USERS]
   };
 
   try {
@@ -117,6 +241,7 @@ function loadDbStore() {
       if (seed.history && seed.history.length > 0) store.history = seed.history;
       if (seed.agents && seed.agents.length > 0) store.agents = seed.agents;
       if (seed.assignments && seed.assignments.length > 0) store.assignments = seed.assignments;
+      if (seed.users && seed.users.length > 0) store.users = seed.users;
       console.log(`✅ Loaded ${store.chillers.length} initial chillers from seedData`);
     }
   } catch (err) {
@@ -133,6 +258,9 @@ function loadDbStore() {
   }
   if (!Array.isArray(store.assignments)) {
     store.assignments = [];
+  }
+  if (!Array.isArray(store.users) || store.users.length === 0) {
+    store.users = [...DEFAULT_USERS];
   }
 
   return store;
@@ -297,6 +425,167 @@ function parseExcelBuffer(buffer) {
 }
 
 const router = express.Router();
+
+// Middleware to extract user from Authorization header
+router.use((req, res, next) => {
+  req.user = extractUserFromReq(req);
+  next();
+});
+
+function requireAuth(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ success: false, error: 'Authentication required. Please login.' });
+  }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ success: false, error: 'Authentication required. Please login.' });
+  }
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ success: false, error: 'Access forbidden. Administrator privileges required.' });
+  }
+  next();
+}
+
+// ==========================================
+// Authentication Endpoints
+// ==========================================
+
+router.post('/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ success: false, error: 'Username and password are required' });
+  }
+
+  const user = (dbStore.users || []).find(u => u.username.toLowerCase() === username.trim().toLowerCase());
+  if (!user) {
+    return res.status(401).json({ success: false, error: 'Invalid username or password' });
+  }
+
+  const isMatch = verifyPassword(password, user.password_hash, user.salt);
+  if (!isMatch) {
+    return res.status(401).json({ success: false, error: 'Invalid username or password' });
+  }
+
+  const token = createToken({
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    role: user.role,
+    agentId: user.agent_id
+  });
+
+  const linkedAgent = user.agent_id ? (dbStore.agents || []).find(a => a.id === user.agent_id) : null;
+
+  res.json({
+    success: true,
+    message: 'Login successful',
+    token,
+    user: {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      agentId: user.agent_id,
+      agentArea: linkedAgent ? linkedAgent.area : null
+    }
+  });
+});
+
+router.get('/auth/me', (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, error: 'Not authenticated' });
+  }
+  const user = (dbStore.users || []).find(u => u.id === req.user.id);
+  const linkedAgent = req.user.agentId ? (dbStore.agents || []).find(a => a.id === req.user.agentId) : null;
+  res.json({
+    success: true,
+    user: {
+      id: req.user.id,
+      username: req.user.username,
+      name: req.user.name,
+      role: req.user.role,
+      agentId: req.user.agentId,
+      agentArea: linkedAgent ? linkedAgent.area : null
+    }
+  });
+});
+
+router.post('/auth/change-password', requireAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ success: false, error: 'Current password and new password are required' });
+  }
+
+  const user = (dbStore.users || []).find(u => u.id === req.user.id);
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+
+  if (!verifyPassword(currentPassword, user.password_hash, user.salt)) {
+    return res.status(400).json({ success: false, error: 'Current password is incorrect' });
+  }
+
+  const complexity = validateComplexPassword(newPassword);
+  if (!complexity.valid) {
+    return res.status(400).json({ success: false, error: complexity.error });
+  }
+
+  const { hash, salt } = hashPassword(newPassword);
+  user.password_hash = hash;
+  user.salt = salt;
+  saveDbStore(dbStore);
+
+  res.json({ success: true, message: 'Password updated successfully' });
+});
+
+router.post('/auth/reset-agent-password', requireAdmin, (req, res) => {
+  const { agentId, newPassword } = req.body;
+  if (!agentId || !newPassword) {
+    return res.status(400).json({ success: false, error: 'Agent ID and new password are required' });
+  }
+
+  const complexity = validateComplexPassword(newPassword);
+  if (!complexity.valid) {
+    return res.status(400).json({ success: false, error: complexity.error });
+  }
+
+  const parsedAgentId = parseInt(agentId);
+  const agent = (dbStore.agents || []).find(a => a.id === parsedAgentId);
+  if (!agent) {
+    return res.status(404).json({ success: false, error: 'Agent not found' });
+  }
+
+  let user = (dbStore.users || []).find(u => u.agent_id === parsedAgentId);
+  const { hash, salt } = hashPassword(newPassword);
+
+  if (!user) {
+    const baseUsername = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.');
+    user = {
+      id: Date.now(),
+      username: baseUsername,
+      name: agent.name,
+      role: 'agent',
+      agent_id: agent.id,
+      password_hash: hash,
+      salt,
+      created_at: new Date().toISOString()
+    };
+    dbStore.users.push(user);
+  } else {
+    user.password_hash = hash;
+    user.salt = salt;
+  }
+
+  saveDbStore(dbStore);
+  res.json({
+    success: true,
+    message: `Password for agent '${agent.name}' set successfully`,
+    username: user.username
+  });
+});
 
 router.get('/columns', (req, res) => {
   res.json({ success: true, columns: dbStore.columns });
@@ -473,6 +762,20 @@ router.get('/chillers', (req, res) => {
     rows = rows.filter(r => (r.customer_type || r.customerType || '').toLowerCase() === customerType.toLowerCase());
   }
 
+  // If the requester is an Agent, strictly restrict to their assigned locations ONLY!
+  if (req.user && req.user.role === 'agent') {
+    const agentId = req.user.agentId;
+    const assignments = (dbStore.assignments || []).filter(as => as.agent_id === agentId);
+    const assignedCodes = new Set(assignments.map(as => as.chiller_code).filter(Boolean));
+    const assignedNames = new Set(assignments.map(as => (as.customer_name || '').toLowerCase()).filter(Boolean));
+
+    rows = rows.filter(r => {
+      const code = r.chiller_code || r.chillerCode;
+      const name = (r.customer_name || r.customerName || '').toLowerCase();
+      return (code && assignedCodes.has(code)) || (name && assignedNames.has(name));
+    });
+  }
+
   if (search) {
     const term = search.toLowerCase();
     rows = rows.filter(r =>
@@ -510,7 +813,7 @@ router.get('/batches', (req, res) => {
   res.json({ success: true, batches: [...dbStore.batches].reverse() });
 });
 
-router.delete('/batches/:id', (req, res) => {
+router.delete('/batches/:id', requireAdmin, (req, res) => {
   const batchId = parseInt(req.params.id);
   if (isNaN(batchId)) {
     return res.status(400).json({ success: false, error: 'Invalid batch ID' });
@@ -597,14 +900,19 @@ router.get('/agents', (req, res) => {
   const agents = (dbStore.agents || []).map(a => {
     // calculate how many customers/chillers assigned
     const assignedCount = (dbStore.assignments || []).filter(as => as.agent_id === a.id).length;
-    return { ...a, assigned_count: assignedCount };
+    const linkedUser = (dbStore.users || []).find(u => u.agent_id === a.id);
+    return {
+      ...a,
+      assigned_count: assignedCount,
+      username: linkedUser ? linkedUser.username : null
+    };
   });
   res.json({ success: true, count: agents.length, agents });
 });
 
-// POST create new sales agent
-router.post('/agents', (req, res) => {
-  const { name, area, phone = '', email = '' } = req.body;
+// POST create new sales agent (Admin only)
+router.post('/agents', requireAdmin, (req, res) => {
+  const { name, area, phone = '', email = '', username, password } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, error: 'Agent name is required' });
   }
@@ -622,13 +930,37 @@ router.post('/agents', (req, res) => {
     created_at: new Date().toISOString()
   };
 
+  const agentUsername = (username || name.trim().toLowerCase().replace(/[^a-z0-9]/g, '.')).replace(/\.+/g, '.');
+  const agentPassword = password || `Agent#${newId}Pass2026!`;
+  const complexity = validateComplexPassword(agentPassword);
+  if (!complexity.valid) {
+    return res.status(400).json({ success: false, error: `Password complexity error: ${complexity.error}` });
+  }
+
+  const { hash, salt } = hashPassword(agentPassword);
+  if (!Array.isArray(dbStore.users)) dbStore.users = [];
+  dbStore.users.push({
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    username: agentUsername,
+    name: newAgent.name,
+    role: 'agent',
+    agent_id: newAgent.id,
+    password_hash: hash,
+    salt,
+    created_at: new Date().toISOString()
+  });
+
   dbStore.agents.push(newAgent);
   saveDbStore(dbStore);
-  res.json({ success: true, message: `Agent '${newAgent.name}' created successfully`, agent: newAgent });
+  res.json({
+    success: true,
+    message: `Agent '${newAgent.name}' created successfully with username '${agentUsername}'`,
+    agent: { ...newAgent, username: agentUsername }
+  });
 });
 
-// PUT update existing sales agent
-router.put('/agents/:id', (req, res) => {
+// PUT update existing sales agent (Admin only)
+router.put('/agents/:id', requireAdmin, (req, res) => {
   const agentId = parseInt(req.params.id);
   const agent = (dbStore.agents || []).find(a => a.id === agentId);
   if (!agent) {
@@ -641,22 +973,28 @@ router.put('/agents/:id', (req, res) => {
   if (phone !== undefined) agent.phone = (phone || '').trim();
   if (email !== undefined) agent.email = (email || '').trim();
 
-  // Also update agent_name across assignments
-  if (name !== undefined && dbStore.assignments) {
-    dbStore.assignments.forEach(as => {
-      if (as.agent_id === agentId) {
-        as.agent_name = agent.name;
-        as.agent_area = agent.area;
-      }
-    });
+  // Also update agent_name across assignments and linked user
+  if (name !== undefined) {
+    if (dbStore.assignments) {
+      dbStore.assignments.forEach(as => {
+        if (as.agent_id === agentId) {
+          as.agent_name = agent.name;
+          as.agent_area = agent.area;
+        }
+      });
+    }
+    const linkedUser = (dbStore.users || []).find(u => u.agent_id === agentId);
+    if (linkedUser) {
+      linkedUser.name = agent.name;
+    }
   }
 
   saveDbStore(dbStore);
   res.json({ success: true, message: `Agent #${agentId} updated successfully`, agent });
 });
 
-// DELETE sales agent
-router.delete('/agents/:id', (req, res) => {
+// DELETE sales agent (Admin only)
+router.delete('/agents/:id', requireAdmin, (req, res) => {
   const agentId = parseInt(req.params.id);
   const idx = (dbStore.agents || []).findIndex(a => a.id === agentId);
   if (idx === -1) {
@@ -668,6 +1006,10 @@ router.delete('/agents/:id', (req, res) => {
   if (dbStore.assignments) {
     dbStore.assignments = dbStore.assignments.filter(as => as.agent_id !== agentId);
   }
+  // Remove linked login user
+  if (dbStore.users) {
+    dbStore.users = dbStore.users.filter(u => u.agent_id !== agentId);
+  }
 
   saveDbStore(dbStore);
   res.json({ success: true, message: `Agent '${removed.name}' deleted successfully`, deletedId: agentId });
@@ -678,8 +1020,8 @@ router.get('/assignments', (req, res) => {
   res.json({ success: true, count: (dbStore.assignments || []).length, assignments: dbStore.assignments || [] });
 });
 
-// POST assign location(s) / customer(s) to an agent
-router.post('/assignments', (req, res) => {
+// POST assign location(s) / customer(s) to an agent (Admin only)
+router.post('/assignments', requireAdmin, (req, res) => {
   const { agent_id, chiller_codes, chiller_ids, customer_names } = req.body;
   const agentId = parseInt(agent_id);
   const agent = (dbStore.agents || []).find(a => a.id === agentId);
@@ -743,8 +1085,8 @@ router.post('/assignments', (req, res) => {
   });
 });
 
-// DELETE unassign
-router.delete('/assignments', (req, res) => {
+// DELETE unassign (Admin only)
+router.delete('/assignments', requireAdmin, (req, res) => {
   const { customer_name, chiller_code } = req.body;
   if (!customer_name && !chiller_code) {
     return res.status(400).json({ success: false, error: 'customer_name or chiller_code required' });
