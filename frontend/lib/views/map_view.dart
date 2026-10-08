@@ -34,6 +34,7 @@ class MapViewScreenState extends State<MapViewScreen> {
   double _selectedRadiusKm = 0.0; // 0.0 = All (No filter)
   bool _showSurroundingPanel = false;
   final List<double> _radiusOptions = [0.0, 1.0, 3.0, 5.0, 10.0, 25.0, 50.0];
+  bool _isToolbarMinimized = false;
 
   @override
   void initState() {
@@ -766,54 +767,141 @@ class MapViewScreenState extends State<MapViewScreen> {
           ),
 
           // Floating Filter Toolbar on Top
-          Positioned(
-            top: 16,
-            left: 16,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B).withOpacity(0.92),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white12),
-                boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 12)],
+          if (_isToolbarMinimized)
+            Positioned(
+              top: 16,
+              left: 16,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () => setState(() => _isToolbarMinimized = false),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B).withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.cyan.withOpacity(0.6), width: 1.5),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black54, blurRadius: 12, offset: Offset(0, 3)),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.map_outlined, color: Colors.cyan, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${displayedChillers.length} Pins',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        if (_userPosition != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(color: Color(0xFF10B981), shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text('GPS Active', style: TextStyle(color: Colors.tealAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                        ],
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.cyan.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.expand_more, color: Colors.cyanAccent, size: 18),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Expand Filters',
+                          style: TextStyle(color: Colors.cyanAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              child: Wrap(
-                spacing: 16,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                alignment: WrapAlignment.spaceBetween,
-                children: [
-                  // Title + Count
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.map_outlined, color: Colors.cyan),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Map Locations (${displayedChillers.length} Pins)',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      if (_selectedRadiusKm > 0.0)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.cyan.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.cyanAccent.withOpacity(0.5)),
+            )
+          else
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B).withOpacity(0.92),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white12),
+                  boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 12)],
+                ),
+                child: Wrap(
+                  spacing: 16,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  alignment: WrapAlignment.spaceBetween,
+                  children: [
+                    // Title + Count + Minimize Button
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.map_outlined, color: Colors.cyan),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Map Locations (${displayedChillers.length} Pins)',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        if (_selectedRadiusKm > 0.0)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.cyan.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.cyanAccent.withOpacity(0.5)),
+                              ),
+                              child: Text(
+                                '≤ ${_selectedRadiusKm.toInt()} km',
+                                style: const TextStyle(color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
                             ),
-                            child: Text(
-                              '≤ ${_selectedRadiusKm.toInt()} km',
-                              style: const TextStyle(color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        const SizedBox(width: 10),
+                        // Minimize Button
+                        Tooltip(
+                          message: 'Minimize toolbar for better map view',
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () => setState(() => _isToolbarMinimized = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0F172A),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.cyan.withOpacity(0.5)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.unfold_less, color: Colors.cyanAccent, size: 16),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Minimize',
+                                    style: TextStyle(color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                    ],
-                  ),
+                      ],
+                    ),
 
-                  // Filters
+                    // Filters
                   Wrap(
                     spacing: 10,
                     runSpacing: 8,
@@ -1008,6 +1096,11 @@ class MapViewScreenState extends State<MapViewScreen> {
                               icon: const Icon(Icons.center_focus_strong, color: Colors.cyan, size: 20),
                               tooltip: 'Fit map bounds to all pins',
                               onPressed: _fitBoundsToChillers,
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.unfold_less, color: Colors.cyan, size: 20),
+                              tooltip: 'Minimize toolbar (better map view)',
+                              onPressed: () => setState(() => _isToolbarMinimized = true),
                             ),
                           ],
                         ),
