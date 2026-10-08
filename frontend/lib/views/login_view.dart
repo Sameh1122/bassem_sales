@@ -16,21 +16,12 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _errorMessage;
-  bool _showDemoAccounts = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
-  }
-
-  void _fillCredentials(String email, String pass) {
-    setState(() {
-      _emailController.text = email;
-      _passwordController.text = pass;
-      _errorMessage = null;
-    });
   }
 
   Future<void> _handleLogin() async {
@@ -358,82 +349,17 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // Demo / Helper Accordion Toggle
-                      InkWell(
-                        onTap: () => setState(() => _showDemoAccounts = !_showDemoAccounts),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                _showDemoAccounts ? Icons.expand_less : Icons.help_outline_rounded,
-                                size: 15,
-                                color: const Color(0xFF64748B),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _showDemoAccounts ? 'Hide default credentials' : 'Show default accounts & credentials',
-                                style: const TextStyle(
-                                  color: Color(0xFF64748B),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Collapsible Demo Accounts Box
-                      if (_showDemoAccounts) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0B1322),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFF1E293B)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Click any role below to autofill:',
-                                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 10),
-                              _buildCredentialTile(
-                                role: 'Admin (All Permissions)',
-                                email: 'admin@sales.com',
-                                pass: 'A@\$jjjff223445@',
-                                isPrimary: true,
-                              ),
-                              const SizedBox(height: 8),
-                              _buildCredentialTile(
-                                role: 'Agent Omnia (أمنية)',
-                                email: 'omnia@sales.com',
-                                pass: 'Omnia@Sales2026!',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: 20),
-
                       // Security Badges
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
-                          Icon(Icons.shield_rounded, size: 13, color: Color(0xFF10B981)),
-                          SizedBox(width: 6),
+                          Icon(Icons.shield_rounded, size: 14, color: Color(0xFF10B981)),
+                          SizedBox(width: 8),
                           Text(
                             'PBKDF2 SHA-512 Encrypted • Brute-Force Protected',
                             style: TextStyle(
                               color: Color(0xFF64748B),
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -446,65 +372,6 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildCredentialTile({
-    required String role,
-    required String email,
-    required String pass,
-    bool isPrimary = false,
-  }) {
-    return InkWell(
-      onTap: () => _fillCredentials(email, pass),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: isPrimary ? const Color(0xFF06B6D4).withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isPrimary ? const Color(0xFF06B6D4).withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.06),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isPrimary ? Icons.admin_panel_settings_rounded : Icons.person_outline_rounded,
-              size: 16,
-              color: isPrimary ? const Color(0xFF06B6D4) : const Color(0xFF94A3B8),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    role,
-                    style: TextStyle(
-                      color: isPrimary ? const Color(0xFF06B6D4) : Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    email,
-                    style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-            const Text(
-              'Fill',
-              style: TextStyle(
-                color: Color(0xFF06B6D4),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
