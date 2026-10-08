@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/storage.dart';
@@ -12,15 +13,25 @@ class DataTableViewScreen extends StatefulWidget {
 class DataTableViewScreenState extends State<DataTableViewScreen> {
   List<dynamic> _chillers = [];
   bool _isLoading = true;
-  String _searchQuery = '';
-  String _selectedEfficiency = 'All';
-  String _selectedCustomerType = 'All';
-  final TextEditingController _searchController = TextEditingController();
+
+  // Search & Filter state
+  String _globalSearchQuery = '';
+  final TextEditingController _globalSearchController = TextEditingController();
+  final Map<String, String> _columnFilters = {}; // colName -> filterValue
+  final Set<String> _hiddenColumns = {}; // columns user chose to hide
+
+  // Selected column for the quick filter toolbar
+  String? _selectedToolbarColumn;
+  final TextEditingController _toolbarFilterController = TextEditingController();
+
+  // Sorting state
+  String? _sortColumn;
+  bool _sortAscending = true;
 
   // Pagination state
   int _currentPage = 0;
   int _rowsPerPage = 50;
-  final List<int> _rowsPerPageOptions = [25, 50, 100, 250];
+  final List<int> _rowsPerPageOptions = [25, 50, 100, 250, 500];
 
   @override
   void initState() {
@@ -80,80 +91,43 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
     }
   }
 
+  // Extract ALL columns present across all records in rawData and top-level properties
   List<String> _extractColumns(List<dynamic> chillers) {
     if (chillers.isEmpty) {
       return ['Chiller Code', 'Customer Name', 'Branch', 'Customer Type', 'Month Ach. Status', 'Latitude', 'Longitude'];
     }
 
-    final Set<String> foundKeys = {};
+    final LinkedHashSet<String> allKeys = LinkedHashSet<String>();
+
     for (final c in chillers) {
       if (c['rawData'] is Map) {
         final Map raw = c['rawData'];
         for (final k in raw.keys) {
           final strKey = k.toString().trim();
-          if (strKey.isNotEmpty) foundKeys.add(strKey);
+          if (strKey.isNotEmpty) {
+            allKeys.add(strKey);
+          }
         }
       }
     }
 
-    // Preferred column display sequence
-    final List<String> preferredOrder = [
-      'Chiller Code',
-      'Customer Name',
-      'Customer Code',
-      'Branch',
-      'Customer Type',
-      'Month Ach. Status',
-      'Chiller Status',
-      'Chiller Type',
-      'Chiller Configuration',
-      'Condiiton',
-      'Condition',
-      'Customer Address',
-      'Mobile Number',
-      'Truck Code',
-      'SR Name',
-      'SSV Name',
-      'Visit Day',
-      'Latitude',
-      'Longitude',
-      'Serial Number',
-      'Action Date',
-      'Received Date',
-      'Jan 2026 Invoice',
-      'Feb 2026 Invoice',
-      'Mar 2026 Invoice',
-      'Apr 2026 Invoice',
-      'May 2026 Invoice',
-      'June 2026 Invoice',
-      'July 2026 Invoice',
-      'Aug 2026 Invoice',
-      'Sep 2026 Invoice',
-      'Oct 2026 Invoice',
-      'Nov 2026 Invoice',
-      'Dec 2026 Invoice',
-      'YTD',
-      'Average / Month',
-      'Notes',
-    ];
-
-    final List<String> orderedColumns = [];
-    for (final col in preferredOrder) {
-      if (foundKeys.contains(col)) {
-        orderedColumns.add(col);
-        foundKeys.remove(col);
-      }
+    // If rawData had no keys, fallback to standard properties
+    if (allKeys.isEmpty) {
+      return [
+        'Chiller Code',
+        'Customer Name',
+        'Branch',
+        'Customer Type',
+        'Month Ach. Status',
+        'Chiller Status',
+        'Chiller Type',
+        'Condition',
+        'Latitude',
+        'Longitude'
+      ];
     }
 
-    // Append any extra/custom columns from the newly uploaded sheet
-    final remainingKeys = foundKeys.toList()..sort();
-    orderedColumns.addAll(remainingKeys);
-
-    if (orderedColumns.isEmpty) {
-      return ['Chiller Code', 'Customer Name', 'Branch', 'Customer Type', 'Month Ach. Status', 'Latitude', 'Longitude'];
-    }
-
-    return orderedColumns;
+    return allKeys.toList();
   }
 
   String _getCellValue(dynamic chiller, String col) {
@@ -167,24 +141,35 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
           if (s.isNotEmpty) return s;
         }
       }
+      // Case-insensitive check
+      final targetLower = col.trim().toLowerCase();
+      for (final entry in raw.entries) {
+        if (entry.key.toString().trim().toLowerCase() == targetLower) {
+          final val = entry.value;
+          if (val != null) {
+            final s = val.toString().trim();
+            if (s.isNotEmpty) return s;
+          }
+        }
+      }
     }
 
     // Fallbacks for core model properties
-    final lowerCol = col.toLowerCase();
-    if (lowerCol == 'chiller code' || lowerCol == 'code') {
-      return (chiller['chillerCode'] ?? '-').toString();
-    } else if (lowerCol == 'customer name') {
-      return (chiller['customerName'] ?? '-').toString();
+    final lowerCol = col.toLowerCase().replaceAll(' ', '').replaceAll('_', '');
+    if (lowerCol == 'chillercode' || lowerCol == 'code') {
+      return (chiller['chillerCode'] ?? chiller['chiller_code'] ?? '-').toString();
+    } else if (lowerCol == 'customername' || lowerCol == 'name') {
+      return (chiller['customerName'] ?? chiller['customer_name'] ?? '-').toString();
     } else if (lowerCol == 'branch') {
       return (chiller['branch'] ?? '-').toString();
-    } else if (lowerCol == 'customer type') {
-      return (chiller['customerType'] ?? '-').toString();
-    } else if (lowerCol == 'efficiency' || lowerCol == 'month ach. status') {
+    } else if (lowerCol == 'customertype') {
+      return (chiller['customerType'] ?? chiller['customer_type'] ?? '-').toString();
+    } else if (lowerCol == 'efficiency' || lowerCol == 'monthachstatus') {
       return (chiller['efficiency'] ?? '-').toString();
-    } else if (lowerCol == 'chiller status') {
-      return (chiller['chillerStatus'] ?? '-').toString();
-    } else if (lowerCol == 'chiller type') {
-      return (chiller['chillerType'] ?? '-').toString();
+    } else if (lowerCol == 'chillerstatus') {
+      return (chiller['chillerStatus'] ?? chiller['chiller_status'] ?? '-').toString();
+    } else if (lowerCol == 'chillertype') {
+      return (chiller['chillerType'] ?? chiller['chiller_type'] ?? '-').toString();
     } else if (lowerCol == 'condition' || lowerCol == 'condiiton') {
       return (chiller['condition'] ?? '-').toString();
     } else if (lowerCol == 'latitude') {
@@ -195,43 +180,297 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
     return '-';
   }
 
-  List<dynamic> get _filteredChillers {
-    return _chillers.where((c) {
-      if (_selectedEfficiency != 'All') {
-        final eff = (c['efficiency'] ?? '').toString().toLowerCase();
-        if (eff != _selectedEfficiency.toLowerCase()) return false;
+  double? _tryParseDouble(String val) {
+    if (val.isEmpty || val == '-') return null;
+    final clean = val.replaceAll(',', '').replaceAll(' ', '').replaceAll('EGP', '');
+    return double.tryParse(clean);
+  }
+
+  List<dynamic> _getFilteredAndSortedChillers(List<String> allColumns) {
+    // 1. Filter
+    final filtered = _chillers.where((c) {
+      // Global search across ALL columns
+      if (_globalSearchQuery.isNotEmpty) {
+        final q = _globalSearchQuery.toLowerCase();
+        bool anyMatch = false;
+        for (final col in allColumns) {
+          final val = _getCellValue(c, col).toLowerCase();
+          if (val.contains(q)) {
+            anyMatch = true;
+            break;
+          }
+        }
+        if (!anyMatch) return false;
       }
-      if (_selectedCustomerType != 'All') {
-        final type = (c['customerType'] ?? '').toString().toLowerCase();
-        if (type != _selectedCustomerType.toLowerCase()) return false;
-      }
-      if (_searchQuery.isNotEmpty) {
-        final q = _searchQuery.toLowerCase();
-        final code = (c['chillerCode'] ?? '').toString().toLowerCase();
-        final name = (c['customerName'] ?? '').toString().toLowerCase();
-        final branch = (c['branch'] ?? '').toString().toLowerCase();
-        final addr = _getCellValue(c, 'Customer Address').toLowerCase();
-        final phone = _getCellValue(c, 'Mobile Number').toLowerCase();
-        final sr = _getCellValue(c, 'SR Name').toLowerCase();
-        if (!code.contains(q) && !name.contains(q) && !branch.contains(q) && !addr.contains(q) && !phone.contains(q) && !sr.contains(q)) {
+
+      // Column-specific filters
+      for (final entry in _columnFilters.entries) {
+        final col = entry.key;
+        final fVal = entry.value.trim().toLowerCase();
+        if (fVal.isEmpty) continue;
+
+        final cellVal = _getCellValue(c, col).trim().toLowerCase();
+        if (!cellVal.contains(fVal)) {
           return false;
         }
       }
+
       return true;
     }).toList();
+
+    // 2. Sort
+    if (_sortColumn != null) {
+      filtered.sort((a, b) {
+        final valA = _getCellValue(a, _sortColumn!);
+        final valB = _getCellValue(b, _sortColumn!);
+
+        final numA = _tryParseDouble(valA);
+        final numB = _tryParseDouble(valB);
+
+        int cmp;
+        if (numA != null && numB != null) {
+          cmp = numA.compareTo(numB);
+        } else {
+          cmp = valA.compareTo(valB);
+        }
+        return _sortAscending ? cmp : -cmp;
+      });
+    }
+
+    return filtered;
   }
 
-  void _exportToCsv() {
+  void _onSort(String column) {
+    setState(() {
+      if (_sortColumn == column) {
+        if (_sortAscending) {
+          _sortAscending = false;
+        } else {
+          _sortColumn = null; // reset sort
+          _sortAscending = true;
+        }
+      } else {
+        _sortColumn = column;
+        _sortAscending = true;
+      }
+    });
+  }
+
+  void _openColumnFilterDialog(String column) {
+    final currentFilter = _columnFilters[column] ?? '';
+    final controller = TextEditingController(text: currentFilter);
+
+    // Get top unique values for this column from the dataset
+    final Map<String, int> valueCounts = {};
+    for (final c in _chillers) {
+      final val = _getCellValue(c, column);
+      if (val != '-' && val.isNotEmpty) {
+        valueCounts[val] = (valueCounts[val] ?? 0) + 1;
+      }
+    }
+    final sortedValues = valueCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final topValues = sortedValues.take(25).toList();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: Row(
+            children: [
+              const Icon(Icons.filter_alt, color: Colors.cyan, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Filter: $column', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 380,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Type to filter $column...',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white24)),
+                      prefixIcon: const Icon(Icons.search, color: Colors.cyan, size: 18),
+                      suffixIcon: controller.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.white54, size: 16),
+                              onPressed: () {
+                                controller.clear();
+                                setDialogState(() {});
+                              },
+                            )
+                          : null,
+                    ),
+                    onChanged: (val) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 14),
+                  if (topValues.isNotEmpty) ...[
+                    Text('Quick Select (${topValues.length} distinct values):', style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: topValues.map((entry) {
+                        final isSelected = controller.text.trim().toLowerCase() == entry.key.toLowerCase();
+                        return InkWell(
+                          onTap: () {
+                            controller.text = isSelected ? '' : entry.key;
+                            setDialogState(() {});
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isSelected ? Colors.cyan.withValues(alpha: 0.3) : const Color(0xFF0F172A),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: isSelected ? Colors.cyan : Colors.white24),
+                            ),
+                            child: Text(
+                              '${entry.key} (${entry.value})',
+                              style: TextStyle(
+                                color: isSelected ? Colors.cyan : Colors.white70,
+                                fontSize: 11,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            if (_columnFilters.containsKey(column))
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _columnFilters.remove(column);
+                    _currentPage = 0;
+                  });
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Clear Filter', style: TextStyle(color: Colors.redAccent)),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final val = controller.text.trim();
+                setState(() {
+                  if (val.isEmpty) {
+                    _columnFilters.remove(column);
+                  } else {
+                    _columnFilters[column] = val;
+                  }
+                  _currentPage = 0;
+                });
+                Navigator.pop(ctx);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan, foregroundColor: Colors.black),
+              child: const Text('Apply', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openManageColumnsDialog(List<String> allColumns) {
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Show / Hide Columns', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      setDialogState(() => _hiddenColumns.clear());
+                      setState(() {});
+                    },
+                    child: const Text('Show All', style: TextStyle(color: Colors.cyan, fontSize: 12)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 420,
+            height: 400,
+            child: ListView.builder(
+              itemCount: allColumns.length,
+              itemBuilder: (ctx, i) {
+                final col = allColumns[i];
+                final isVisible = !_hiddenColumns.contains(col);
+                return CheckboxListTile(
+                  dense: true,
+                  activeColor: Colors.cyan,
+                  title: Text(col, style: TextStyle(color: isVisible ? Colors.white : Colors.white38, fontSize: 13)),
+                  value: isVisible,
+                  onChanged: (val) {
+                    setDialogState(() {
+                      if (val == true) {
+                        _hiddenColumns.remove(col);
+                      } else {
+                        // Prevent hiding all columns
+                        if (allColumns.length - _hiddenColumns.length > 1) {
+                          _hiddenColumns.add(col);
+                        }
+                      }
+                    });
+                    setState(() {});
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan, foregroundColor: Colors.black),
+              child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _exportToCsv(List<String> columns) {
     if (_chillers.isEmpty) return;
-    final cols = _extractColumns(_chillers);
+    final filtered = _getFilteredAndSortedChillers(columns);
     final buffer = StringBuffer();
 
     // CSV Header row
-    buffer.writeln(cols.map((c) => '"${c.replaceAll('"', '""')}"').join(','));
+    buffer.writeln(columns.map((c) => '"${c.replaceAll('"', '""')}"').join(','));
 
-    // CSV Data rows (export active filtered set)
-    for (final item in _filteredChillers) {
-      final row = cols.map((col) {
+    // CSV Data rows
+    for (final item in filtered) {
+      final row = columns.map((col) {
         final val = _getCellValue(item, col);
         final cleanVal = val == '-' ? '' : val;
         return '"${cleanVal.replaceAll('"', '""')}"';
@@ -244,22 +483,22 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('📥 Exported ${_filteredChillers.length} records to $filename'),
+        content: Text('📥 Exported ${filtered.length} records to $filename'),
         backgroundColor: const Color(0xFF10B981),
       ),
     );
   }
 
   Widget _buildCellContent(String col, String val) {
-    if (col == 'Month Ach. Status' || col == 'Efficiency') {
+    final lowerCol = col.toLowerCase();
+    if (lowerCol == 'month ach. status' || lowerCol == 'efficiency') {
       Color badgeColor;
-      Color textColor = Colors.white;
       if (val.toLowerCase() == 'performing') {
         badgeColor = const Color(0xFF10B981);
       } else if (val.toLowerCase() == 'non-performing') {
         badgeColor = Colors.orangeAccent;
       } else if (val.toLowerCase() == 'zero') {
-        badgeColor = Colors.redAccent.withValues(alpha: 0.8);
+        badgeColor = Colors.redAccent.withValues(alpha: 0.85);
       } else {
         badgeColor = Colors.grey.withValues(alpha: 0.5);
       }
@@ -278,17 +517,28 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
       );
     }
 
-    if (col == 'Chiller Code') {
+    if (lowerCol.contains('chiller code') || lowerCol == 'code') {
       return Text(
         val,
         style: const TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold, fontSize: 13),
       );
     }
 
-    if (col == 'Customer Name') {
+    if (lowerCol.contains('customer name')) {
       return Text(
         val,
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+      );
+    }
+
+    if (lowerCol.contains('invoice') || lowerCol == 'ytd' || lowerCol.contains('average')) {
+      return Text(
+        val,
+        style: TextStyle(
+          color: (val != '-' && val != '0' && val.isNotEmpty) ? const Color(0xFF10B981) : Colors.white38,
+          fontWeight: FontWeight.w500,
+          fontSize: 13,
+        ),
       );
     }
 
@@ -300,14 +550,15 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredChillers;
+    final allColumns = _extractColumns(_chillers);
+    final visibleColumns = allColumns.where((c) => !_hiddenColumns.contains(c)).toList();
+    final filtered = _getFilteredAndSortedChillers(allColumns);
     final totalRows = filtered.length;
     final totalPages = (totalRows / _rowsPerPage).ceil().clamp(1, 99999);
     final safePage = _currentPage.clamp(0, totalPages - 1);
     final startIndex = safePage * _rowsPerPage;
     final endIndex = (startIndex + _rowsPerPage).clamp(0, totalRows);
     final pageRows = totalRows > 0 ? filtered.sublist(startIndex, endIndex) : [];
-    final columns = _extractColumns(_chillers);
     final screenWidth = MediaQuery.of(context).size.width;
     final bool isMobile = screenWidth < 768;
 
@@ -318,7 +569,7 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Title & Action Bar
+            // Top Title & Header Action Bar
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -334,14 +585,14 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
                         const Icon(Icons.table_chart, color: Colors.cyan, size: 26),
                         const SizedBox(width: 8),
                         Text(
-                          'Active Dataset Table (${_chillers.length} Records)',
+                          'Complete Excel Dataset (${_chillers.length} Records)',
                           style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Complete records from latest uploaded Excel sheet with all dynamic columns (${columns.length} columns discovered).',
+                      'All ${allColumns.length} spreadsheet columns loaded. Fully searchable and filterable across all data fields.',
                       style: const TextStyle(color: Colors.white60, fontSize: 13),
                     ),
                   ],
@@ -351,6 +602,14 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
                   runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    // Column Visibility Button
+                    OutlinedButton.icon(
+                      onPressed: () => _openManageColumnsDialog(allColumns),
+                      icon: const Icon(Icons.view_column, size: 16, color: Colors.cyan),
+                      label: Text('Columns (${visibleColumns.length}/${allColumns.length})', style: const TextStyle(color: Colors.cyan)),
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.cyan)),
+                    ),
+
                     // Refresh Button
                     ElevatedButton.icon(
                       onPressed: _isLoading ? null : () => _loadData(forceApi: true),
@@ -365,7 +624,7 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
 
                     // Export CSV Button
                     ElevatedButton.icon(
-                      onPressed: _chillers.isEmpty ? null : _exportToCsv,
+                      onPressed: _chillers.isEmpty ? null : () => _exportToCsv(visibleColumns),
                       icon: const Icon(Icons.download, size: 16),
                       label: const Text('Export CSV'),
                       style: ElevatedButton.styleFrom(
@@ -379,16 +638,16 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
                     OutlinedButton.icon(
                       onPressed: _clearAllData,
                       icon: const Icon(Icons.delete_forever, color: Colors.redAccent, size: 16),
-                      label: const Text('Clear All DB', style: TextStyle(color: Colors.redAccent)),
+                      label: const Text('Clear DB', style: TextStyle(color: Colors.redAccent)),
                       style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.redAccent)),
                     ),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
-            // Search & Filter Toolbar
+            // Comprehensive Search & Filter Toolbar
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -396,133 +655,211 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.white12),
               ),
-              child: Wrap(
-                spacing: 16,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Search Box
-                  SizedBox(
-                    width: isMobile ? double.infinity : 280,
-                    height: 40,
-                    child: TextField(
-                      controller: _searchController,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: 'Search code, name, branch, address...',
-                        hintStyle: const TextStyle(color: Colors.white38),
-                        filled: true,
-                        fillColor: const Color(0xFF0F172A),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white24)),
-                        prefixIcon: const Icon(Icons.search, color: Colors.cyan, size: 18),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, color: Colors.white54, size: 16),
-                                onPressed: () {
-                                  _searchController.clear();
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 10,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      // Universal Search Box (searches ALL 36+ columns)
+                      SizedBox(
+                        width: isMobile ? double.infinity : 320,
+                        height: 40,
+                        child: TextField(
+                          controller: _globalSearchController,
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Search ALL columns simultaneously...',
+                            hintStyle: const TextStyle(color: Colors.white38),
+                            filled: true,
+                            fillColor: const Color(0xFF0F172A),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white24)),
+                            prefixIcon: const Icon(Icons.search, color: Colors.cyan, size: 18),
+                            suffixIcon: _globalSearchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, color: Colors.white54, size: 16),
+                                    onPressed: () {
+                                      _globalSearchController.clear();
+                                      setState(() {
+                                        _globalSearchQuery = '';
+                                        _currentPage = 0;
+                                      });
+                                    },
+                                  )
+                                : null,
+                          ),
+                          onChanged: (val) {
+                            setState(() {
+                              _globalSearchQuery = val.trim();
+                              _currentPage = 0;
+                            });
+                          },
+                        ),
+                      ),
+
+                      // Column-Specific Filter Selector
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Column: ', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F172A),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: DropdownButton<String>(
+                              value: _selectedToolbarColumn ?? (allColumns.isNotEmpty ? allColumns.first : null),
+                              dropdownColor: const Color(0xFF1E293B),
+                              underline: const SizedBox(),
+                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                              items: allColumns.map((col) {
+                                return DropdownMenuItem(value: col, child: Text(col));
+                              }).toList(),
+                              onChanged: (val) {
+                                setState(() => _selectedToolbarColumn = val);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 180,
+                            height: 40,
+                            child: TextField(
+                              controller: _toolbarFilterController,
+                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                              decoration: const InputDecoration(
+                                hintText: 'Filter value...',
+                                hintStyle: TextStyle(color: Colors.white38),
+                                filled: true,
+                                fillColor: Color(0xFF0F172A),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8)), borderSide: BorderSide(color: Colors.white24)),
+                              ),
+                              onSubmitted: (val) {
+                                final col = _selectedToolbarColumn ?? (allColumns.isNotEmpty ? allColumns.first : null);
+                                if (col != null && val.trim().isNotEmpty) {
                                   setState(() {
-                                    _searchQuery = '';
+                                    _columnFilters[col] = val.trim();
+                                    _toolbarFilterController.clear();
                                     _currentPage = 0;
                                   });
-                                },
-                              )
-                            : null,
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          ElevatedButton(
+                            onPressed: () {
+                              final col = _selectedToolbarColumn ?? (allColumns.isNotEmpty ? allColumns.first : null);
+                              final val = _toolbarFilterController.text.trim();
+                              if (col != null && val.isNotEmpty) {
+                                setState(() {
+                                  _columnFilters[col] = val;
+                                  _toolbarFilterController.clear();
+                                  _currentPage = 0;
+                                });
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.cyan,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            ),
+                            child: const Text('Add Filter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ),
+                        ],
                       ),
-                      onChanged: (val) {
-                        setState(() {
-                          _searchQuery = val.trim();
-                          _currentPage = 0;
-                        });
-                      },
-                    ),
-                  ),
 
-                  // Efficiency Filter Dropdown
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Efficiency: ', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      // Match counter badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.white24),
+                          color: Colors.cyan.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.cyan.withValues(alpha: 0.4)),
                         ),
-                        child: DropdownButton<String>(
-                          value: _selectedEfficiency,
-                          dropdownColor: const Color(0xFF1E293B),
-                          underline: const SizedBox(),
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
-                          items: ['All', 'Performing', 'Non-Performing', 'Zero'].map((eff) {
-                            return DropdownMenuItem(value: eff, child: Text(eff));
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() {
-                                _selectedEfficiency = val;
-                                _currentPage = 0;
-                              });
-                            }
-                          },
+                        child: Text(
+                          'Showing $totalRows of ${_chillers.length}',
+                          style: const TextStyle(color: Colors.cyan, fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
                   ),
 
-                  // Customer Type Filter Dropdown
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Type: ', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        child: DropdownButton<String>(
-                          value: _selectedCustomerType,
-                          dropdownColor: const Color(0xFF1E293B),
-                          underline: const SizedBox(),
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
-                          items: ['All', 'Retail', 'LS', 'SM', 'LG'].map((t) {
-                            return DropdownMenuItem(value: t, child: Text(t));
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
+                  // Active Filters Bar (Chips)
+                  if (_globalSearchQuery.isNotEmpty || _columnFilters.isNotEmpty || _sortColumn != null) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text('Active Filters:', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                        if (_globalSearchQuery.isNotEmpty)
+                          Chip(
+                            backgroundColor: Colors.cyan.withValues(alpha: 0.2),
+                            side: const BorderSide(color: Colors.cyan),
+                            label: Text('Global: "$_globalSearchQuery"', style: const TextStyle(color: Colors.cyan, fontSize: 12)),
+                            deleteIcon: const Icon(Icons.close, size: 14, color: Colors.cyan),
+                            onDeleted: () {
+                              _globalSearchController.clear();
                               setState(() {
-                                _selectedCustomerType = val;
+                                _globalSearchQuery = '';
                                 _currentPage = 0;
                               });
-                            }
+                            },
+                          ),
+                        ..._columnFilters.entries.map((entry) {
+                          return Chip(
+                            backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.2),
+                            side: const BorderSide(color: Color(0xFF10B981)),
+                            label: Text('${entry.key}: "${entry.value}"', style: const TextStyle(color: Color(0xFF10B981), fontSize: 12)),
+                            deleteIcon: const Icon(Icons.close, size: 14, color: Color(0xFF10B981)),
+                            onDeleted: () {
+                              setState(() {
+                                _columnFilters.remove(entry.key);
+                                _currentPage = 0;
+                              });
+                            },
+                          );
+                        }),
+                        if (_sortColumn != null)
+                          Chip(
+                            backgroundColor: Colors.purpleAccent.withValues(alpha: 0.2),
+                            side: const BorderSide(color: Colors.purpleAccent),
+                            label: Text('Sorted: $_sortColumn (${_sortAscending ? "▲ Asc" : "▼ Desc"})', style: const TextStyle(color: Colors.purpleAccent, fontSize: 12)),
+                            deleteIcon: const Icon(Icons.close, size: 14, color: Colors.purpleAccent),
+                            onDeleted: () {
+                              setState(() => _sortColumn = null);
+                            },
+                          ),
+                        TextButton(
+                          onPressed: () {
+                            _globalSearchController.clear();
+                            _toolbarFilterController.clear();
+                            setState(() {
+                              _globalSearchQuery = '';
+                              _columnFilters.clear();
+                              _sortColumn = null;
+                              _currentPage = 0;
+                            });
                           },
+                          child: const Text('Clear All Filters', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  // Records counter badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.cyan.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.cyan.withValues(alpha: 0.4)),
+                      ],
                     ),
-                    child: Text(
-                      'Showing $totalRows of ${_chillers.length}',
-                      style: const TextStyle(color: Colors.cyan, fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 16),
 
-            // Main Table Section
+            // Table Content
             if (_isLoading)
               const Center(
                 child: Padding(
@@ -571,22 +908,53 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
                         dataRowMinHeight: 46,
                         dataRowMaxHeight: 52,
                         horizontalMargin: 16,
-                        columnSpacing: 22,
-                        columns: columns.map((col) {
+                        columnSpacing: 18,
+                        columns: visibleColumns.map((col) {
+                          final isSorted = _sortColumn == col;
+                          final hasFilter = _columnFilters.containsKey(col);
+
                           return DataColumn(
-                            label: Text(
-                              col,
-                              style: const TextStyle(
-                                color: Color(0xFF06B6D4),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                            label: InkWell(
+                              onTap: () => _onSort(col),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    col,
+                                    style: TextStyle(
+                                      color: hasFilter ? Colors.yellowAccent : const Color(0xFF06B6D4),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  if (isSorted) ...[
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                                      size: 14,
+                                      color: Colors.cyan,
+                                    ),
+                                  ],
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    icon: Icon(
+                                      hasFilter ? Icons.filter_alt : Icons.filter_alt_outlined,
+                                      size: 15,
+                                      color: hasFilter ? Colors.yellowAccent : Colors.white38,
+                                    ),
+                                    tooltip: 'Filter $col',
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                                    onPressed: () => _openColumnFilterDialog(col),
+                                  ),
+                                ],
                               ),
                             ),
                           );
                         }).toList(),
                         rows: pageRows.map((c) {
                           return DataRow(
-                            cells: columns.map((col) {
+                            cells: visibleColumns.map((col) {
                               final cellVal = _getCellValue(c, col);
                               return DataCell(_buildCellContent(col, cellVal));
                             }).toList(),
@@ -694,3 +1062,4 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
     );
   }
 }
+
