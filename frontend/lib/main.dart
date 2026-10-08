@@ -3,11 +3,8 @@ import 'services/api_service.dart';
 import 'views/login_view.dart';
 import 'views/map_view.dart';
 import 'views/upload_view.dart';
-import 'views/batch_manager_view.dart';
 import 'views/assign_locations_view.dart';
 import 'views/agents_view.dart';
-import 'views/delta_view.dart';
-import 'views/columns_view.dart';
 import 'views/data_table_view.dart';
 
 void main() {
@@ -22,7 +19,7 @@ class ChillerAnalyticsApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Excel Map Analytics & Delta Platform',
+      title: 'Excel Map Analytics & Data Platform',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F172A),
@@ -47,10 +44,8 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   final GlobalKey<MapViewScreenState> _mapKey = GlobalKey<MapViewScreenState>();
-  final GlobalKey<BatchManagerViewScreenState> _batchManagerKey = GlobalKey<BatchManagerViewScreenState>();
   final GlobalKey<AssignLocationsViewScreenState> _assignKey = GlobalKey<AssignLocationsViewScreenState>();
   final GlobalKey<AgentsViewScreenState> _agentsKey = GlobalKey<AgentsViewScreenState>();
-  final GlobalKey<DeltaViewScreenState> _deltaKey = GlobalKey<DeltaViewScreenState>();
   final GlobalKey<DataTableViewScreenState> _tableKey = GlobalKey<DataTableViewScreenState>();
 
   void _onUploadSuccess() {
@@ -58,16 +53,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       _currentIndex = 0;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _mapKey.currentState?.reload(forceRecenter: true);
-    });
-  }
-
-  void _onOpenBatch(dynamic batchId) {
-    setState(() {
-      _currentIndex = 0;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _mapKey.currentState?.selectBatch(batchId);
+      _mapKey.currentState?.reload(forceRecenter: true, forceApi: true);
+      _tableKey.currentState?.reload(forceApi: true);
     });
   }
 
@@ -90,16 +77,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final String displayName = (currentUser['name'] ?? currentUser['email'] ?? currentUser['username'] ?? 'User').toString();
     final String? agentArea = currentUser['agentArea']?.toString();
 
-    // Screens configured by permission: Agents only access MapView
+    // Screens configured by permission: 5 tabs for Admin, 1 tab for Sales Agent
     final List<Widget> screens = isAdmin
         ? [
             MapViewScreen(key: _mapKey),
             UploadViewScreen(onUploadSuccess: _onUploadSuccess),
-            BatchManagerViewScreen(key: _batchManagerKey, onOpenBatch: _onOpenBatch),
             AssignLocationsViewScreen(key: _assignKey),
             AgentsViewScreen(key: _agentsKey),
-            DeltaViewScreen(key: _deltaKey),
-            const ColumnsViewScreen(),
             DataTableViewScreen(key: _tableKey),
           ]
         : [
@@ -119,11 +103,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               label: Text('Upload & Validate'),
             ),
             NavigationRailDestination(
-              icon: Icon(Icons.folder_copy_outlined),
-              selectedIcon: Icon(Icons.folder_copy),
-              label: Text('Batch Manager'),
-            ),
-            NavigationRailDestination(
               icon: Icon(Icons.assignment_ind_outlined),
               selectedIcon: Icon(Icons.assignment_ind),
               label: Text('Assign Locations'),
@@ -132,16 +111,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               icon: Icon(Icons.badge_outlined),
               selectedIcon: Icon(Icons.badge),
               label: Text('Sales Agents'),
-            ),
-            NavigationRailDestination(
-              icon: Icon(Icons.compare_arrows_outlined),
-              selectedIcon: Icon(Icons.compare_arrows),
-              label: Text('Delta Changes'),
-            ),
-            NavigationRailDestination(
-              icon: Icon(Icons.view_column_outlined),
-              selectedIcon: Icon(Icons.view_column),
-              label: Text('Column Manager'),
             ),
             NavigationRailDestination(
               icon: Icon(Icons.table_chart_outlined),
@@ -295,15 +264,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         _mapKey.currentState?.reload();
       } else if (isAdmin) {
         if (index == 2) {
-          _batchManagerKey.currentState?.reload();
-        } else if (index == 3) {
           _assignKey.currentState?.reload();
-        } else if (index == 4) {
+        } else if (index == 3) {
           _agentsKey.currentState?.reload();
-        } else if (index == 5) {
-          _deltaKey.currentState?.reload();
-        } else if (index == 7) {
-          _tableKey.currentState?.reload();
+        } else if (index == 4) {
+          _tableKey.currentState?.reload(forceApi: true);
         }
       }
     });
@@ -317,11 +282,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final List<Map<String, dynamic>> menuItems = [
       {'icon': Icons.map_outlined, 'activeIcon': Icons.map, 'label': 'Map View'},
       {'icon': Icons.upload_file_outlined, 'activeIcon': Icons.upload_file, 'label': 'Upload & Validate'},
-      {'icon': Icons.folder_copy_outlined, 'activeIcon': Icons.folder_copy, 'label': 'Batch Manager'},
       {'icon': Icons.assignment_ind_outlined, 'activeIcon': Icons.assignment_ind, 'label': 'Assign Locations'},
       {'icon': Icons.badge_outlined, 'activeIcon': Icons.badge, 'label': 'Sales Agents'},
-      {'icon': Icons.compare_arrows_outlined, 'activeIcon': Icons.compare_arrows, 'label': 'Delta Changes'},
-      {'icon': Icons.view_column_outlined, 'activeIcon': Icons.view_column, 'label': 'Column Manager'},
       {'icon': Icons.table_chart_outlined, 'activeIcon': Icons.table_chart, 'label': 'Data Table'},
     ];
 
