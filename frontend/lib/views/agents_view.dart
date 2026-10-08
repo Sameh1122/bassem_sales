@@ -48,163 +48,225 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
     final nameController = TextEditingController(text: agent != null ? agent['name'] ?? '' : '');
     final areaController = TextEditingController(text: agent != null ? agent['area'] ?? '' : '');
     final phoneController = TextEditingController(text: agent != null ? agent['phone'] ?? '' : '');
-    final emailController = TextEditingController(text: agent != null ? agent['email'] ?? '' : '');
+    final emailController = TextEditingController(text: agent != null ? (agent['login_email'] ?? agent['email'] ?? '') : '');
+    final passwordController = TextEditingController();
+    bool obscurePassword = true;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(
-              isEditing ? Icons.edit : Icons.person_add,
-              color: const Color(0xFF06B6D4),
-              size: 24,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(
+                isEditing ? Icons.edit : Icons.person_add,
+                color: const Color(0xFF06B6D4),
+                size: 24,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                isEditing ? 'Edit Sales Agent' : 'Add New Sales Agent',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Agent Full Name *', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: nameController,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. أمينة or Ahmed Hassan',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF06B6D4)),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Assigned Territory / Area *', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: areaController,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. Cairo East, Maadi, Giza',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      prefixIcon: const Icon(Icons.location_on_outlined, color: Color(0xFF10B981)),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF10B981))),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Phone Number', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: phoneController,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. +20 100 123 4567',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      prefixIcon: const Icon(Icons.phone_outlined, color: Colors.white54),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Login Email Address *', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. amina@sales.com',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF06B6D4)),
+                      filled: true,
+                      fillColor: const Color(0xFF0F172A),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
+                    ),
+                  ),
+                  if (!isEditing) ...[
+                    const SizedBox(height: 16),
+                    const Text('Login Password *', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: obscurePassword,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'e.g. Agent#Amina2026!',
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF06B6D4)),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            color: Colors.white54,
+                            size: 18,
+                          ),
+                          onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFF0F172A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
+                      child: const Text(
+                        'Password Policy: Min 8 chars with uppercase, lowercase, numbers & symbols.',
+                        style: TextStyle(color: Colors.white38, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-            const SizedBox(width: 10),
-            Text(
-              isEditing ? 'Edit Sales Agent' : 'Add New Sales Agent',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF06B6D4),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              icon: Icon(isEditing ? Icons.save : Icons.check, size: 18),
+              label: Text(isEditing ? 'Save Changes' : 'Create Agent', style: const TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                final name = nameController.text.trim();
+                final area = areaController.text.trim();
+                final email = emailController.text.trim();
+                final password = passwordController.text;
+
+                if (name.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Agent name is required'), backgroundColor: Colors.orangeAccent),
+                  );
+                  return;
+                }
+
+                if (email.isEmpty || !email.contains('@')) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Valid login email is required'), backgroundColor: Colors.orangeAccent),
+                  );
+                  return;
+                }
+
+                if (!isEditing && password.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Login password is required'), backgroundColor: Colors.orangeAccent),
+                  );
+                  return;
+                }
+
+                Navigator.of(ctx).pop();
+                try {
+                  if (isEditing) {
+                    await ApiService.updateAgent(
+                      id: agent['id'],
+                      name: name,
+                      area: area,
+                      phone: phoneController.text.trim(),
+                      email: email,
+                    );
+                  } else {
+                    await ApiService.createAgent(
+                      name: name,
+                      area: area,
+                      phone: phoneController.text.trim(),
+                      email: email,
+                      password: password,
+                    );
+                  }
+                  _loadAgents();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(isEditing ? 'Agent updated successfully' : 'Agent created successfully with login credentials!'),
+                        backgroundColor: const Color(0xFF10B981),
+                      ),
+                    );
+                  }
+                } catch (err) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $err'), backgroundColor: Colors.redAccent),
+                    );
+                  }
+                }
+              },
             ),
           ],
         ),
-        content: SizedBox(
-          width: 440,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Agent Full Name *', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: nameController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'e.g. Ahmed Hassan',
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF06B6D4)),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text('Assigned Territory / Area *', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: areaController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'e.g. Cairo East, Nasr City, New Cairo',
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    prefixIcon: const Icon(Icons.location_on_outlined, color: Color(0xFF10B981)),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF10B981))),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text('Phone Number', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: phoneController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'e.g. +20 100 123 4567',
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    prefixIcon: const Icon(Icons.phone_outlined, color: Colors.white54),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text('Email Address', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: emailController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'e.g. agent@company.com',
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    prefixIcon: const Icon(Icons.email_outlined, color: Colors.white54),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
-          ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF06B6D4),
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            icon: Icon(isEditing ? Icons.save : Icons.check, size: 18),
-            label: Text(isEditing ? 'Save Changes' : 'Create Agent', style: const TextStyle(fontWeight: FontWeight.bold)),
-            onPressed: () async {
-              final name = nameController.text.trim();
-              final area = areaController.text.trim();
-              if (name.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Agent name is required'), backgroundColor: Colors.orangeAccent),
-                );
-                return;
-              }
-              Navigator.of(ctx).pop();
-              try {
-                if (isEditing) {
-                  await ApiService.updateAgent(
-                    id: agent['id'],
-                    name: name,
-                    area: area,
-                    phone: phoneController.text.trim(),
-                    email: emailController.text.trim(),
-                  );
-                } else {
-                  await ApiService.createAgent(
-                    name: name,
-                    area: area,
-                    phone: phoneController.text.trim(),
-                    email: emailController.text.trim(),
-                  );
-                }
-                _loadAgents();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(isEditing ? 'Agent updated successfully' : 'Agent created successfully'),
-                      backgroundColor: const Color(0xFF10B981),
-                    ),
-                  );
-                }
-              } catch (err) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $err'), backgroundColor: Colors.redAccent),
-                  );
-                }
-              }
-            },
-          ),
-        ],
       ),
     );
   }
@@ -293,7 +355,7 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Username: @${agent['username'] ?? agent['name'].toString().toLowerCase().replaceAll(' ', '.')}',
+                'Login Email: ${agent['login_email'] ?? agent['email'] ?? ''}',
                 style: const TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold, fontSize: 13),
               ),
               const SizedBox(height: 14),
@@ -643,7 +705,7 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
                                                 Text(email, style: const TextStyle(color: Colors.white60, fontSize: 12)),
                                               ],
                                             ),
-                                          if (agent['username'] != null)
+                                          if ((agent['login_email'] ?? agent['email']) != null)
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                               decoration: BoxDecoration(
@@ -652,7 +714,7 @@ class AgentsViewScreenState extends State<AgentsViewScreen> {
                                                 border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
                                               ),
                                               child: Text(
-                                                'Login: @${agent['username']}',
+                                                'Login: ${agent['login_email'] ?? agent['email']}',
                                                 style: const TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold),
                                               ),
                                             ),

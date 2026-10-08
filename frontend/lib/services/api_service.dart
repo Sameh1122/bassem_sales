@@ -60,11 +60,11 @@ class ApiService {
   // Authentication Methods
   // ==========================================
 
-  static Future<Map<String, dynamic>> login(String username, String password) async {
+  static Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/login'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'username': username.trim(), 'password': password}),
+      body: jsonEncode({'email': email.trim(), 'password': password}),
     );
     final decoded = _safeJsonDecode(response.body);
     if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {

@@ -43,13 +43,31 @@ function validateComplexPassword(password) {
 
 function hashPassword(password, salt = null) {
   const generatedSalt = salt || crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, generatedSalt, 1000, 64, 'sha512').toString('hex');
+  const hash = crypto.pbkdf2Sync(password, generatedSalt, 100000, 64, 'sha512').toString('hex');
   return { hash, salt: generatedSalt };
 }
 
 function verifyPassword(password, storedHash, salt) {
-  const check = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return check === storedHash;
+  if (!password || !storedHash || !salt) return false;
+  // Primary check: 100,000 PBKDF2 iterations (maximum security)
+  const check100k = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  if (check100k === storedHash) return true;
+  // Fallback check: 1,000 iterations for backwards compatibility
+  const check1k = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return check1k === storedHash;
+}
+
+// In-memory rate limiting map: identifier -> { count, lockoutUntil }
+const loginAttempts = new Map();
+
+function recordFailedAttempt(identifier) {
+  const now = Date.now();
+  const rec = loginAttempts.get(identifier) || { count: 0, lockoutUntil: 0 };
+  rec.count += 1;
+  if (rec.count >= 5) {
+    rec.lockoutUntil = now + 5 * 60 * 1000; // 5-minute security lockout
+  }
+  loginAttempts.set(identifier, rec);
 }
 
 function createToken(payload) {
@@ -87,52 +105,57 @@ function extractUserFromReq(req) {
 const DEFAULT_USERS = [
   {
     id: 1,
+    email: 'admin@sales.com',
     username: 'admin',
     name: 'System Administrator',
     role: 'admin',
     agent_id: null,
     salt: '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d',
-    password_hash: crypto.pbkdf2Sync('Admin@Sales2026!', '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d', 1000, 64, 'sha512').toString('hex'),
+    password_hash: crypto.pbkdf2Sync('Admin@Sales2026!', '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d', 100000, 64, 'sha512').toString('hex'),
     created_at: new Date().toISOString()
   },
   {
     id: 2,
+    email: 'ahmed.hassan@sales.com',
     username: 'ahmed.hassan',
     name: 'Ahmed Hassan',
     role: 'agent',
     agent_id: 1,
     salt: '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
-    password_hash: crypto.pbkdf2Sync('Agent#Ahmed2026!', '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d', 1000, 64, 'sha512').toString('hex'),
+    password_hash: crypto.pbkdf2Sync('Agent#Ahmed2026!', '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d', 100000, 64, 'sha512').toString('hex'),
     created_at: new Date().toISOString()
   },
   {
     id: 3,
+    email: 'mahmoud.ali@sales.com',
     username: 'mahmoud.ali',
     name: 'Mahmoud Ali',
     role: 'agent',
     agent_id: 2,
     salt: '2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
-    password_hash: crypto.pbkdf2Sync('Agent#Mahmoud2026!', '2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e', 1000, 64, 'sha512').toString('hex'),
+    password_hash: crypto.pbkdf2Sync('Agent#Mahmoud2026!', '2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e', 100000, 64, 'sha512').toString('hex'),
     created_at: new Date().toISOString()
   },
   {
     id: 4,
+    email: 'karim.m@sales.com',
     username: 'karim.m',
     name: 'Karim Mostafa',
     role: 'agent',
     agent_id: 3,
     salt: '3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
-    password_hash: crypto.pbkdf2Sync('Agent#Karim2026!', '3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f', 1000, 64, 'sha512').toString('hex'),
+    password_hash: crypto.pbkdf2Sync('Agent#Karim2026!', '3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f', 100000, 64, 'sha512').toString('hex'),
     created_at: new Date().toISOString()
   },
   {
     id: 5,
+    email: 'tarek.i@sales.com',
     username: 'tarek.i',
     name: 'Tarek Ibrahim',
     role: 'agent',
     agent_id: 4,
     salt: '4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a',
-    password_hash: crypto.pbkdf2Sync('Agent#Tarek2026!', '4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a', 1000, 64, 'sha512').toString('hex'),
+    password_hash: crypto.pbkdf2Sync('Agent#Tarek2026!', '4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a', 100000, 64, 'sha512').toString('hex'),
     created_at: new Date().toISOString()
   }
 ];
@@ -250,17 +273,36 @@ function loadDbStore() {
 
   if (!Array.isArray(store.agents)) {
     store.agents = [
-      { id: 1, name: 'Ahmed Hassan', area: 'Cairo East (Nasr City, New Cairo)', phone: '+20 100 123 4567', email: 'ahmed.hassan@example.com', created_at: new Date().toISOString() },
-      { id: 2, name: 'Mahmoud Ali', area: 'Giza & 6th of October', phone: '+20 101 234 5678', email: 'mahmoud.ali@example.com', created_at: new Date().toISOString() },
-      { id: 3, name: 'Karim Mostafa', area: 'Alexandria & Coastal', phone: '+20 102 345 6789', email: 'karim.m@example.com', created_at: new Date().toISOString() },
-      { id: 4, name: 'Tarek Ibrahim', area: 'Delta (Tanta, Mansoura)', phone: '+20 103 456 7890', email: 'tarek.i@example.com', created_at: new Date().toISOString() }
+      { id: 1, name: 'Ahmed Hassan', area: 'Cairo East (Nasr City, New Cairo)', phone: '+20 100 123 4567', email: 'ahmed.hassan@sales.com', created_at: new Date().toISOString() },
+      { id: 2, name: 'Mahmoud Ali', area: 'Giza & 6th of October', phone: '+20 101 234 5678', email: 'mahmoud.ali@sales.com', created_at: new Date().toISOString() },
+      { id: 3, name: 'Karim Mostafa', area: 'Alexandria & Coastal', phone: '+20 102 345 6789', email: 'karim.m@sales.com', created_at: new Date().toISOString() },
+      { id: 4, name: 'Tarek Ibrahim', area: 'Delta (Tanta, Mansoura)', phone: '+20 103 456 7890', email: 'tarek.i@sales.com', created_at: new Date().toISOString() }
     ];
+  } else {
+    store.agents.forEach(a => {
+      if (!a.email || a.email.includes('example.com')) {
+        const u = (store.users || []).find(usr => usr.agent_id === a.id);
+        a.email = (u && u.email) ? u.email : `${a.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@sales.com`;
+      }
+    });
   }
+
   if (!Array.isArray(store.assignments)) {
     store.assignments = [];
   }
+
   if (!Array.isArray(store.users) || store.users.length === 0) {
     store.users = [...DEFAULT_USERS];
+  } else {
+    store.users.forEach(u => {
+      if (!u.email) {
+        if (u.id === 1 || u.username === 'admin' || u.role === 'admin') {
+          u.email = 'admin@sales.com';
+        } else if (u.username) {
+          u.email = `${u.username}@sales.com`;
+        }
+      }
+    });
   }
 
   return store;
@@ -271,6 +313,19 @@ function saveDbStore(store) {
     fs.writeFileSync(DB_FILE, JSON.stringify(store, null, 2), 'utf8');
   } catch (e) {
     console.error('⚠️ Error writing to persistent DB file:', e.message);
+  }
+  try {
+    const candidateSeedPaths = [
+      path.join(__dirname, 'seedData.json'),
+      path.resolve('api/seedData.json'),
+      path.resolve('seedData.json')
+    ];
+    const seedPath = candidateSeedPaths.find(p => fs.existsSync(p));
+    if (seedPath && !process.env.VERCEL) {
+      fs.writeFileSync(seedPath, JSON.stringify(store), 'utf8');
+    }
+  } catch (e) {
+    // Non-fatal if seedData cannot be written
   }
 }
 
@@ -454,23 +509,48 @@ function requireAdmin(req, res, next) {
 // ==========================================
 
 router.post('/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ success: false, error: 'Username and password are required' });
+  const emailInput = req.body.email || req.body.username;
+  const password = req.body.password;
+
+  if (!emailInput || !password) {
+    return res.status(400).json({ success: false, error: 'Email and password are required' });
   }
 
-  const user = (dbStore.users || []).find(u => u.username.toLowerCase() === username.trim().toLowerCase());
+  const cleanIdentifier = emailInput.trim().toLowerCase();
+
+  // Rate limiting check
+  const now = Date.now();
+  const attemptRecord = loginAttempts.get(cleanIdentifier);
+  if (attemptRecord && attemptRecord.count >= 5 && now < attemptRecord.lockoutUntil) {
+    const minutesLeft = Math.ceil((attemptRecord.lockoutUntil - now) / 60000);
+    return res.status(429).json({
+      success: false,
+      error: `Too many failed login attempts. Account temporarily locked for security. Please try again in ${minutesLeft} minute(s).`
+    });
+  }
+
+  const user = (dbStore.users || []).find(u =>
+    (u.email && u.email.toLowerCase() === cleanIdentifier) ||
+    (u.username && u.username.toLowerCase() === cleanIdentifier)
+  );
+
   if (!user) {
-    return res.status(401).json({ success: false, error: 'Invalid username or password' });
+    recordFailedAttempt(cleanIdentifier);
+    return res.status(401).json({ success: false, error: 'Invalid email or password' });
   }
 
   const isMatch = verifyPassword(password, user.password_hash, user.salt);
   if (!isMatch) {
-    return res.status(401).json({ success: false, error: 'Invalid username or password' });
+    recordFailedAttempt(cleanIdentifier);
+    return res.status(401).json({ success: false, error: 'Invalid email or password' });
   }
+
+  // Clear failed attempt record on successful login
+  loginAttempts.delete(cleanIdentifier);
 
   const token = createToken({
     id: user.id,
+    email: user.email,
     username: user.username,
     name: user.name,
     role: user.role,
@@ -485,6 +565,7 @@ router.post('/auth/login', (req, res) => {
     token,
     user: {
       id: user.id,
+      email: user.email,
       username: user.username,
       name: user.name,
       role: user.role,
@@ -504,6 +585,7 @@ router.get('/auth/me', (req, res) => {
     success: true,
     user: {
       id: req.user.id,
+      email: user ? user.email : req.user.email,
       username: req.user.username,
       name: req.user.name,
       role: req.user.role,
@@ -904,6 +986,7 @@ router.get('/agents', (req, res) => {
     return {
       ...a,
       assigned_count: assignedCount,
+      login_email: linkedUser ? linkedUser.email : a.email,
       username: linkedUser ? linkedUser.username : null
     };
   });
@@ -912,9 +995,35 @@ router.get('/agents', (req, res) => {
 
 // POST create new sales agent (Admin only)
 router.post('/agents', requireAdmin, (req, res) => {
-  const { name, area, phone = '', email = '', username, password } = req.body;
+  const { name, area, phone = '', email, password } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, error: 'Agent name is required' });
+  }
+
+  if (!email || !email.trim()) {
+    return res.status(400).json({ success: false, error: 'Agent login email is required' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(cleanEmail)) {
+    return res.status(400).json({ success: false, error: 'Please enter a valid email address for the agent' });
+  }
+
+  if (!password || !password.trim()) {
+    return res.status(400).json({ success: false, error: 'Agent login password is required' });
+  }
+
+  const complexity = validateComplexPassword(password);
+  if (!complexity.valid) {
+    return res.status(400).json({ success: false, error: `Password complexity error: ${complexity.error}` });
+  }
+
+  // Check if email already in use
+  if (!Array.isArray(dbStore.users)) dbStore.users = [];
+  const existingUser = dbStore.users.find(u => u.email && u.email.toLowerCase() === cleanEmail);
+  if (existingUser) {
+    return res.status(400).json({ success: false, error: `The email '${cleanEmail}' is already registered` });
   }
 
   const newId = (dbStore.agents && dbStore.agents.length > 0)
@@ -926,36 +1035,37 @@ router.post('/agents', requireAdmin, (req, res) => {
     name: name.trim(),
     area: (area || '').trim(),
     phone: (phone || '').trim(),
-    email: (email || '').trim(),
+    email: cleanEmail,
     created_at: new Date().toISOString()
   };
 
-  const agentUsername = (username || name.trim().toLowerCase().replace(/[^a-z0-9]/g, '.')).replace(/\.+/g, '.');
-  const agentPassword = password || `Agent#${newId}Pass2026!`;
-  const complexity = validateComplexPassword(agentPassword);
-  if (!complexity.valid) {
-    return res.status(400).json({ success: false, error: `Password complexity error: ${complexity.error}` });
-  }
+  const { hash, salt } = hashPassword(password);
+  const baseUsername = cleanEmail.split('@')[0];
 
-  const { hash, salt } = hashPassword(agentPassword);
-  if (!Array.isArray(dbStore.users)) dbStore.users = [];
-  dbStore.users.push({
+  const newUser = {
     id: Date.now() + Math.floor(Math.random() * 1000),
-    username: agentUsername,
+    email: cleanEmail,
+    username: baseUsername,
     name: newAgent.name,
     role: 'agent',
     agent_id: newAgent.id,
     password_hash: hash,
     salt,
     created_at: new Date().toISOString()
-  });
+  };
 
+  dbStore.users.push(newUser);
   dbStore.agents.push(newAgent);
   saveDbStore(dbStore);
+
   res.json({
     success: true,
-    message: `Agent '${newAgent.name}' created successfully with username '${agentUsername}'`,
-    agent: { ...newAgent, username: agentUsername }
+    message: `Agent '${newAgent.name}' created successfully with login email '${cleanEmail}'`,
+    agent: {
+      ...newAgent,
+      login_email: cleanEmail,
+      username: baseUsername
+    }
   });
 });
 
@@ -971,7 +1081,14 @@ router.put('/agents/:id', requireAdmin, (req, res) => {
   if (name !== undefined) agent.name = name.trim();
   if (area !== undefined) agent.area = (area || '').trim();
   if (phone !== undefined) agent.phone = (phone || '').trim();
-  if (email !== undefined) agent.email = (email || '').trim();
+  if (email !== undefined) {
+    const cleanEmail = email.trim().toLowerCase();
+    agent.email = cleanEmail;
+    const linkedUser = (dbStore.users || []).find(u => u.agent_id === agentId);
+    if (linkedUser) {
+      linkedUser.email = cleanEmail;
+    }
+  }
 
   // Also update agent_name across assignments and linked user
   if (name !== undefined) {

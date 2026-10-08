@@ -87,7 +87,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final currentUser = ApiService.currentUser ?? {};
     final bool isAdmin = ApiService.isAdmin;
     final String roleName = isAdmin ? 'Admin' : 'Sales Agent';
-    final String displayName = (currentUser['name'] ?? currentUser['username'] ?? 'User').toString();
+    final String displayName = (currentUser['name'] ?? currentUser['email'] ?? currentUser['username'] ?? 'User').toString();
     final String? agentArea = currentUser['agentArea']?.toString();
 
     // Screens configured by permission: Agents only access MapView

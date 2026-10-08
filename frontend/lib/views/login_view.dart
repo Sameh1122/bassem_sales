@@ -11,33 +11,34 @@ class LoginViewScreen extends StatefulWidget {
 }
 
 class _LoginViewScreenState extends State<LoginViewScreen> {
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _showDemoAccounts = false;
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  void _fillCredentials(String user, String pass) {
+  void _fillCredentials(String email, String pass) {
     setState(() {
-      _usernameController.text = user;
+      _emailController.text = email;
       _passwordController.text = pass;
       _errorMessage = null;
     });
   }
 
   Future<void> _handleLogin() async {
-    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    if (username.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'Please enter both username and password.');
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = 'Please enter both your email address and password.');
       return;
     }
 
@@ -47,7 +48,7 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
     });
 
     try {
-      await ApiService.login(username, password);
+      await ApiService.login(email, password);
       if (mounted) {
         widget.onLoginSuccess();
       }
@@ -64,258 +65,445 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
+      backgroundColor: const Color(0xFF0B1120),
+      body: Stack(
+        children: [
+          // Ambient Glow Background
+          Positioned(
+            top: -120,
+            left: -100,
             child: Container(
-              padding: const EdgeInsets.all(32),
+              width: 450,
+              height: 450,
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    blurRadius: 24,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF06B6D4).withValues(alpha: 0.12),
+                    Colors.transparent,
+                  ],
+                ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // App Brand Logo
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF06B6D4), Color(0xFF10B981)],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.analytics_outlined, color: Colors.black, size: 28),
-                      ),
-                      const SizedBox(width: 14),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Bassem Sales',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          Text(
-                            'Map Analytics Platform',
-                            style: TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.w600),
-                          ),
-                        ],
+            ),
+          ),
+          Positioned(
+            bottom: -150,
+            right: -100,
+            child: Container(
+              width: 500,
+              height: 500,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF3B82F6).withValues(alpha: 0.10),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Main Center Content
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Container(
+                  padding: const EdgeInsets.all(36),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF131D31).withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        blurRadius: 40,
+                        offset: const Offset(0, 16),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 28),
-
-                  const Text(
-                    'Sign In to Your Account',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Select a role or enter your credentials below',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white54, fontSize: 13),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Quick Demo Pills
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white10),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'QUICK LOGIN / PRESETS:',
-                          style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Brand Header
+                      Center(
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF06B6D4), Color(0xFF3B82F6)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF06B6D4).withValues(alpha: 0.35),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.location_city_rounded, color: Colors.white, size: 30),
                         ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ActionChip(
-                              backgroundColor: const Color(0xFF06B6D4).withValues(alpha: 0.15),
-                              side: const BorderSide(color: Color(0xFF06B6D4)),
-                              avatar: const Icon(Icons.admin_panel_settings, size: 16, color: Color(0xFF06B6D4)),
-                              label: const Text('Admin', style: TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold)),
-                              onPressed: () => _fillCredentials('admin', 'Admin@Sales2026!'),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Bassem Sales Platform',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Chiller Field Operations & Customer Analytics',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Error Notification Banner
+                      if (_errorMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF7F1D1D).withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.4)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline_rounded, color: Color(0xFFF87171), size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: const TextStyle(
+                                    color: Color(0xFFFCA5A5),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // Email Field
+                      const Text(
+                        'Work Email Address',
+                        style: TextStyle(
+                          color: Color(0xFFE2E8F0),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'e.g. admin@sales.com',
+                          hintStyle: const TextStyle(color: Color(0xFF475569), fontSize: 13),
+                          prefixIcon: const Icon(Icons.mail_outline_rounded, color: Color(0xFF64748B), size: 20),
+                          filled: true,
+                          fillColor: const Color(0xFF0B1322),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF06B6D4), width: 1.5),
+                          ),
+                        ),
+                        onSubmitted: (_) => _handleLogin(),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Password Field
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: const [
+                          Text(
+                            'Password',
+                            style: TextStyle(
+                              color: Color(0xFFE2E8F0),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
-                            ActionChip(
-                              backgroundColor: Colors.white10,
-                              side: const BorderSide(color: Colors.white24),
-                              avatar: const Icon(Icons.person, size: 16, color: Colors.white70),
-                              label: const Text('Agent Ahmed', style: TextStyle(color: Colors.white, fontSize: 12)),
-                              onPressed: () => _fillCredentials('ahmed.hassan', 'Agent#Ahmed2026!'),
+                          ),
+                          Text(
+                            'Strict Complexity',
+                            style: TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
                             ),
-                            ActionChip(
-                              backgroundColor: Colors.white10,
-                              side: const BorderSide(color: Colors.white24),
-                              avatar: const Icon(Icons.person, size: 16, color: Colors.white70),
-                              label: const Text('Agent Mahmoud', style: TextStyle(color: Colors.white, fontSize: 12)),
-                              onPressed: () => _fillCredentials('mahmoud.ali', 'Agent#Mahmoud2026!'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Enter your password',
+                          hintStyle: const TextStyle(color: Color(0xFF475569), fontSize: 13),
+                          prefixIcon: const Icon(Icons.lock_outline_rounded, color: Color(0xFF64748B), size: 20),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              color: const Color(0xFF64748B),
+                              size: 19,
+                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFF0B1322),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF06B6D4), width: 1.5),
+                          ),
+                        ),
+                        onSubmitted: (_) => _handleLogin(),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Submit Button
+                      Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF06B6D4), Color(0xFF0EA5E9)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF06B6D4).withValues(alpha: 0.3),
+                              blurRadius: 14,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Error Banner
-                  if (_errorMessage != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _handleLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    Text(
+                                      'Sign In',
+                                      style: TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Icon(Icons.arrow_forward_rounded, color: Colors.black, size: 18),
+                                  ],
+                                ),
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                      const SizedBox(height: 24),
+
+                      // Demo / Helper Accordion Toggle
+                      InkWell(
+                        onTap: () => setState(() => _showDemoAccounts = !_showDemoAccounts),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _showDemoAccounts ? Icons.expand_less : Icons.help_outline_rounded,
+                                size: 15,
+                                color: const Color(0xFF64748B),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _showDemoAccounts ? 'Hide default credentials' : 'Show default accounts & credentials',
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Collapsible Demo Accounts Box
+                      if (_showDemoAccounts) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0B1322),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF1E293B)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Click any role below to autofill:',
+                                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 10),
+                              _buildCredentialTile(
+                                role: 'Admin (All Permissions)',
+                                email: 'admin@sales.com',
+                                pass: 'Admin@Sales2026!',
+                                isPrimary: true,
+                              ),
+                              const SizedBox(height: 6),
+                              _buildCredentialTile(
+                                role: 'Agent Ahmed Hassan',
+                                email: 'ahmed.hassan@sales.com',
+                                pass: 'Agent#Ahmed2026!',
+                              ),
+                              const SizedBox(height: 6),
+                              _buildCredentialTile(
+                                role: 'Agent Mahmoud Ali',
+                                email: 'mahmoud.ali@sales.com',
+                                pass: 'Agent#Mahmoud2026!',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 20),
+
+                      // Security Badges
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.shield_rounded, size: 13, color: Color(0xFF10B981)),
+                          SizedBox(width: 6),
+                          Text(
+                            'PBKDF2 SHA-512 Encrypted • Brute-Force Protected',
+                            style: TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Username Field
-                  const Text('Username', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _usernameController,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. admin or ahmed.hassan',
-                      hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
-                      prefixIcon: const Icon(Icons.person_outline, color: Colors.white54, size: 20),
-                      filled: true,
-                      fillColor: const Color(0xFF0F172A),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
-                    ),
-                    onSubmitted: (_) => _handleLogin(),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Password Field
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
-                      Text('Password', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
-                      Text(
-                        'Requires complex password',
-                        style: TextStyle(color: Colors.white38, fontSize: 11),
-                      ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'Enter your password',
-                      hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
-                      prefixIcon: const Icon(Icons.lock_outline, color: Colors.white54, size: 20),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                          color: Colors.white54,
-                          size: 18,
-                        ),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFF0F172A),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
-                    ),
-                    onSubmitted: (_) => _handleLogin(),
-                  ),
-                  const SizedBox(height: 24),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                  // Login Button
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF06B6D4),
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  Widget _buildCredentialTile({
+    required String role,
+    required String email,
+    required String pass,
+    bool isPrimary = false,
+  }) {
+    return InkWell(
+      onTap: () => _fillCredentials(email, pass),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: isPrimary ? const Color(0xFF06B6D4).withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isPrimary ? const Color(0xFF06B6D4).withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.06),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isPrimary ? Icons.admin_panel_settings_rounded : Icons.person_outline_rounded,
+              size: 16,
+              color: isPrimary ? const Color(0xFF06B6D4) : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    role,
+                    style: TextStyle(
+                      color: isPrimary ? const Color(0xFF06B6D4) : Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                          )
-                        : const Text(
-                            'Sign In',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                          ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // Password Complexity Note
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.03),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Icon(Icons.shield_outlined, size: 14, color: Color(0xFF10B981)),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Password Policy: Min 8 chars with uppercase, lowercase, numbers & symbols.',
-                            style: TextStyle(color: Colors.white38, fontSize: 11),
-                          ),
-                        ),
-                      ],
-                    ),
+                  Text(
+                    email,
+                    style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
                   ),
                 ],
               ),
             ),
-          ),
+            const Text(
+              'Fill',
+              style: TextStyle(
+                color: Color(0xFF06B6D4),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
