@@ -405,11 +405,13 @@ class ApiService {
     String search = '',
     String agentId = 'All',
     String assignmentStatus = 'all',
+    String batchId = 'all',
   }) async {
     final uri = Uri.parse('$baseUrl/chillers/latest-batch').replace(queryParameters: {
       if (search.isNotEmpty) 'search': search,
       if (agentId != 'All') 'agentId': agentId,
       if (assignmentStatus != 'all') 'assignmentStatus': assignmentStatus,
+      if (batchId.isNotEmpty) 'batchId': batchId,
     });
 
     final response = await http.get(uri);

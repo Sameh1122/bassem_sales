@@ -11,13 +11,20 @@ class AssignLocationsViewScreen extends StatefulWidget {
 class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
   List<dynamic> _chillers = [];
   List<dynamic> _agents = [];
+  List<dynamic> _availableBatches = [];
   dynamic _latestBatch;
   bool _isLoading = true;
   String _customerSearch = '';
   String _assignmentStatus = 'all'; // all, assigned, unassigned
   String _selectedAgentId = 'All';
+  String _selectedBatchId = 'all'; // 'all', 'latest', or specific batch id
+  int _totalLocationsInDb = 0;
   final Set<String> _selectedChillerCodes = {};
   final TextEditingController _searchController = TextEditingController();
+
+  // Pagination
+  int _currentPage = 0;
+  int _pageSize = 50; // 25, 50, 100, -1 (all)
 
   @override
   void initState() {
@@ -37,6 +44,7 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
         search: _customerSearch,
         agentId: _selectedAgentId,
         assignmentStatus: _assignmentStatus,
+        batchId: _selectedBatchId,
       );
 
       if (mounted) {
@@ -44,7 +52,10 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
           _agents = agentsData;
           _chillers = batchData['chillers'] ?? [];
           _latestBatch = batchData['latestBatch'];
+          _availableBatches = batchData['batches'] ?? [];
+          _totalLocationsInDb = batchData['totalDbLocations'] ?? _chillers.length;
           _isLoading = false;
+          _currentPage = 0;
         });
       }
     } catch (e) {
@@ -56,6 +67,7 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
       }
     }
   }
+
   Future<void> _assignSelected(List<String> chillerCodes, List<String> customerNames) async {
     if (_agents.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -100,15 +112,17 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                     value: chosenAgentId,
                     isExpanded: true,
                     dropdownColor: const Color(0xFF1E293B),
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: const TextStyle(color: Colors.white),
                     items: _agents.map<DropdownMenuItem<int>>((a) {
                       return DropdownMenuItem<int>(
                         value: a['id'],
-                        child: Text('${a['name']} — (${a['area']})'),
+                        child: Text('${a['name']} (${a['area'] ?? 'No Area'})'),
                       );
                     }).toList(),
                     onChanged: (val) {
-                      if (val != null) setDialogState(() => chosenAgentId = val);
+                      if (val != null) {
+                        setDialogState(() => chosenAgentId = val);
+                      }
                     },
                   ),
                 ),
@@ -182,8 +196,31 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final batchFilename = _latestBatch != null ? _latestBatch['filename'] : 'No Batch Uploaded';
-    final batchUploadedAt = _latestBatch != null ? _latestBatch['uploaded_at'] : '';
+    // Pagination slicing
+    final int totalCount = _chillers.length;
+    final int effectivePageSize = _pageSize == -1 ? (totalCount > 0 ? totalCount : 1) : _pageSize;
+    final int totalPages = (totalCount / effectivePageSize).ceil().clamp(1, 999999);
+    final int safeCurrentPage = _currentPage.clamp(0, totalPages - 1);
+    final int startIndex = safeCurrentPage * effectivePageSize;
+    final int endIndex = (startIndex + effectivePageSize).clamp(0, totalCount);
+    final List<dynamic> pagedChillers = totalCount > 0 ? _chillers.sublist(startIndex, endIndex) : [];
+
+    // Header batch items
+    final List<DropdownMenuItem<String>> batchDropdownItems = [
+      DropdownMenuItem(
+        value: 'all',
+        child: Text('All Locations (${_totalLocationsInDb > 0 ? _totalLocationsInDb : totalCount} Total)'),
+      ),
+    ];
+    for (final b in _availableBatches) {
+      final bId = b['id'].toString();
+      final fname = (b['filename'] ?? 'Batch #$bId').toString();
+      final rows = b['total_rows'] ?? b['valid_rows'] ?? '';
+      batchDropdownItems.add(DropdownMenuItem(
+        value: bId,
+        child: Text('Batch #$bId: $fname ${rows != '' ? '($rows rows)' : ''}'),
+      ));
+    }
 
     return Container(
       color: const Color(0xFF0F172A),
@@ -220,20 +257,39 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
+                  // Target Batch Selector
                   Row(
                     children: [
-                      const Text('Target Batch: ', style: TextStyle(color: Colors.white60, fontSize: 13)),
+                      const Icon(Icons.inventory_2_outlined, color: Colors.white54, size: 16),
+                      const SizedBox(width: 6),
+                      const Text('Target Batch: ', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        height: 36,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF06B6D4).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.3)),
+                          color: const Color(0xFF06B6D4).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.35)),
                         ),
-                        child: Text(
-                          _latestBatch != null ? 'Last Uploaded: #$batchFilename ($batchUploadedAt)' : 'No uploads available',
-                          style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: batchDropdownItems.any((item) => item.value == _selectedBatchId) ? _selectedBatchId : 'all',
+                            dropdownColor: const Color(0xFF1E293B),
+                            icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF06B6D4)),
+                            style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold),
+                            items: batchDropdownItems,
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _selectedBatchId = val;
+                                  _currentPage = 0;
+                                  _selectedChillerCodes.clear();
+                                });
+                                _loadData();
+                              }
+                            },
+                          ),
                         ),
                       ),
                     ],
@@ -273,16 +329,26 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: () => setState(() => _selectedChillerCodes.clear()),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        side: const BorderSide(color: Colors.white24),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                      child: const Text('Deselect All'),
+                    ),
                   ],
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Filters Card
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: const Color(0xFF1E293B),
               borderRadius: BorderRadius.circular(12),
@@ -295,12 +361,15 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
               children: [
                 // Search by Customer Name
                 SizedBox(
-                  width: 300,
+                  width: 320,
                   height: 42,
                   child: TextField(
                     controller: _searchController,
                     onChanged: (v) {
-                      setState(() => _customerSearch = v);
+                      setState(() {
+                        _customerSearch = v;
+                        _currentPage = 0;
+                      });
                       _loadData();
                     },
                     style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -313,7 +382,10 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                               icon: const Icon(Icons.clear, color: Colors.white54, size: 16),
                               onPressed: () {
                                 _searchController.clear();
-                                setState(() => _customerSearch = '');
+                                setState(() {
+                                  _customerSearch = '';
+                                  _currentPage = 0;
+                                });
                                 _loadData();
                               },
                             )
@@ -349,7 +421,10 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                       ],
                       onChanged: (val) {
                         if (val != null) {
-                          setState(() => _assignmentStatus = val);
+                          setState(() {
+                            _assignmentStatus = val;
+                            _currentPage = 0;
+                          });
                           _loadData();
                         }
                       },
@@ -382,13 +457,46 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                       ],
                       onChanged: (val) {
                         if (val != null) {
-                          setState(() => _selectedAgentId = val);
+                          setState(() {
+                            _selectedAgentId = val;
+                            _currentPage = 0;
+                          });
                           _loadData();
                         }
                       },
                     ),
                   ),
                 ),
+
+                // Select All across entire filter button
+                if (totalCount > 0)
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        if (_selectedChillerCodes.length == totalCount) {
+                          _selectedChillerCodes.clear();
+                        } else {
+                          for (final c in _chillers) {
+                            final code = (c['chillerCode'] ?? '').toString();
+                            if (code.isNotEmpty) _selectedChillerCodes.add(code);
+                          }
+                        }
+                      });
+                    },
+                    icon: Icon(
+                      _selectedChillerCodes.length == totalCount ? Icons.check_box : Icons.check_box_outline_blank,
+                      size: 16,
+                      color: const Color(0xFF06B6D4),
+                    ),
+                    label: Text(
+                      _selectedChillerCodes.length == totalCount ? 'Deselect All ($totalCount)' : 'Select All $totalCount',
+                      style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF06B6D4)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
 
                 // Location Count Badge
                 Container(
@@ -399,14 +507,14 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                     border: Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.3)),
                   ),
                   child: Text(
-                    '${_chillers.length} Locations in Batch',
+                    '$totalCount Locations Found',
                     style: const TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
 
           // Chillers / Locations Table
           Expanded(
@@ -446,7 +554,7 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                                   DataColumn(label: Text('Assigned Agent', style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold))),
                                   DataColumn(label: Text('Action', style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold))),
                                 ],
-                                rows: _chillers.map((c) {
+                                rows: pagedChillers.map((c) {
                                   final String code = (c['chillerCode'] ?? '').toString();
                                   final String custName = (c['customerName'] ?? 'Unnamed').toString();
                                   final String branch = (c['branch'] ?? 'N/A').toString();
@@ -554,6 +662,93 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                         ),
                       ),
           ),
+
+          // Pagination Bar
+          if (totalCount > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Text('Rows per page: ', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _pageSize,
+                            dropdownColor: const Color(0xFF1E293B),
+                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                            items: const [
+                              DropdownMenuItem(value: 25, child: Text('25')),
+                              DropdownMenuItem(value: 50, child: Text('50')),
+                              DropdownMenuItem(value: 100, child: Text('100')),
+                              DropdownMenuItem(value: -1, child: Text('All')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _pageSize = val;
+                                  _currentPage = 0;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'Showing ${totalCount == 0 ? 0 : startIndex + 1} - $endIndex of $totalCount locations',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'First Page',
+                        icon: const Icon(Icons.first_page, size: 20, color: Colors.white70),
+                        onPressed: safeCurrentPage > 0 ? () => setState(() => _currentPage = 0) : null,
+                      ),
+                      IconButton(
+                        tooltip: 'Previous Page',
+                        icon: const Icon(Icons.chevron_left, size: 20, color: Colors.white70),
+                        onPressed: safeCurrentPage > 0 ? () => setState(() => _currentPage = safeCurrentPage - 1) : null,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          'Page ${safeCurrentPage + 1} of $totalPages',
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Next Page',
+                        icon: const Icon(Icons.chevron_right, size: 20, color: Colors.white70),
+                        onPressed: safeCurrentPage < totalPages - 1 ? () => setState(() => _currentPage = safeCurrentPage + 1) : null,
+                      ),
+                      IconButton(
+                        tooltip: 'Last Page',
+                        icon: const Icon(Icons.last_page, size: 20, color: Colors.white70),
+                        onPressed: safeCurrentPage < totalPages - 1 ? () => setState(() => _currentPage = totalPages - 1) : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -762,9 +762,9 @@ router.delete('/assignments', (req, res) => {
   res.json({ success: true, message: `Removed ${removedCount} assignment(s)`, removedCount });
 });
 
-// GET latest batch chillers with assignment info and customer search
+// GET chillers for assignment (supports batchId='all', specific batch, or latest batch)
 router.get('/chillers/latest-batch', (req, res) => {
-  const { search, agentId, assignmentStatus } = req.query;
+  const { search, agentId, assignmentStatus, batchId } = req.query;
 
   // Determine latest batch
   let latestBatchId = null;
@@ -773,16 +773,29 @@ router.get('/chillers/latest-batch', (req, res) => {
     latestBatchId = sorted[0].id;
   }
 
+  let selectedBatchId = batchId || 'all';
   let rows = [];
-  if (latestBatchId) {
-    const historicalRows = dbStore.history.filter(h => (h.batch_id || h.batchId) === latestBatchId);
-    if (historicalRows.length > 0) {
-      rows = historicalRows;
-    } else {
-      rows = dbStore.chillers.filter(r => (r.batch_id || r.batchId) === latestBatchId);
-    }
-  } else {
+
+  if (selectedBatchId === 'all') {
     rows = [...dbStore.chillers];
+  } else {
+    const targetId = selectedBatchId === 'latest' ? latestBatchId : parseInt(selectedBatchId);
+    if (targetId) {
+      const historicalRows = dbStore.history.filter(h => (h.batch_id || h.batchId) === targetId);
+      if (historicalRows.length > 0) {
+        rows = historicalRows;
+      } else {
+        rows = dbStore.chillers.filter(r => (r.batch_id || r.batchId) === targetId);
+      }
+    } else {
+      rows = [...dbStore.chillers];
+    }
+  }
+
+  // Fallback to all chillers if batch yielded no rows
+  if (rows.length === 0 && dbStore.chillers.length > 0) {
+    rows = [...dbStore.chillers];
+    selectedBatchId = 'all';
   }
 
   // Create assignments lookup map
@@ -848,8 +861,11 @@ router.get('/chillers/latest-batch', (req, res) => {
 
   res.json({
     success: true,
+    selectedBatchId,
     latestBatchId,
     latestBatch,
+    batches: dbStore.batches || [],
+    totalDbLocations: dbStore.chillers.length,
     count: chillers.length,
     chillers
   });
