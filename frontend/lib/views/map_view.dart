@@ -1024,6 +1024,7 @@ class MapViewScreenState extends State<MapViewScreen> {
                         ),
                       ),
 
+                      // Action buttons: Refresh, Fit Bounds & GPS Icon
                       Container(
                         decoration: BoxDecoration(
                           color: const Color(0xFF0F172A),
@@ -1044,6 +1045,74 @@ class MapViewScreenState extends State<MapViewScreen> {
                               onPressed: _fitBoundsToChillers,
                             ),
                           ],
+                        ),
+                      ),
+
+                      // Dedicated "My Location" Button right in this toolbar area
+                      ElevatedButton.icon(
+                        onPressed: _isLocating ? null : () => _locateUser(recenter: true),
+                        icon: _isLocating
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(color: Colors.cyanAccent, strokeWidth: 2),
+                              )
+                            : Icon(
+                                _userPosition != null ? Icons.my_location : Icons.location_searching,
+                                color: _userPosition != null ? Colors.cyanAccent : Colors.cyan,
+                                size: 18,
+                              ),
+                        label: Text(
+                          _userPosition != null ? 'My Location 📍' : 'My Location',
+                          style: TextStyle(
+                            color: _userPosition != null ? Colors.cyanAccent : Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _userPosition != null ? const Color(0xFF0369A1).withOpacity(0.4) : const Color(0xFF0F172A),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          side: BorderSide(
+                            color: _userPosition != null ? Colors.cyanAccent : Colors.cyan.withOpacity(0.6),
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+
+                      // "Surrounding Locations" Toggle Button right in this toolbar area
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _showSurroundingPanel = !_showSurroundingPanel;
+                          });
+                          if (_showSurroundingPanel && _userPosition == null) {
+                            _locateUser(recenter: false);
+                          }
+                        },
+                        icon: Icon(
+                          Icons.near_me_outlined,
+                          color: _showSurroundingPanel ? Colors.cyanAccent : Colors.white70,
+                          size: 18,
+                        ),
+                        label: Text(
+                          _userPosition != null
+                              ? 'Surrounding (${_getSurroundingSortedChillers().length})'
+                              : 'Surrounding',
+                          style: TextStyle(
+                            color: _showSurroundingPanel ? Colors.cyanAccent : Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: _showSurroundingPanel ? Colors.cyan.withOpacity(0.2) : const Color(0xFF0F172A),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          side: BorderSide(
+                            color: _showSurroundingPanel ? Colors.cyanAccent : Colors.white24,
+                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ],
