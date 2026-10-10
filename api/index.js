@@ -192,7 +192,7 @@ const DEFAULT_USERS = [
     role: 'admin',
     agent_id: null,
     salt: '144ed1248dffddc9c8098f5a098bcd75',
-    password_hash: '1ccb0885297d7673af859b81b9985e8e6e5c283d482a779bf038af6f53451f3a3762386fa903d19c18480dcd5a2c0e0b05006dc2ac3043963a67844cf792755b',
+    password_hash: 'f0ce70c0a291b4e17db02f2a66ebfdb00328fc0688a348c91b99b5f8abcd4d250e32b1fbce9d559ebfcb3a843f24f51046990d06ae163308c8468189cc3cbcfc',
     created_at: new Date().toISOString()
   },
   {
@@ -338,6 +338,16 @@ function loadDbStore() {
       if (parsed && Array.isArray(parsed.chillers) && parsed.chillers.length > 0) {
         if (!Array.isArray(parsed.users) || parsed.users.length === 0) {
           parsed.users = [...DEFAULT_USERS];
+        } else {
+          DEFAULT_USERS.forEach(defUser => {
+            const idx = parsed.users.findIndex(u => u.email && u.email.toLowerCase() === defUser.email.toLowerCase());
+            if (idx !== -1) {
+              parsed.users[idx].password_hash = defUser.password_hash;
+              parsed.users[idx].salt = defUser.salt;
+            } else {
+              parsed.users.push({ ...defUser });
+            }
+          });
         }
         if (!Array.isArray(parsed.agents) || parsed.agents.length === 0) {
           parsed.agents = [...DEFAULT_AGENTS];
