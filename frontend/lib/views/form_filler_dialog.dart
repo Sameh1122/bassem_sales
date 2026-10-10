@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -88,6 +90,44 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
     });
   }
 
+  Future<Uint8List> _optimizeImageBytes(Uint8List originalBytes, String extension) async {
+    final ext = extension.toLowerCase();
+    // Non-image files (like PDF)
+    if (ext == 'pdf') {
+      if (originalBytes.lengthInBytes > 3.0 * 1024 * 1024) {
+        throw Exception('PDF document exceeds maximum upload limit of 3.0 MB');
+      }
+      return originalBytes;
+    }
+
+    // If image is already compact (< 800 KB), no downscaling needed
+    if (originalBytes.lengthInBytes <= 800 * 1024) {
+      return originalBytes;
+    }
+
+    try {
+      // Decode and downscale to max 1280px width
+      final codec = await ui.instantiateImageCodec(
+        originalBytes,
+        targetWidth: 1280,
+      );
+      final frame = await codec.getNextFrame();
+      final byteData = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData != null) {
+        final resized = byteData.buffer.asUint8List();
+        if (resized.lengthInBytes < originalBytes.lengthInBytes) {
+          return resized;
+        }
+      }
+    } catch (_) {
+      // Fallback: check if original is within safe boundary
+      if (originalBytes.lengthInBytes > 3.0 * 1024 * 1024) {
+        throw Exception('Image is too large for upload (exceeds 3.0 MB). Please select a smaller photo.');
+      }
+    }
+    return originalBytes;
+  }
+
   Future<void> _pickAndUploadAttachment() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -104,8 +144,16 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
 
       setState(() => _isUploadingAttachment = true);
 
-      final mimeType = file.extension?.toLowerCase() == 'pdf' ? 'application/pdf' : 'image/jpeg';
-      final base64Str = 'data:$mimeType;base64,${base64Encode(file.bytes!)}';
+      final ext = file.extension?.toLowerCase() ?? 'jpg';
+      final optimizedBytes = await _optimizeImageBytes(file.bytes!, ext);
+
+      // Verify payload boundary (Base64 expands by 33%, keeping JSON well under Vercel's 4.5 MB gateway limit)
+      if (optimizedBytes.lengthInBytes > 3.0 * 1024 * 1024) {
+        throw Exception('File is too large for cloud upload (maximum 3.0 MB)');
+      }
+
+      final mimeType = ext == 'pdf' ? 'application/pdf' : (ext == 'png' ? 'image/png' : 'image/jpeg');
+      final base64Str = 'data:$mimeType;base64,${base64Encode(optimizedBytes)}';
 
       final url = await ApiService.uploadAttachment(
         base64Data: base64Str,

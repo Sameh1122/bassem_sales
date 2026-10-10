@@ -50,6 +50,9 @@ const uploadAttach = multer({
 });
 
 app.use('/uploads', express.static(path.resolve('public/uploads')));
+if (process.env.VERCEL) {
+  app.use('/uploads', express.static(path.resolve('/tmp/uploads')));
+}
 
 // Persistent 256-bit runtime secret if not supplied via environment
 const JWT_SECRET = process.env.JWT_SECRET || 'bassem_sales_secure_persistent_jwt_secret_2026_prod_fmcg_key_9981';
@@ -1056,8 +1059,9 @@ router.delete('/chillers/clear', requireAdmin, (req, res) => {
   res.json({ success: true, message: 'All active database records cleared' });
 });
 
-router.get('/batches', requireAdmin, (req, res) => {
-  res.json({ success: true, batches: [...dbStore.batches].reverse() });
+router.get('/batches', requireAuth, (req, res) => {
+  const batches = dbStore.batches || [];
+  res.json({ success: true, batches: [...batches].reverse() });
 });
 
 router.delete('/batches/:id', requireAdmin, (req, res) => {
@@ -1625,32 +1629,15 @@ router.post('/forms/:id/assign', requireAdmin, (req, res) => {
 // POST upload attachment (file or base64)
 router.post('/forms/upload-attachment', requireAuth, uploadAttach.single('file'), (req, res) => {
   try {
-    const uploadsDir = path.resolve('public/uploads');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
-    // Handle multipart file upload
-    if (req.file) {
-      const ext = path.extname(req.file.originalname) || '.jpg';
-      const filename = `attach_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
-      const filePath = path.join(uploadsDir, filename);
-      fs.writeFileSync(filePath, req.file.buffer);
-      return res.json({
-        success: true,
-        url: `/uploads/${filename}`,
-        filename
-      });
-    }
-
     // Handle base64 JSON payload
     const { base64Data, filename: originalName } = req.body || {};
     if (base64Data) {
       const match = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
       let buffer;
       let ext = '.jpg';
+      let mime = 'image/jpeg';
       if (match) {
-        const mime = match[1];
+        mime = match[1];
         if (mime.includes('png')) ext = '.png';
         else if (mime.includes('pdf')) ext = '.pdf';
         buffer = Buffer.from(match[2], 'base64');
@@ -1659,17 +1646,61 @@ router.post('/forms/upload-attachment', requireAuth, uploadAttach.single('file')
       }
 
       const filename = `attach_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
-      const filePath = path.join(uploadsDir, filename);
-      fs.writeFileSync(filePath, buffer);
+
+      // Try saving to disk for persistent environments
+      try {
+        const uploadsDir = path.resolve('public/uploads');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const filePath = path.join(uploadsDir, filename);
+        fs.writeFileSync(filePath, buffer);
+      } catch (writeErr) {
+        // Read-only filesystem or serverless (e.g., Vercel) - safely caught
+      }
+
+      // On serverless/cloud platforms (Vercel) where static files can't be dynamically written to disk,
+      // return self-contained data URI to ensure 100% durable and instantaneous image preview without 404s
+      const dataUri = match ? base64Data : `data:${mime};base64,${base64Data}`;
+      const returnUrl = process.env.VERCEL ? dataUri : `/uploads/${filename}`;
+
       return res.json({
         success: true,
-        url: `/uploads/${filename}`,
+        url: returnUrl,
+        filename
+      });
+    }
+
+    // Handle multipart file upload
+    if (req.file) {
+      const ext = path.extname(req.file.originalname) || '.jpg';
+      const filename = `attach_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
+
+      try {
+        const uploadsDir = path.resolve('public/uploads');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const filePath = path.join(uploadsDir, filename);
+        fs.writeFileSync(filePath, req.file.buffer);
+      } catch (writeErr) {
+        // Read-only filesystem
+      }
+
+      const mime = req.file.mimetype || 'image/jpeg';
+      const dataUri = `data:${mime};base64,${req.file.buffer.toString('base64')}`;
+      const returnUrl = process.env.VERCEL ? dataUri : `/uploads/${filename}`;
+
+      return res.json({
+        success: true,
+        url: returnUrl,
         filename
       });
     }
 
     return res.status(400).json({ success: false, error: 'No file or base64 data provided' });
   } catch (err) {
+    console.error('Attachment upload error:', err);
     return res.status(500).json({ success: false, error: 'Failed to process attachment: ' + err.message });
   }
 });

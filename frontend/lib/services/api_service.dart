@@ -651,6 +651,9 @@ class ApiService {
         'filename': filename,
       }),
     );
+    if (response.statusCode == 413) {
+      throw Exception('Photo file is too large for cloud upload (exceeds cloud payload limit). Please select a smaller photo.');
+    }
     final decoded = _safeJsonDecode(response.body);
     if (response.statusCode == 200 && decoded is Map && decoded['url'] != null) {
       return decoded['url'] as String;
