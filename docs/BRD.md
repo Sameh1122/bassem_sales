@@ -5,10 +5,10 @@
 > [!NOTE]
 > **Live Document Status**: Synchronized with GitHub Repository  
 > **Repository**: [Sameh1122/bassem_sales](https://github.com/Sameh1122/bassem_sales)  
-> **Last Synchronized**: 2026-10-10 16:32:36 UTC  
-> **Active Branch**: `HEAD`  
-> **Latest Commit**: [`635f5ed`](https://github.com/Sameh1122/bassem_sales/commit/635f5ed) — *"docs: auto-synchronize live BRD & SAD metadata [skip ci]"*  
-> **Author**: GitHub Action [Docs Sync]  
+> **Last Synchronized**: 2026-10-10 16:33:44 UTC  
+> **Active Branch**: `main`  
+> **Latest Commit**: [`599fcfb`](https://github.com/Sameh1122/bassem_sales/commit/599fcfb) — *"fix: calibrate admin PBKDF2 hash and enforce credentials sync in dbStore for Vercel"*  
+> **Author**: Sameh1122  
 > **Status**: Production Ready & Actively Maintained  
 <!-- LIVING_DOC_METADATA_END -->
 
