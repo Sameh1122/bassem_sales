@@ -188,8 +188,8 @@ const DEFAULT_USERS = [
     name: 'System Administrator',
     role: 'admin',
     agent_id: null,
-    salt: '21658f4c02dc68e32ce6594d9f2ff89a',
-    password_hash: '8ecd93260425673a5442c9606642044201c47d76c52fd24e1a1acc31db4f9e9bddb06f12791e363ff23eaa88500c718b39a36cad6639d82408dab352954a3238',
+    salt: '144ed1248dffddc9c8098f5a098bcd75',
+    password_hash: '1ccb0885297d7673af859b81b9985e8e6e5c283d482a779bf038af6f53451f3a3762386fa903d19c18480dcd5a2c0e0b05006dc2ac3043963a67844cf792755b',
     created_at: new Date().toISOString()
   },
   {
@@ -199,8 +199,8 @@ const DEFAULT_USERS = [
     name: 'أمنية',
     role: 'agent',
     agent_id: 1,
-    salt: '6f746ab896a88173d0eed869dd08edf5',
-    password_hash: 'da314f18411fdff527f4bdb8a7c20984454551b9ae6e0ddc18a07616f48cd094adddc341236046e6d5f00fe234a1d4b98a4e594ba41086723dc85be1dafbe451',
+    salt: '05008a113085b5e27a6a68af74385dd1',
+    password_hash: 'f652719fd4c1dba59367955e28caf67c27aad20f925247a25789b8a782cc2236dd7b7cbe26ad9e55ef504e6e615b91c112ff1a9f88fa0488a8ca215bb61720db',
     created_at: new Date().toISOString()
   },
   {
@@ -210,8 +210,8 @@ const DEFAULT_USERS = [
     name: 'مينا',
     role: 'agent',
     agent_id: 2,
-    salt: 'ca2b4b6f728ab70de26f4ddbb9b3cd0d',
-    password_hash: 'f1568b15c7a583a1d8d4391babad4ff126924ca1ed73e3a25076290aa924005e9138b83c0ec945ffa5e6f92eb7a21d36f7365d54531db3c80704baf900996ac4',
+    salt: 'fb563aa05ddaa0ceecb31178145fdfaa',
+    password_hash: '3ea7a2bfd27c5cbd96ae7e57d110fd06e71cd0e3f520041ce10e709af94079385959077a55d0257163d787f7c50f2610f56cae4805913cc99e2d6d14033944d5',
     created_at: new Date().toISOString()
   }
 ];
