@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../services/location_service.dart';
 import '../services/url_launcher.dart';
 import '../services/api_service.dart';
+import 'form_filler_dialog.dart';
 
 class MapViewScreen extends StatefulWidget {
   const MapViewScreen({super.key});
@@ -275,6 +276,12 @@ class MapViewScreenState extends State<MapViewScreen> {
     final double lng = _toDouble(chiller['longitude'], 31.2357);
     final double? distMeters = _getDistanceMeters(chiller);
 
+    final String visitStatus = (chiller['visitStatus'] ?? 'not_visited').toString();
+    final String? adminFeedback = chiller['adminFeedback'];
+    final bool isReopened = visitStatus == 'reopened';
+    final bool isAccepted = visitStatus == 'accepted';
+    final bool isSubmitted = visitStatus == 'submitted';
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -304,7 +311,7 @@ class MapViewScreenState extends State<MapViewScreen> {
         ),
         content: SizedBox(
           width: math.min(580.0, MediaQuery.of(context).size.width - 32),
-          height: 440,
+          height: 480,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,12 +323,50 @@ class MapViewScreenState extends State<MapViewScreen> {
                   children: [
                     if (distMeters != null)
                       _buildBadge('📍 ${_formatDistance(distMeters)} from you', const Color(0xFF06B6D4)),
+                    if (isAccepted)
+                      _buildBadge('✅ Visit Completed & Verified', const Color(0xFF10B981))
+                    else if (isSubmitted)
+                      _buildBadge('⏳ Visit Submitted (Pending Review)', const Color(0xFF06B6D4))
+                    else if (isReopened)
+                      _buildBadge('⚠️ Visit Re-opened by Admin', const Color(0xFFF97316))
+                    else
+                      _buildBadge('⭕ Not Visited Yet', Colors.white54),
                     _buildBadge('Efficiency: $efficiency', _getMarkerColor(efficiency)),
                     _buildBadge('Type: $customerType', Colors.cyan),
                     _buildBadge('Status: $status', Colors.purpleAccent),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
+
+                // Re-opened Admin Feedback Alert
+                if (isReopened && adminFeedback != null && adminFeedback.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF97316).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFF97316)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, color: Color(0xFFF97316), size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Admin Feedback (Requires Resubmission):', style: TextStyle(color: Color(0xFFF97316), fontWeight: FontWeight.bold, fontSize: 12)),
+                              const SizedBox(height: 3),
+                              Text(adminFeedback, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
 
                 // Google Maps Directions Banner Button
                 Container(
@@ -361,7 +406,7 @@ class MapViewScreenState extends State<MapViewScreen> {
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4285F4), // Google Blue
+                          backgroundColor: const Color(0xFF4285F4),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
@@ -401,6 +446,44 @@ class MapViewScreenState extends State<MapViewScreen> {
           ),
         ),
         actions: [
+          ElevatedButton.icon(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (fCtx) => FormFillerDialog(
+                  chiller: chiller,
+                  onSubmitted: () {
+                    _loadChillers(forceApi: true);
+                    Navigator.of(context).pop();
+                  },
+                ),
+              );
+            },
+            icon: Icon(
+              isReopened
+                  ? Icons.replay
+                  : isAccepted
+                      ? Icons.verified
+                      : Icons.assignment_turned_in,
+              size: 16,
+              color: Colors.black,
+            ),
+            label: Text(
+              isReopened
+                  ? 'Resubmit Visit Audit'
+                  : isAccepted
+                      ? 'Update Audit Form'
+                      : 'Complete Visit (Fill Form)',
+              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isAccepted
+                  ? const Color(0xFF10B981)
+                  : isReopened
+                      ? const Color(0xFFF97316)
+                      : const Color(0xFF06B6D4),
+            ),
+          ),
           ElevatedButton.icon(
             onPressed: () => _openGoogleMapsDirections(lat, lng),
             icon: const Icon(Icons.directions, color: Colors.white, size: 16),
@@ -693,12 +776,29 @@ class MapViewScreenState extends State<MapViewScreen> {
                     final double lat = _toDouble(c['latitude']);
                     final double lng = _toDouble(c['longitude']);
                     final String eff = c['efficiency'] ?? '';
-                    final Color markerColor = _getMarkerColor(eff);
+                    final String visitStatus = (c['visitStatus'] ?? 'not_visited').toString();
+
+                    Color markerColor;
+                    IconData markerIcon;
+
+                    if (visitStatus == 'accepted') {
+                      markerColor = const Color(0xFF10B981); // Emerald Green
+                      markerIcon = Icons.verified;
+                    } else if (visitStatus == 'submitted') {
+                      markerColor = const Color(0xFF06B6D4); // Cyan
+                      markerIcon = Icons.assignment_turned_in;
+                    } else if (visitStatus == 'reopened') {
+                      markerColor = const Color(0xFFF97316); // Amber / Orange
+                      markerIcon = Icons.priority_high;
+                    } else {
+                      markerColor = _getMarkerColor(eff);
+                      markerIcon = Icons.location_on;
+                    }
 
                     return Marker(
                       point: LatLng(lat, lng),
-                      width: 40,
-                      height: 40,
+                      width: 42,
+                      height: 42,
                       child: GestureDetector(
                         onTap: () => _showChillerDetailsModal(c),
                         child: Container(
@@ -709,7 +809,7 @@ class MapViewScreenState extends State<MapViewScreen> {
                               BoxShadow(color: markerColor.withOpacity(0.6), blurRadius: 8, spreadRadius: 2),
                             ],
                           ),
-                          child: const Icon(Icons.location_on, color: Colors.white, size: 24),
+                          child: Icon(markerIcon, color: Colors.white, size: 24),
                         ),
                       ),
                     );

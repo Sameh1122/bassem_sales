@@ -1,0 +1,43 @@
+name: Living Documentation Sync
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Update Living Documents Metadata
+        run: node scripts/update-docs.js
+
+      - name: Commit & Push Updated Documentation
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action [Docs Sync]"
+          if [ -n "$(git status --porcelain docs/)" ]; then
+            git add docs/BRD.md docs/SAD.md
+            git commit -m "docs: auto-synchronize live BRD & SAD metadata [skip ci]"
+            git push origin HEAD:${{ github.ref }}
+            echo "✅ Live documentation updated and committed."
+          else
+            echo "ℹ️ No documentation metadata changes needed."
+          fi

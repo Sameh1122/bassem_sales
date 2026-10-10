@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "build": "node scripts/build.js"
+    "build": "node scripts/build.js",
+    "docs:update": "node scripts/update-docs.js",
+    "docs:setup-hook": "node scripts/setup-git-hooks.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -528,4 +528,181 @@ class ApiService {
     );
     return response.statusCode == 200;
   }
+
+  // ==========================================
+  // Dynamic Forms & Audit Visits Methods
+  // ==========================================
+
+  static Future<List<Map<String, dynamic>>> fetchForms() async {
+    final response = await http.get(Uri.parse('$baseUrl/forms'), headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return List<Map<String, dynamic>>.from(decoded['forms'] ?? []);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to fetch forms');
+  }
+
+  static Future<Map<String, dynamic>> fetchFormById(int formId) async {
+    final response = await http.get(Uri.parse('$baseUrl/forms/$formId'), headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded['form'] ?? {});
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to fetch form');
+  }
+
+  static Future<Map<String, dynamic>> createForm({
+    required String title,
+    String description = '',
+    required List<Map<String, dynamic>> fields,
+    List<int> assignedAgentIds = const [],
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/forms'),
+      headers: _headers,
+      body: jsonEncode({
+        'title': title,
+        'description': description,
+        'fields': fields,
+        'assigned_agent_ids': assignedAgentIds,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 201 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded['form'] ?? {});
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to create form');
+  }
+
+  static Future<Map<String, dynamic>> updateForm({
+    required int formId,
+    required String title,
+    String description = '',
+    required List<Map<String, dynamic>> fields,
+    List<int> assignedAgentIds = const [],
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/forms/$formId'),
+      headers: _headers,
+      body: jsonEncode({
+        'title': title,
+        'description': description,
+        'fields': fields,
+        'assigned_agent_ids': assignedAgentIds,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded['form'] ?? {});
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to update form');
+  }
+
+  static Future<bool> deleteForm(int formId) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/forms/$formId'),
+      headers: _headers,
+    );
+    return response.statusCode == 200;
+  }
+
+  static Future<Map<String, dynamic>> assignForm({
+    required int formId,
+    required List<int> assignedAgentIds,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/forms/$formId/assign'),
+      headers: _headers,
+      body: jsonEncode({'assigned_agent_ids': assignedAgentIds}),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded['form'] ?? {});
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to assign form');
+  }
+
+  static Future<String> uploadAttachment({
+    required String base64Data,
+    String filename = 'photo.jpg',
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/forms/upload-attachment'),
+      headers: _headers,
+      body: jsonEncode({
+        'base64Data': base64Data,
+        'filename': filename,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['url'] != null) {
+      return decoded['url'] as String;
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to upload attachment');
+  }
+
+  static Future<Map<String, dynamic>> submitFormResponse({
+    required int formId,
+    required String chillerCode,
+    required String customerName,
+    required Map<String, dynamic> answers,
+    List<String> attachments = const [],
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/form-responses'),
+      headers: _headers,
+      body: jsonEncode({
+        'form_id': formId,
+        'chiller_code': chillerCode,
+        'customer_name': customerName,
+        'answers': answers,
+        'attachments': attachments,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 201 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded['response'] ?? {});
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to submit form response');
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchFormResponses({
+    String status = 'All',
+    String search = '',
+    String chillerCode = '',
+    int? formId,
+  }) async {
+    final uri = Uri.parse('$baseUrl/form-responses').replace(queryParameters: {
+      if (status != 'All') 'status': status,
+      if (search.isNotEmpty) 'search': search,
+      if (chillerCode.isNotEmpty) 'chiller_code': chillerCode,
+      if (formId != null) 'form_id': formId.toString(),
+    });
+    final response = await http.get(uri, headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return List<Map<String, dynamic>>.from(decoded['responses'] ?? []);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to fetch form responses');
+  }
+
+  static Future<Map<String, dynamic>> reviewFormResponse({
+    required int responseId,
+    required String status,
+    String adminFeedback = '',
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/form-responses/$responseId/review'),
+      headers: _headers,
+      body: jsonEncode({
+        'status': status,
+        'admin_feedback': adminFeedback,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded['response'] ?? {});
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to review form response');
+  }
 }

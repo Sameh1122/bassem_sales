@@ -11,13 +11,56 @@ import { fileURLToPath } from 'url';
 const XLSX = XLSXModule.default || XLSXModule;
 
 const app = express();
+app.disable('x-powered-by');
+
+// Security headers middleware
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '25mb' }));
 
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25 MB max to protect against memory exhaustion
+    files: 1
+  },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only Excel (.xlsx, .xls) and CSV spreadsheet files are allowed'));
+    }
+  }
+});
 
-const JWT_SECRET = process.env.JWT_SECRET || 'bassem-sales-platform-secret-jwt-key-2026';
+const uploadAttach = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 15 * 1024 * 1024 // 15 MB for visit photos and attachments
+  }
+});
+
+app.use('/uploads', express.static(path.resolve('public/uploads')));
+
+// Ephemeral 256-bit runtime secret if not supplied via environment
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+
+function safeTimingCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 function validateComplexPassword(password) {
   if (!password || typeof password !== 'string') {
@@ -49,25 +92,57 @@ function hashPassword(password, salt = null) {
 
 function verifyPassword(password, storedHash, salt) {
   if (!password || !storedHash || !salt) return false;
-  // Primary check: 100,000 PBKDF2 iterations (maximum security)
+  // Primary check: 100,000 PBKDF2 iterations (maximum security) with timing-safe comparison
   const check100k = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-  if (check100k === storedHash) return true;
+  if (safeTimingCompare(check100k, storedHash)) return true;
   // Fallback check: 1,000 iterations for backwards compatibility
   const check1k = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return check1k === storedHash;
+  return safeTimingCompare(check1k, storedHash);
 }
 
-// In-memory rate limiting map: identifier -> { count, lockoutUntil }
+// In-memory rate limiting map: identifier -> { count, lockoutUntil, lastAttempt }
 const loginAttempts = new Map();
 
-function recordFailedAttempt(identifier) {
+// Periodic cleanup every 10 minutes to prevent memory leak
+setInterval(() => {
   const now = Date.now();
-  const rec = loginAttempts.get(identifier) || { count: 0, lockoutUntil: 0 };
+  for (const [key, record] of loginAttempts.entries()) {
+    if (now > record.lockoutUntil && (now - (record.lastAttempt || 0)) > 15 * 60 * 1000) {
+      loginAttempts.delete(key);
+    }
+  }
+}, 10 * 60 * 1000).unref();
+
+function getClientIp(req) {
+  return (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown')
+    .toString()
+    .split(',')[0]
+    .trim();
+}
+
+function checkRateLimit(key) {
+  const now = Date.now();
+  const rec = loginAttempts.get(key);
+  if (rec && rec.count >= 5 && now < rec.lockoutUntil) {
+    const minutesLeft = Math.ceil((rec.lockoutUntil - now) / 60000);
+    return { limited: true, minutesLeft };
+  }
+  return { limited: false };
+}
+
+function recordFailedAttempt(key) {
+  const now = Date.now();
+  const rec = loginAttempts.get(key) || { count: 0, lockoutUntil: 0, lastAttempt: now };
   rec.count += 1;
+  rec.lastAttempt = now;
   if (rec.count >= 5) {
     rec.lockoutUntil = now + 5 * 60 * 1000; // 5-minute security lockout
   }
-  loginAttempts.set(identifier, rec);
+  loginAttempts.set(key, rec);
+}
+
+function clearFailedAttempts(key) {
+  loginAttempts.delete(key);
 }
 
 function createToken(payload) {
@@ -83,7 +158,7 @@ function verifyToken(token) {
   if (parts.length !== 3) return null;
   const [header, body, signature] = parts;
   const expectedSignature = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
-  if (expectedSignature !== signature) return null;
+  if (!safeTimingCompare(expectedSignature, signature)) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
     if (payload.exp && Date.now() > payload.exp) return null;
@@ -111,7 +186,7 @@ const DEFAULT_USERS = [
     role: 'admin',
     agent_id: null,
     salt: '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d',
-    password_hash: process.env.ADMIN_PASSWORD_HASH || '8a6a1640a2796c81255628d1e64b709729051b8ed96f24bd196e8acbc3c106d6d68b8cabdcd5ed17a63a80bcb39b8724920082145c19336c6ca0e1431bcaf954',
+    password_hash: process.env.ADMIN_PASSWORD_HASH || 'b334ac7f63dc08dfd344f95d072e807f4418a5dcc774ca74c276bb8b90e1c5ad9f6249571fa40dd5788b83cf81ba9aa0b70eb043408d19188c782215e8f853a2',
     created_at: new Date().toISOString()
   },
   {
@@ -167,6 +242,67 @@ const DEFAULT_COLUMNS = [
   { id: 36, key_name: 'Notes', display_label: 'Notes', data_type: 'string', is_required: 0, is_active: 1, display_order: 36 }
 ];
 
+const DEFAULT_FORMS = [
+  {
+    id: 1,
+    title: 'Chiller Operational & Hygiene Audit',
+    description: 'Standard inspection form for field visit verification, temperature audit, cleanliness check, and photo attachments.',
+    assigned_agent_ids: [],
+    is_active: 1,
+    created_at: new Date().toISOString(),
+    fields: [
+      {
+        id: 'f_cleanliness',
+        label: 'Chiller Cleanliness & Hygiene',
+        type: 'choose',
+        required: true,
+        placeholder: '',
+        options: ['Clean & Sanitized', 'Acceptable / Minor Dust', 'Needs Urgent Deep Clean', 'Severely Dirty']
+      },
+      {
+        id: 'f_temp',
+        label: 'Operating Temperature (°C)',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g. 4.0',
+        options: []
+      },
+      {
+        id: 'f_branding',
+        label: 'Brand Sticker & Asset Branding Visibility',
+        type: 'choose',
+        required: true,
+        placeholder: '',
+        options: ['100% Intact & Clear', 'Peeling / Damaged', 'Covered by Competitive Stock', 'Missing Logos']
+      },
+      {
+        id: 'f_stock_level',
+        label: 'Chiller Stock Fill Level',
+        type: 'choose',
+        required: false,
+        placeholder: '',
+        options: ['Full (80-100%)', 'Moderate (40-79%)', 'Low (10-39%)', 'Empty (<10%)']
+      },
+      {
+        id: 'f_notes',
+        label: 'Merchant Notes & Customer Feedback',
+        type: 'text',
+        required: false,
+        placeholder: 'Enter merchant feedback or maintenance alerts...',
+        options: []
+      },
+      {
+        id: 'f_photos',
+        label: 'Chiller & Store Front Photos',
+        type: 'attachments',
+        required: true,
+        placeholder: '',
+        options: []
+      }
+    ]
+  }
+];
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -194,6 +330,20 @@ function loadDbStore() {
         if (!Array.isArray(parsed.assignments)) {
           parsed.assignments = [];
         }
+        if (!Array.isArray(parsed.forms) || parsed.forms.length === 0) {
+          parsed.forms = JSON.parse(JSON.stringify(DEFAULT_FORMS));
+        } else {
+          parsed.forms.forEach(f => {
+            if (Array.isArray(f.assigned_agent_ids)) {
+              f.assigned_agent_ids = f.assigned_agent_ids.map(Number).filter(n => !isNaN(n));
+            } else {
+              f.assigned_agent_ids = [];
+            }
+          });
+        }
+        if (!Array.isArray(parsed.form_responses)) {
+          parsed.form_responses = [];
+        }
         return parsed;
       }
     }
@@ -210,6 +360,8 @@ function loadDbStore() {
       { id: 1, name: 'أمنية', area: 'مصر الجديدة', phone: '+20 100 000 0000', email: 'omnia@sales.com', login_email: 'omnia@sales.com', created_at: new Date().toISOString() }
     ],
     assignments: [],
+    forms: JSON.parse(JSON.stringify(DEFAULT_FORMS)),
+    form_responses: [],
     users: [...DEFAULT_USERS]
   };
 
@@ -256,6 +408,13 @@ function loadDbStore() {
     store.assignments = [];
   }
 
+  if (!Array.isArray(store.forms) || store.forms.length === 0) {
+    store.forms = JSON.parse(JSON.stringify(DEFAULT_FORMS));
+  }
+  if (!Array.isArray(store.form_responses)) {
+    store.form_responses = [];
+  }
+
   return store;
 }
 
@@ -285,8 +444,15 @@ saveDbStore(dbStore);
 
 function cleanStr(val) {
   if (val === null || val === undefined) return '';
-  const s = String(val).trim();
+  let s = String(val).trim();
   if (s === '-' || s === 'None' || s === 'null' || s === 'undefined' || s === '#N/A') return '';
+  // Prevent CSV / Excel Formula Injection (DDE injection)
+  if (/^[=\+\-@]/.test(s)) {
+    // If it's a numeric negative number, keep as is
+    if (!/^-?\d+(\.\d+)?$/.test(s)) {
+      s = `'${s}`;
+    }
+  }
   return s;
 }
 
@@ -470,14 +636,22 @@ router.post('/auth/login', (req, res) => {
 
   const cleanIdentifier = emailInput.trim().toLowerCase();
 
-  // Rate limiting check
-  const now = Date.now();
-  const attemptRecord = loginAttempts.get(cleanIdentifier);
-  if (attemptRecord && attemptRecord.count >= 5 && now < attemptRecord.lockoutUntil) {
-    const minutesLeft = Math.ceil((attemptRecord.lockoutUntil - now) / 60000);
+  const clientIp = getClientIp(req);
+
+  // Rate limiting check on both IP and account identifier
+  const ipCheck = checkRateLimit(`ip:${clientIp}`);
+  if (ipCheck.limited) {
     return res.status(429).json({
       success: false,
-      error: `Too many failed login attempts. Account temporarily locked for security. Please try again in ${minutesLeft} minute(s).`
+      error: `Too many failed attempts from your IP. Please try again in ${ipCheck.minutesLeft} minute(s).`
+    });
+  }
+
+  const userCheck = checkRateLimit(`user:${cleanIdentifier}`);
+  if (userCheck.limited) {
+    return res.status(429).json({
+      success: false,
+      error: `Account temporarily locked due to multiple failed attempts. Please try again in ${userCheck.minutesLeft} minute(s).`
     });
   }
 
@@ -487,18 +661,21 @@ router.post('/auth/login', (req, res) => {
   );
 
   if (!user) {
-    recordFailedAttempt(cleanIdentifier);
+    recordFailedAttempt(`ip:${clientIp}`);
+    recordFailedAttempt(`user:${cleanIdentifier}`);
     return res.status(401).json({ success: false, error: 'Invalid email or password' });
   }
 
   const isMatch = verifyPassword(password, user.password_hash, user.salt);
   if (!isMatch) {
-    recordFailedAttempt(cleanIdentifier);
+    recordFailedAttempt(`ip:${clientIp}`);
+    recordFailedAttempt(`user:${cleanIdentifier}`);
     return res.status(401).json({ success: false, error: 'Invalid email or password' });
   }
 
-  // Clear failed attempt record on successful login
-  loginAttempts.delete(cleanIdentifier);
+  // Clear failed attempt records on successful login
+  clearFailedAttempts(`ip:${clientIp}`);
+  clearFailedAttempts(`user:${cleanIdentifier}`);
 
   const token = createToken({
     id: user.id,
@@ -621,11 +798,11 @@ router.post('/auth/reset-agent-password', requireAdmin, (req, res) => {
   });
 });
 
-router.get('/columns', (req, res) => {
+router.get('/columns', requireAuth, (req, res) => {
   res.json({ success: true, columns: dbStore.columns });
 });
 
-router.post('/columns', (req, res) => {
+router.post('/columns', requireAdmin, (req, res) => {
   const { key_name, display_label, data_type = 'string', is_required = 0, is_active = 1 } = req.body;
   const newCol = {
     id: dbStore.columns.length + 1,
@@ -640,7 +817,7 @@ router.post('/columns', (req, res) => {
   res.json({ success: true, message: `Column '${display_label}' added successfully` });
 });
 
-router.post('/columns/toggle', (req, res) => {
+router.post('/columns/toggle', requireAdmin, (req, res) => {
   const { id, is_active, is_required } = req.body;
   const col = dbStore.columns.find(c => c.id === id);
   if (col) {
@@ -650,18 +827,24 @@ router.post('/columns/toggle', (req, res) => {
   res.json({ success: true, message: 'Column updated successfully' });
 });
 
-router.post('/excel/parse', (req, res) => {
+router.post('/excel/parse', requireAdmin, (req, res) => {
   upload.single('file')(req, res, (err) => {
     try {
+      if (err) {
+        return res.status(400).json({ success: false, error: err.message || 'File upload error' });
+      }
+
       let buffer = null;
       let filename = 'Uploaded_Sheet.xlsx';
 
       if (req.file) {
-        filename = req.file.originalname;
+        filename = path.basename(req.file.originalname).replace(/[^a-zA-Z0-9_\-\.\u0600-\u06FF]/g, '_');
         buffer = req.file.buffer || (req.file.path && fs.existsSync(req.file.path) ? fs.readFileSync(req.file.path) : null);
       } else if (req.body && req.body.fileBase64) {
         buffer = Buffer.from(req.body.fileBase64, 'base64');
-        if (req.body.filename) filename = req.body.filename;
+        if (req.body.filename) {
+          filename = path.basename(req.body.filename).replace(/[^a-zA-Z0-9_\-\.\u0600-\u06FF]/g, '_');
+        }
       }
 
       if (!buffer) {
@@ -676,16 +859,13 @@ router.post('/excel/parse', (req, res) => {
   });
 });
 
-router.get('/excel/scratch-sample', (req, res) => {
+router.get('/excel/scratch-sample', requireAdmin, (req, res) => {
   try {
     const candidatePaths = [
       path.resolve('api/sample_chillers.xlsx'),
-      path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, '$1')), 'sample_chillers.xlsx'),
-      path.resolve('data/sample_chillers.xlsx'),
+      path.join(__dirname, 'sample_chillers.xlsx'),
       path.resolve('public/sample_chillers.xlsx'),
-      path.resolve('backend/data/sample_chillers.xlsx'),
-      path.resolve('sample_chillers.xlsx'),
-      'C:\\Users\\skamal\\.gemini\\antigravity\\scratch\\Bassem\\Chillers Database_V1.xlsx'
+      path.resolve('sample_chillers.xlsx')
     ];
     const foundPath = candidatePaths.find(p => fs.existsSync(p));
     if (foundPath) {
@@ -699,8 +879,8 @@ router.get('/excel/scratch-sample', (req, res) => {
   }
 });
 
-router.post('/excel/confirm', (req, res) => {
-  const dbStore = loadDbStore();
+router.post('/excel/confirm', requireAdmin, (req, res) => {
+  dbStore = loadDbStore();
   const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false } = req.body || {};
   const rowsToSave = bypassValidation 
     ? rows 
@@ -770,7 +950,37 @@ router.post('/excel/confirm', (req, res) => {
   });
 });
 
-router.get('/chillers', (req, res) => {
+function getChillerVisitInfo(chillerCode, customerName, store = null) {
+  const currentStore = store || dbStore || loadDbStore();
+  const responses = (currentStore.form_responses || []).filter(r => {
+    const codeMatch = chillerCode && r.chiller_code && r.chiller_code === chillerCode;
+    const nameMatch = customerName && r.customer_name && r.customer_name.toLowerCase() === customerName.toLowerCase();
+    return codeMatch || nameMatch;
+  });
+
+  if (responses.length === 0) {
+    return {
+      visitStatus: 'not_visited',
+      latestResponseId: null,
+      latestResponseDate: null,
+      adminFeedback: null,
+      formId: null
+    };
+  }
+
+  const sorted = [...responses].sort((a, b) => new Date(b.submitted_at || 0) - new Date(a.submitted_at || 0));
+  const latest = sorted[0];
+
+  return {
+    visitStatus: latest.status || 'submitted',
+    latestResponseId: latest.id,
+    latestResponseDate: latest.submitted_at,
+    adminFeedback: latest.admin_feedback || null,
+    formId: latest.form_id || null
+  };
+}
+
+router.get('/chillers', requireAuth, (req, res) => {
   const dbStore = loadDbStore();
   const { efficiency, customerType, search, batchId } = req.query;
   let rows = [...dbStore.chillers];
@@ -819,31 +1029,44 @@ router.get('/chillers', (req, res) => {
     );
   }
 
-  const chillers = rows.map(r => ({
-    id: r.id,
-    chillerCode: r.chiller_code || r.chillerCode,
-    batchId: r.batch_id || r.batchId,
-    latitude: r.latitude,
-    longitude: r.longitude,
-    customerType: r.customer_type || r.customerType,
-    efficiency: r.efficiency,
-    branch: r.branch,
-    chillerType: r.chiller_type || r.chillerType,
-    chillerStatus: r.chiller_status || r.chillerStatus,
-    condition: r.condition,
-    customerName: r.customer_name || r.customerName,
-    rawData: typeof r.raw_data_json === 'string' ? JSON.parse(r.raw_data_json || '{}') : (r.rawData || r.raw_data_json || {})
-  }));
+  const chillers = rows.map(r => {
+    const code = r.chiller_code || r.chillerCode;
+    const custName = r.customer_name || r.customerName || '';
+    const visitInfo = getChillerVisitInfo(code, custName);
+    return {
+      id: r.id,
+      chillerCode: code,
+      batchId: r.batch_id || r.batchId,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      customerType: r.customer_type || r.customerType,
+      efficiency: r.efficiency,
+      branch: r.branch,
+      chillerType: r.chiller_type || r.chillerType,
+      chillerStatus: r.chiller_status || r.chillerStatus,
+      condition: r.condition,
+      customerName: custName,
+      customerAddress: r.customer_address || r.customerAddress || '',
+      mobileNumber: r.mobile_number || r.mobileNumber || '',
+      visitStatus: visitInfo.visitStatus,
+      latestResponseId: visitInfo.latestResponseId,
+      latestResponseDate: visitInfo.latestResponseDate,
+      adminFeedback: visitInfo.adminFeedback,
+      formId: visitInfo.formId,
+      rawData: typeof r.raw_data_json === 'string' ? JSON.parse(r.raw_data_json || '{}') : (r.rawData || r.raw_data_json || {})
+    };
+  });
 
   res.json({ success: true, count: chillers.length, chillers });
 });
 
-router.delete('/chillers/clear', (req, res) => {
+router.delete('/chillers/clear', requireAdmin, (req, res) => {
   dbStore.chillers = [];
+  saveDbStore(dbStore);
   res.json({ success: true, message: 'All active database records cleared' });
 });
 
-router.get('/batches', (req, res) => {
+router.get('/batches', requireAdmin, (req, res) => {
   res.json({ success: true, batches: [...dbStore.batches].reverse() });
 });
 
@@ -878,7 +1101,7 @@ router.delete('/batches/:id', requireAdmin, (req, res) => {
 });
 
 
-router.get('/delta', (req, res) => {
+router.get('/delta', requireAdmin, (req, res) => {
   const { startBatchId, endBatchId } = req.query;
   const startId = parseInt(startBatchId);
   const endId = parseInt(endBatchId);
@@ -930,7 +1153,7 @@ router.get('/delta', (req, res) => {
 // ==========================================
 
 // GET all sales agents
-router.get('/agents', (req, res) => {
+router.get('/agents', requireAuth, (req, res) => {
   const agents = (dbStore.agents || []).map(a => {
     // calculate how many customers/chillers assigned
     const assignedCount = (dbStore.assignments || []).filter(as => as.agent_id === a.id).length;
@@ -1085,8 +1308,12 @@ router.delete('/agents/:id', requireAdmin, (req, res) => {
 });
 
 // GET assignments
-router.get('/assignments', (req, res) => {
-  res.json({ success: true, count: (dbStore.assignments || []).length, assignments: dbStore.assignments || [] });
+router.get('/assignments', requireAuth, (req, res) => {
+  let assignments = dbStore.assignments || [];
+  if (req.user && req.user.role === 'agent') {
+    assignments = assignments.filter(as => as.agent_id === req.user.agentId);
+  }
+  res.json({ success: true, count: assignments.length, assignments });
 });
 
 // POST assign location(s) / customer(s) to an agent (Admin only)
@@ -1174,7 +1401,7 @@ router.delete('/assignments', requireAdmin, (req, res) => {
 });
 
 // GET chillers for assignment (supports batchId='all', specific batch, or latest batch)
-router.get('/chillers/latest-batch', (req, res) => {
+router.get('/chillers/latest-batch', requireAuth, (req, res) => {
   const { search, agentId, assignmentStatus, batchId } = req.query;
 
   // Determine latest batch
@@ -1221,6 +1448,8 @@ router.get('/chillers/latest-batch', (req, res) => {
     const custName = r.customer_name || r.customerName || '';
     const assignment = assignmentMap.get(code) || (custName ? assignmentMap.get(custName.toLowerCase()) : null);
 
+    const visitInfo = getChillerVisitInfo(code, custName);
+
     return {
       id: r.id,
       chillerCode: code,
@@ -1240,6 +1469,11 @@ router.get('/chillers/latest-batch', (req, res) => {
       assignedAgentName: assignment?.agent_name || null,
       assignedAgentArea: assignment?.agent_area || null,
       assignedAt: assignment?.assigned_at || null,
+      visitStatus: visitInfo.visitStatus,
+      latestResponseId: visitInfo.latestResponseId,
+      latestResponseDate: visitInfo.latestResponseDate,
+      adminFeedback: visitInfo.adminFeedback,
+      formId: visitInfo.formId,
       rawData: typeof r.raw_data_json === 'string' ? JSON.parse(r.raw_data_json || '{}') : (r.rawData || r.raw_data_json || {})
     };
   });
@@ -1262,8 +1496,11 @@ router.get('/chillers/latest-batch', (req, res) => {
     chillers = chillers.filter(c => c.assignedAgentId === null);
   }
 
-  // Filter by specific agent
-  if (agentId && agentId !== 'All') {
+  // If requester is an agent, strictly isolate to their assigned chillers only
+  if (req.user && req.user.role === 'agent') {
+    const myAgentId = req.user.agentId;
+    chillers = chillers.filter(c => c.assignedAgentId === myAgentId);
+  } else if (agentId && agentId !== 'All') {
     const aId = parseInt(agentId);
     chillers = chillers.filter(c => c.assignedAgentId === aId);
   }
@@ -1275,10 +1512,284 @@ router.get('/chillers/latest-batch', (req, res) => {
     selectedBatchId,
     latestBatchId,
     latestBatch,
-    batches: dbStore.batches || [],
-    totalDbLocations: dbStore.chillers.length,
+    batches: req.user?.role === 'agent' ? [] : (dbStore.batches || []),
+    totalDbLocations: req.user?.role === 'agent' ? chillers.length : dbStore.chillers.length,
     count: chillers.length,
     chillers
+  });
+});
+
+// --- DYNAMIC FORMS & AUDIT VISITS ENDPOINTS ---
+
+// GET all forms (agents see only forms assigned to them or unassigned/universal forms)
+router.get('/forms', requireAuth, (req, res) => {
+  let forms = dbStore.forms || [];
+  if (req.user && req.user.role === 'agent') {
+    const agentId = req.user.agentId;
+    forms = forms.filter(f => {
+      const assigned = f.assigned_agent_ids || [];
+      return assigned.length === 0 || assigned.includes(agentId);
+    });
+  }
+  res.json({ success: true, count: forms.length, forms });
+});
+
+// GET single form by ID
+router.get('/forms/:id', requireAuth, (req, res) => {
+  const formId = parseInt(req.params.id);
+  const form = (dbStore.forms || []).find(f => f.id === formId);
+  if (!form) {
+    return res.status(404).json({ success: false, error: 'Form not found' });
+  }
+  if (req.user && req.user.role === 'agent') {
+    const assigned = form.assigned_agent_ids || [];
+    if (assigned.length > 0 && !assigned.includes(req.user.agentId)) {
+      return res.status(403).json({ success: false, error: 'Access denied to this form' });
+    }
+  }
+  res.json({ success: true, form });
+});
+
+// POST create form (Admin only)
+router.post('/forms', requireAdmin, (req, res) => {
+  const { title, description, fields, assigned_agent_ids } = req.body;
+  if (!title || !title.trim()) {
+    return res.status(400).json({ success: false, error: 'Form title is required' });
+  }
+
+  const newForm = {
+    id: Date.now(),
+    title: title.trim(),
+    description: (description || '').trim(),
+    fields: Array.isArray(fields) ? fields : [],
+    assigned_agent_ids: Array.isArray(assigned_agent_ids) ? assigned_agent_ids.map(Number).filter(n => !isNaN(n)) : [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  dbStore.forms = dbStore.forms || [];
+  dbStore.forms.push(newForm);
+  saveDbStore(dbStore);
+
+  res.status(201).json({ success: true, message: 'Form created successfully', form: newForm });
+});
+
+// PUT update form (Admin only)
+router.put('/forms/:id', requireAdmin, (req, res) => {
+  const formId = parseInt(req.params.id);
+  const formIndex = (dbStore.forms || []).findIndex(f => f.id === formId);
+  if (formIndex === -1) {
+    return res.status(404).json({ success: false, error: 'Form not found' });
+  }
+
+  const { title, description, fields, assigned_agent_ids } = req.body;
+  const existing = dbStore.forms[formIndex];
+
+  dbStore.forms[formIndex] = {
+    ...existing,
+    title: title ? title.trim() : existing.title,
+    description: description !== undefined ? (description || '').trim() : existing.description,
+    fields: Array.isArray(fields) ? fields : existing.fields,
+    assigned_agent_ids: Array.isArray(assigned_agent_ids) ? assigned_agent_ids.map(Number).filter(n => !isNaN(n)) : existing.assigned_agent_ids,
+    updated_at: new Date().toISOString()
+  };
+
+  saveDbStore(dbStore);
+  res.json({ success: true, message: 'Form updated successfully', form: dbStore.forms[formIndex] });
+});
+
+// DELETE form (Admin only)
+router.delete('/forms/:id', requireAdmin, (req, res) => {
+  const formId = parseInt(req.params.id);
+  const initialCount = (dbStore.forms || []).length;
+  dbStore.forms = (dbStore.forms || []).filter(f => f.id !== formId);
+
+  if (dbStore.forms.length === initialCount) {
+    return res.status(404).json({ success: false, error: 'Form not found' });
+  }
+
+  saveDbStore(dbStore);
+  res.json({ success: true, message: 'Form deleted successfully' });
+});
+
+// POST assign form to agents (Admin only)
+router.post('/forms/:id/assign', requireAdmin, (req, res) => {
+  const formId = parseInt(req.params.id);
+  const form = (dbStore.forms || []).find(f => f.id === formId);
+  if (!form) {
+    return res.status(404).json({ success: false, error: 'Form not found' });
+  }
+
+  const { assigned_agent_ids } = req.body;
+  if (!Array.isArray(assigned_agent_ids)) {
+    return res.status(400).json({ success: false, error: 'assigned_agent_ids must be an array' });
+  }
+
+  form.assigned_agent_ids = assigned_agent_ids.map(Number).filter(n => !isNaN(n));
+  form.updated_at = new Date().toISOString();
+  saveDbStore(dbStore);
+
+  res.json({ success: true, message: 'Form assignments updated', form });
+});
+
+// POST upload attachment (file or base64)
+router.post('/forms/upload-attachment', requireAuth, uploadAttach.single('file'), (req, res) => {
+  try {
+    const uploadsDir = path.resolve('public/uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // Handle multipart file upload
+    if (req.file) {
+      const ext = path.extname(req.file.originalname) || '.jpg';
+      const filename = `attach_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
+      const filePath = path.join(uploadsDir, filename);
+      fs.writeFileSync(filePath, req.file.buffer);
+      return res.json({
+        success: true,
+        url: `/uploads/${filename}`,
+        filename
+      });
+    }
+
+    // Handle base64 JSON payload
+    const { base64Data, filename: originalName } = req.body || {};
+    if (base64Data) {
+      const match = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      let buffer;
+      let ext = '.jpg';
+      if (match) {
+        const mime = match[1];
+        if (mime.includes('png')) ext = '.png';
+        else if (mime.includes('pdf')) ext = '.pdf';
+        buffer = Buffer.from(match[2], 'base64');
+      } else {
+        buffer = Buffer.from(base64Data, 'base64');
+      }
+
+      const filename = `attach_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
+      const filePath = path.join(uploadsDir, filename);
+      fs.writeFileSync(filePath, buffer);
+      return res.json({
+        success: true,
+        url: `/uploads/${filename}`,
+        filename
+      });
+    }
+
+    return res.status(400).json({ success: false, error: 'No file or base64 data provided' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Failed to process attachment: ' + err.message });
+  }
+});
+
+// POST submit form response (Agent completing a visit)
+router.post('/form-responses', requireAuth, (req, res) => {
+  const { form_id, chiller_code, customer_name, answers, attachments } = req.body;
+  if (!form_id) {
+    return res.status(400).json({ success: false, error: 'form_id is required' });
+  }
+
+  const form = (dbStore.forms || []).find(f => f.id === parseInt(form_id));
+  if (!form) {
+    return res.status(404).json({ success: false, error: 'Form not found' });
+  }
+
+  const agentId = req.user.role === 'agent' ? req.user.agentId : (req.user.id || 0);
+  const agentName = req.user.name || req.user.username;
+
+  const newResponse = {
+    id: Date.now(),
+    form_id: form.id,
+    form_title: form.title,
+    chiller_code: (chiller_code || '').trim(),
+    customer_name: (customer_name || '').trim(),
+    agent_id: agentId,
+    agent_name: agentName,
+    answers: (answers && typeof answers === 'object') ? answers : {},
+    attachments: Array.isArray(attachments) ? attachments : [],
+    status: 'submitted', // submitted | accepted | reopened
+    admin_feedback: '',
+    submitted_at: new Date().toISOString(),
+    reviewed_at: null,
+    reviewed_by: null
+  };
+
+  dbStore.form_responses = dbStore.form_responses || [];
+  dbStore.form_responses.push(newResponse);
+  saveDbStore(dbStore);
+
+  res.status(201).json({
+    success: true,
+    message: 'Visit form submitted successfully',
+    response: newResponse
+  });
+});
+
+// GET form responses (Admin monitors all, Agent sees own)
+router.get('/form-responses', requireAuth, (req, res) => {
+  const { status, chiller_code, search, form_id } = req.query;
+  let responses = [...(dbStore.form_responses || [])];
+
+  if (req.user && req.user.role === 'agent') {
+    responses = responses.filter(r => r.agent_id === req.user.agentId);
+  }
+
+  if (status && status !== 'All') {
+    responses = responses.filter(r => (r.status || '').toLowerCase() === status.toLowerCase());
+  }
+
+  if (form_id) {
+    const fId = parseInt(form_id);
+    responses = responses.filter(r => r.form_id === fId);
+  }
+
+  if (chiller_code) {
+    responses = responses.filter(r => (r.chiller_code || '').toLowerCase() === chiller_code.toLowerCase());
+  }
+
+  if (search && search.trim()) {
+    const term = search.trim().toLowerCase();
+    responses = responses.filter(r =>
+      (r.customer_name || '').toLowerCase().includes(term) ||
+      (r.chiller_code || '').toLowerCase().includes(term) ||
+      (r.agent_name || '').toLowerCase().includes(term) ||
+      (r.form_title || '').toLowerCase().includes(term)
+    );
+  }
+
+  responses.sort((a, b) => new Date(b.submitted_at || 0) - new Date(a.submitted_at || 0));
+
+  res.json({ success: true, count: responses.length, responses });
+});
+
+// PUT review form response (Admin accepts feedback or re-opens to agent)
+router.put('/form-responses/:id/review', requireAdmin, (req, res) => {
+  const responseId = parseInt(req.params.id);
+  const resp = (dbStore.form_responses || []).find(r => r.id === responseId);
+  if (!resp) {
+    return res.status(404).json({ success: false, error: 'Form response not found' });
+  }
+
+  const { status, admin_feedback } = req.body;
+  if (!status || !['accepted', 'reopened'].includes(status)) {
+    return res.status(400).json({ success: false, error: "Status must be 'accepted' or 'reopened'" });
+  }
+
+  resp.status = status;
+  if (admin_feedback !== undefined) {
+    resp.admin_feedback = (admin_feedback || '').trim();
+  }
+  resp.reviewed_at = new Date().toISOString();
+  resp.reviewed_by = req.user.name || req.user.username;
+
+  saveDbStore(dbStore);
+
+  res.json({
+    success: true,
+    message: status === 'accepted' ? 'Response accepted successfully' : 'Response re-opened to agent with feedback',
+    response: resp
   });
 });
 

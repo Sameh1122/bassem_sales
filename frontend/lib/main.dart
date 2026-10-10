@@ -6,6 +6,8 @@ import 'views/upload_view.dart';
 import 'views/assign_locations_view.dart';
 import 'views/agents_view.dart';
 import 'views/data_table_view.dart';
+import 'views/forms_manager_view.dart';
+import 'views/form_responses_view.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +49,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final GlobalKey<AssignLocationsViewScreenState> _assignKey = GlobalKey<AssignLocationsViewScreenState>();
   final GlobalKey<AgentsViewScreenState> _agentsKey = GlobalKey<AgentsViewScreenState>();
   final GlobalKey<DataTableViewScreenState> _tableKey = GlobalKey<DataTableViewScreenState>();
+  final GlobalKey<FormsManagerViewScreenState> _formsKey = GlobalKey<FormsManagerViewScreenState>();
+  final GlobalKey<FormResponsesViewScreenState> _responsesKey = GlobalKey<FormResponsesViewScreenState>();
 
   void _onUploadSuccess() {
     setState(() {
@@ -77,7 +81,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final String displayName = (currentUser['name'] ?? currentUser['email'] ?? currentUser['username'] ?? 'User').toString();
     final String? agentArea = currentUser['agentArea']?.toString();
 
-    // Screens configured by permission: 5 tabs for Admin, 1 tab for Sales Agent
+    // Screens configured by permission: 7 tabs for Admin, 1 tab for Sales Agent
     final List<Widget> screens = isAdmin
         ? [
             MapViewScreen(key: _mapKey),
@@ -85,6 +89,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             AssignLocationsViewScreen(key: _assignKey),
             AgentsViewScreen(key: _agentsKey),
             DataTableViewScreen(key: _tableKey),
+            FormsManagerViewScreen(key: _formsKey),
+            FormResponsesViewScreen(key: _responsesKey),
           ]
         : [
             MapViewScreen(key: _mapKey),
@@ -116,6 +122,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               icon: Icon(Icons.table_chart_outlined),
               selectedIcon: Icon(Icons.table_chart),
               label: Text('Data Table'),
+            ),
+            NavigationRailDestination(
+              icon: Icon(Icons.dynamic_form_outlined),
+              selectedIcon: Icon(Icons.dynamic_form),
+              label: Text('Forms Manager'),
+            ),
+            NavigationRailDestination(
+              icon: Icon(Icons.rate_review_outlined),
+              selectedIcon: Icon(Icons.rate_review),
+              label: Text('Visit Responses'),
             ),
           ]
         : const [
@@ -269,6 +285,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           _agentsKey.currentState?.reload();
         } else if (index == 4) {
           _tableKey.currentState?.reload(forceApi: true);
+        } else if (index == 5) {
+          _formsKey.currentState?.reload();
+        } else if (index == 6) {
+          _responsesKey.currentState?.reload();
         }
       }
     });
@@ -285,6 +305,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       {'icon': Icons.assignment_ind_outlined, 'activeIcon': Icons.assignment_ind, 'label': 'Assign Locations'},
       {'icon': Icons.badge_outlined, 'activeIcon': Icons.badge, 'label': 'Sales Agents'},
       {'icon': Icons.table_chart_outlined, 'activeIcon': Icons.table_chart, 'label': 'Data Table'},
+      {'icon': Icons.dynamic_form_outlined, 'activeIcon': Icons.dynamic_form, 'label': 'Forms Manager'},
+      {'icon': Icons.rate_review_outlined, 'activeIcon': Icons.rate_review, 'label': 'Visit Responses'},
     ];
 
     return Drawer(
