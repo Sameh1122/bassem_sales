@@ -90,6 +90,23 @@ class ApiService {
     removeLocalStorage('chillers_dataset');
   }
 
+  static Future<bool> validateSession() async {
+    if (!isLoggedIn) return false;
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/auth/me'), headers: _authHeaders);
+      if (response.statusCode == 200) {
+        final decoded = _safeJsonDecode(response.body);
+        if (decoded is Map && decoded['success'] == true && decoded['user'] != null) {
+          _currentUser = Map<String, dynamic>.from(decoded['user']);
+          setLocalStorage('auth_user', jsonEncode(_currentUser));
+          return true;
+        }
+      }
+    } catch (_) {}
+    logout();
+    return false;
+  }
+
   static Future<Map<String, dynamic>> changePassword(String currentPassword, String newPassword) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/change-password'),

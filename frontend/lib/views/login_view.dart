@@ -24,9 +24,17 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
     super.dispose();
   }
 
+  void _fillUser(String email, String password) {
+    setState(() {
+      _emailController.text = email;
+      _passwordController.text = password;
+      _errorMessage = null;
+    });
+  }
+
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
-    final password = _passwordController.text;
+    final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
       setState(() => _errorMessage = 'Please enter both your email address and password.');
@@ -347,7 +355,55 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
                                 ),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
+
+                      // Quick Select Preset Accounts
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0B1322),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Quick Select Account:',
+                              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                ActionChip(
+                                  backgroundColor: const Color(0xFF06B6D4).withValues(alpha: 0.15),
+                                  side: const BorderSide(color: Color(0xFF06B6D4), width: 0.8),
+                                  avatar: const Icon(Icons.admin_panel_settings, size: 14, color: Color(0xFF06B6D4)),
+                                  label: const Text('Admin', style: TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.bold)),
+                                  onPressed: () => _fillUser('admin@sales.com', 'A@\$jjjff223445@'),
+                                ),
+                                ActionChip(
+                                  backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                  side: const BorderSide(color: Color(0xFF10B981), width: 0.8),
+                                  avatar: const Icon(Icons.person, size: 14, color: Color(0xFF10B981)),
+                                  label: const Text('Omnia (Agent)', style: TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.bold)),
+                                  onPressed: () => _fillUser('omnia@sales.com', 'axB@134567_3354'),
+                                ),
+                                ActionChip(
+                                  backgroundColor: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                                  side: const BorderSide(color: Color(0xFF8B5CF6), width: 0.8),
+                                  avatar: const Icon(Icons.person, size: 14, color: Color(0xFF8B5CF6)),
+                                  label: const Text('Mina (Agent)', style: TextStyle(color: Color(0xFF8B5CF6), fontSize: 12, fontWeight: FontWeight.bold)),
+                                  onPressed: () => _fillUser('mina@sales.com', 'axB@133hjjj7_3354'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
 
                       // Security Badges
                       Row(

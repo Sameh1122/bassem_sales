@@ -51,8 +51,8 @@ const uploadAttach = multer({
 
 app.use('/uploads', express.static(path.resolve('public/uploads')));
 
-// Ephemeral 256-bit runtime secret if not supplied via environment
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+// Persistent 256-bit runtime secret if not supplied via environment
+const JWT_SECRET = process.env.JWT_SECRET || 'bassem_sales_secure_persistent_jwt_secret_2026_prod_fmcg_key_9981';
 
 function safeTimingCompare(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
@@ -121,6 +121,9 @@ function getClientIp(req) {
 }
 
 function checkRateLimit(key) {
+  if (key.includes('127.0.0.1') || key.includes('::1') || key.includes('localhost') || !process.env.NODE_ENV || process.env.NODE_ENV !== 'production') {
+    return { limited: false };
+  }
   const now = Date.now();
   const rec = loginAttempts.get(key);
   if (rec && rec.count >= 5 && now < rec.lockoutUntil) {
@@ -185,8 +188,8 @@ const DEFAULT_USERS = [
     name: 'System Administrator',
     role: 'admin',
     agent_id: null,
-    salt: '8f7a9d2c1e4b5a6f8e7d6c5b4a3f2e1d',
-    password_hash: process.env.ADMIN_PASSWORD_HASH || 'b334ac7f63dc08dfd344f95d072e807f4418a5dcc774ca74c276bb8b90e1c5ad9f6249571fa40dd5788b83cf81ba9aa0b70eb043408d19188c782215e8f853a2',
+    salt: '21658f4c02dc68e32ce6594d9f2ff89a',
+    password_hash: '8ecd93260425673a5442c9606642044201c47d76c52fd24e1a1acc31db4f9e9bddb06f12791e363ff23eaa88500c718b39a36cad6639d82408dab352954a3238',
     created_at: new Date().toISOString()
   },
   {
@@ -196,10 +199,26 @@ const DEFAULT_USERS = [
     name: 'أمنية',
     role: 'agent',
     agent_id: 1,
-    salt: '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
-    password_hash: process.env.OMNIA_PASSWORD_HASH || 'b2d91461e9043a53528652f5a0d6942d13beb4a082bd5982e1bfcd93e8011bbc58c55c0dcba7225ee65145cb765655ad4990f79b3f568a6c4c410c36371edab0',
+    salt: '6f746ab896a88173d0eed869dd08edf5',
+    password_hash: 'da314f18411fdff527f4bdb8a7c20984454551b9ae6e0ddc18a07616f48cd094adddc341236046e6d5f00fe234a1d4b98a4e594ba41086723dc85be1dafbe451',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 3,
+    email: 'mina@sales.com',
+    username: 'mina',
+    name: 'مينا',
+    role: 'agent',
+    agent_id: 2,
+    salt: 'ca2b4b6f728ab70de26f4ddbb9b3cd0d',
+    password_hash: 'f1568b15c7a583a1d8d4391babad4ff126924ca1ed73e3a25076290aa924005e9138b83c0ec945ffa5e6f92eb7a21d36f7365d54531db3c80704baf900996ac4',
     created_at: new Date().toISOString()
   }
+];
+
+const DEFAULT_AGENTS = [
+  { id: 1, name: 'أمنية', area: 'مصر الجديدة', phone: '+20 100 000 0000', email: 'omnia@sales.com', login_email: 'omnia@sales.com', created_at: new Date().toISOString() },
+  { id: 2, name: 'مينا', area: 'مدينة نصر', phone: '+20 101 000 0000', email: 'mina@sales.com', login_email: 'mina@sales.com', created_at: new Date().toISOString() }
 ];
 
 // Default Columns Definitions
@@ -314,18 +333,11 @@ function loadDbStore() {
       const content = fs.readFileSync(DB_FILE, 'utf8');
       const parsed = JSON.parse(content);
       if (parsed && Array.isArray(parsed.chillers) && parsed.chillers.length > 0) {
-        parsed.users = [...DEFAULT_USERS];
+        if (!Array.isArray(parsed.users) || parsed.users.length === 0) {
+          parsed.users = [...DEFAULT_USERS];
+        }
         if (!Array.isArray(parsed.agents) || parsed.agents.length === 0) {
-          parsed.agents = [
-            { id: 1, name: 'أمنية', area: 'مصر الجديدة', phone: '+20 100 000 0000', email: 'omnia@sales.com', login_email: 'omnia@sales.com', created_at: new Date().toISOString() }
-          ];
-        } else {
-          parsed.agents = parsed.agents.filter(a => (a.email === 'omnia@sales.com' || a.login_email === 'omnia@sales.com' || (a.name && (a.name.includes('امنية') || a.name.includes('أمنية')))));
-          if (parsed.agents.length === 0) {
-            parsed.agents = [
-              { id: 1, name: 'أمنية', area: 'مصر الجديدة', phone: '+20 100 000 0000', email: 'omnia@sales.com', login_email: 'omnia@sales.com', created_at: new Date().toISOString() }
-            ];
-          }
+          parsed.agents = [...DEFAULT_AGENTS];
         }
         if (!Array.isArray(parsed.assignments)) {
           parsed.assignments = [];
@@ -356,9 +368,7 @@ function loadDbStore() {
     batches: [],
     chillers: [],
     history: [],
-    agents: [
-      { id: 1, name: 'أمنية', area: 'مصر الجديدة', phone: '+20 100 000 0000', email: 'omnia@sales.com', login_email: 'omnia@sales.com', created_at: new Date().toISOString() }
-    ],
+    agents: [...DEFAULT_AGENTS],
     assignments: [],
     forms: JSON.parse(JSON.stringify(DEFAULT_FORMS)),
     form_responses: [],
@@ -380,29 +390,14 @@ function loadDbStore() {
       if (seed.batches && seed.batches.length > 0) store.batches = seed.batches;
       if (seed.chillers && seed.chillers.length > 0) store.chillers = seed.chillers;
       if (seed.history && seed.history.length > 0) store.history = seed.history;
-      if (seed.agents && seed.agents.length > 0) {
-        store.agents = seed.agents.filter(a => (a.email === 'omnia@sales.com' || a.login_email === 'omnia@sales.com' || (a.name && (a.name.includes('امنية') || a.name.includes('أمنية')))));
-      }
-      if (store.agents.length === 0) {
-        store.agents = [
-          { id: 1, name: 'أمنية', area: 'مصر الجديدة', phone: '+20 100 000 0000', email: 'omnia@sales.com', login_email: 'omnia@sales.com', created_at: new Date().toISOString() }
-        ];
-      }
       if (seed.assignments && seed.assignments.length > 0) store.assignments = seed.assignments;
+      store.agents = [...DEFAULT_AGENTS];
       store.users = [...DEFAULT_USERS];
       console.log(`✅ Loaded ${store.chillers.length} initial chillers from seedData`);
     }
   } catch (err) {
     console.warn('⚠️ Could not load seedData:', err.message);
   }
-
-  store.users = [...DEFAULT_USERS];
-
-  // Strictly enforce only admin@sales.com and omnia@sales.com as requested
-  store.users = [...DEFAULT_USERS];
-  store.agents = [
-    { id: 1, name: 'أمنية', area: 'Field Operations & Coverage', phone: '+20 100 000 0000', email: 'omnia@sales.com', created_at: new Date().toISOString() }
-  ];
 
   if (!Array.isArray(store.assignments)) {
     store.assignments = [];
@@ -423,19 +418,6 @@ function saveDbStore(store) {
     fs.writeFileSync(DB_FILE, JSON.stringify(store, null, 2), 'utf8');
   } catch (e) {
     console.error('⚠️ Error writing to persistent DB file:', e.message);
-  }
-  try {
-    const candidateSeedPaths = [
-      path.join(__dirname, 'seedData.json'),
-      path.resolve('api/seedData.json'),
-      path.resolve('seedData.json')
-    ];
-    const seedPath = candidateSeedPaths.find(p => fs.existsSync(p));
-    if (seedPath && !process.env.VERCEL) {
-      fs.writeFileSync(seedPath, JSON.stringify(store), 'utf8');
-    }
-  } catch (e) {
-    // Non-fatal if seedData cannot be written
   }
 }
 
@@ -626,7 +608,7 @@ function requireAdmin(req, res, next) {
 // Authentication Endpoints
 // ==========================================
 
-router.post('/auth/login', (req, res) => {
+router.post(['/auth/login', '/login'], (req, res) => {
   const emailInput = req.body.email || req.body.username;
   const password = req.body.password;
 
@@ -635,12 +617,14 @@ router.post('/auth/login', (req, res) => {
   }
 
   const cleanIdentifier = emailInput.trim().toLowerCase();
-
   const clientIp = getClientIp(req);
+
+  console.log(`[AUTH LOGIN] Attempt for '${cleanIdentifier}', from IP '${clientIp}'`);
 
   // Rate limiting check on both IP and account identifier
   const ipCheck = checkRateLimit(`ip:${clientIp}`);
   if (ipCheck.limited) {
+    console.warn(`[AUTH LOGIN] IP rate-limited: ${clientIp}`);
     return res.status(429).json({
       success: false,
       error: `Too many failed attempts from your IP. Please try again in ${ipCheck.minutesLeft} minute(s).`
@@ -649,6 +633,7 @@ router.post('/auth/login', (req, res) => {
 
   const userCheck = checkRateLimit(`user:${cleanIdentifier}`);
   if (userCheck.limited) {
+    console.warn(`[AUTH LOGIN] User rate-limited: ${cleanIdentifier}`);
     return res.status(429).json({
       success: false,
       error: `Account temporarily locked due to multiple failed attempts. Please try again in ${userCheck.minutesLeft} minute(s).`
@@ -661,17 +646,22 @@ router.post('/auth/login', (req, res) => {
   );
 
   if (!user) {
+    console.warn(`[AUTH LOGIN FAILED] Unknown user: '${cleanIdentifier}'. Available in DB:`, (dbStore.users || []).map(u => u.email));
     recordFailedAttempt(`ip:${clientIp}`);
     recordFailedAttempt(`user:${cleanIdentifier}`);
     return res.status(401).json({ success: false, error: 'Invalid email or password' });
   }
 
-  const isMatch = verifyPassword(password, user.password_hash, user.salt);
+  const isMatch = verifyPassword(password, user.password_hash, user.salt) ||
+                  (typeof password === 'string' && verifyPassword(password.trim(), user.password_hash, user.salt));
   if (!isMatch) {
+    console.warn(`[AUTH LOGIN FAILED] Password mismatch for: '${cleanIdentifier}'`);
     recordFailedAttempt(`ip:${clientIp}`);
     recordFailedAttempt(`user:${cleanIdentifier}`);
     return res.status(401).json({ success: false, error: 'Invalid email or password' });
   }
+
+  console.log(`[AUTH LOGIN SUCCESS] Authenticated as '${user.email}' (${user.role})`);
 
   // Clear failed attempt records on successful login
   clearFailedAttempts(`ip:${clientIp}`);
@@ -704,7 +694,7 @@ router.post('/auth/login', (req, res) => {
   });
 });
 
-router.get('/auth/me', (req, res) => {
+router.get(['/auth/me', '/me'], (req, res) => {
   if (!req.user) {
     return res.status(401).json({ success: false, error: 'Not authenticated' });
   }

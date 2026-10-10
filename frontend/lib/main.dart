@@ -52,6 +52,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final GlobalKey<FormsManagerViewScreenState> _formsKey = GlobalKey<FormsManagerViewScreenState>();
   final GlobalKey<FormResponsesViewScreenState> _responsesKey = GlobalKey<FormResponsesViewScreenState>();
 
+  @override
+  void initState() {
+    super.initState();
+    if (ApiService.isLoggedIn) {
+      ApiService.validateSession().then((isValid) {
+        if (!isValid && mounted) {
+          setState(() {
+            _currentIndex = 0;
+          });
+        }
+      });
+    }
+  }
+
   void _onUploadSuccess() {
     setState(() {
       _currentIndex = 0;
