@@ -5,10 +5,10 @@
 > [!NOTE]
 > **Live Document Status**: Synchronized with GitHub Repository  
 > **Repository**: [Sameh1122/bassem_sales](https://github.com/Sameh1122/bassem_sales)  
-> **Last Synchronized**: 2026-10-10 11:18:54 UTC  
+> **Last Synchronized**: 2026-10-10 11:19:35 UTC  
 > **Active Branch**: `main`  
-> **Latest Commit**: [`fdc944d`](https://github.com/Sameh1122/bassem_sales/commit/fdc944d) — *"docs: auto-synchronize live BRD & SAD metadata [skip ci]"*  
-> **Author**: GitHub Action [Docs Sync]  
+> **Latest Commit**: [`93cdf1a`](https://github.com/Sameh1122/bassem_sales/commit/93cdf1a) — *"feat: configure encrypted credentials for admin, omnia, mina and decouple local DB from git"*  
+> **Author**: Sameh1122  
 > **Status**: Production Ready & Actively Maintained  
 <!-- LIVING_DOC_METADATA_END -->
 
