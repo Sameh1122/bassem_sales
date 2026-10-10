@@ -35,7 +35,7 @@ jobs:
           git config --local user.name "GitHub Action [Docs Sync]"
           if [ -n "$(git status --porcelain docs/)" ]; then
             git add docs/BRD.md docs/SAD.md
-            git commit -m "docs: auto-synchronize live BRD & SAD metadata [skip ci]"
+            git commit -m "docs: auto-synchronize live BRD & SAD metadata"
             git push origin HEAD:${{ github.ref }}
             echo "✅ Live documentation updated and committed."
           else

