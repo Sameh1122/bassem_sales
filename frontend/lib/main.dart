@@ -8,6 +8,7 @@ import 'views/agents_view.dart';
 import 'views/data_table_view.dart';
 import 'views/forms_manager_view.dart';
 import 'views/form_responses_view.dart';
+import 'views/system_logs_view.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +52,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final GlobalKey<DataTableViewScreenState> _tableKey = GlobalKey<DataTableViewScreenState>();
   final GlobalKey<FormsManagerViewScreenState> _formsKey = GlobalKey<FormsManagerViewScreenState>();
   final GlobalKey<FormResponsesViewScreenState> _responsesKey = GlobalKey<FormResponsesViewScreenState>();
+  final GlobalKey<SystemLogsViewScreenState> _logsKey = GlobalKey<SystemLogsViewScreenState>();
 
   @override
   void initState() {
@@ -90,12 +92,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
 
     final currentUser = ApiService.currentUser ?? {};
+    final bool isOwner = ApiService.isOwner;
     final bool isAdmin = ApiService.isAdmin;
-    final String roleName = isAdmin ? 'Admin' : 'Sales Agent';
+    final String roleName = isOwner ? 'System Owner' : (isAdmin ? 'Admin' : 'Sales Agent');
     final String displayName = (currentUser['name'] ?? currentUser['email'] ?? currentUser['username'] ?? 'User').toString();
     final String? agentArea = currentUser['agentArea']?.toString();
 
-    // Screens configured by permission: 7 tabs for Admin, 1 tab for Sales Agent
+    // Screens configured by permission: 8 tabs for Owner, 7 tabs for Admin, 1 tab for Sales Agent
     final List<Widget> screens = isAdmin
         ? [
             MapViewScreen(key: _mapKey),
@@ -105,48 +108,55 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             DataTableViewScreen(key: _tableKey),
             FormsManagerViewScreen(key: _formsKey),
             FormResponsesViewScreen(key: _responsesKey),
+            if (isOwner) SystemLogsViewScreen(key: _logsKey),
           ]
         : [
             MapViewScreen(key: _mapKey),
           ];
 
     final List<NavigationRailDestination> destinations = isAdmin
-        ? const [
-            NavigationRailDestination(
+        ? [
+            const NavigationRailDestination(
               icon: Icon(Icons.map_outlined),
               selectedIcon: Icon(Icons.map),
               label: Text('Map View'),
             ),
-            NavigationRailDestination(
+            const NavigationRailDestination(
               icon: Icon(Icons.upload_file_outlined),
               selectedIcon: Icon(Icons.upload_file),
               label: Text('Upload & Validate'),
             ),
-            NavigationRailDestination(
+            const NavigationRailDestination(
               icon: Icon(Icons.assignment_ind_outlined),
               selectedIcon: Icon(Icons.assignment_ind),
               label: Text('Assign Locations'),
             ),
-            NavigationRailDestination(
+            const NavigationRailDestination(
               icon: Icon(Icons.badge_outlined),
               selectedIcon: Icon(Icons.badge),
               label: Text('Sales Agents'),
             ),
-            NavigationRailDestination(
+            const NavigationRailDestination(
               icon: Icon(Icons.table_chart_outlined),
               selectedIcon: Icon(Icons.table_chart),
               label: Text('Data Table'),
             ),
-            NavigationRailDestination(
+            const NavigationRailDestination(
               icon: Icon(Icons.dynamic_form_outlined),
               selectedIcon: Icon(Icons.dynamic_form),
               label: Text('Forms Manager'),
             ),
-            NavigationRailDestination(
+            const NavigationRailDestination(
               icon: Icon(Icons.rate_review_outlined),
               selectedIcon: Icon(Icons.rate_review),
               label: Text('Visit Responses'),
             ),
+            if (isOwner)
+              const NavigationRailDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long),
+                label: Text('System Logs'),
+              ),
           ]
         : const [
             NavigationRailDestination(
@@ -210,27 +220,37 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: isAdmin
-                  ? const Color(0xFF06B6D4).withValues(alpha: 0.15)
-                  : const Color(0xFF10B981).withValues(alpha: 0.15),
+              color: isOwner
+                  ? const Color(0xFF8B5CF6).withValues(alpha: 0.18)
+                  : (isAdmin
+                      ? const Color(0xFF06B6D4).withValues(alpha: 0.15)
+                      : const Color(0xFF10B981).withValues(alpha: 0.15)),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isAdmin ? const Color(0xFF06B6D4) : const Color(0xFF10B981),
+                color: isOwner
+                    ? const Color(0xFF8B5CF6)
+                    : (isAdmin ? const Color(0xFF06B6D4) : const Color(0xFF10B981)),
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  isAdmin ? Icons.admin_panel_settings : Icons.person,
+                  isOwner
+                      ? Icons.security
+                      : (isAdmin ? Icons.admin_panel_settings : Icons.person),
                   size: 15,
-                  color: isAdmin ? const Color(0xFF06B6D4) : const Color(0xFF10B981),
+                  color: isOwner
+                      ? const Color(0xFFA78BFA)
+                      : (isAdmin ? const Color(0xFF06B6D4) : const Color(0xFF10B981)),
                 ),
                 const SizedBox(width: 6),
                 Text(
                   isMobile ? displayName : '$roleName: $displayName${agentArea != null && agentArea.isNotEmpty ? ' ($agentArea)' : ''}',
                   style: TextStyle(
-                    color: isAdmin ? const Color(0xFF06B6D4) : const Color(0xFF10B981),
+                    color: isOwner
+                        ? const Color(0xFFA78BFA)
+                        : (isAdmin ? const Color(0xFF06B6D4) : const Color(0xFF10B981)),
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
@@ -303,6 +323,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           _formsKey.currentState?.reload();
         } else if (index == 6) {
           _responsesKey.currentState?.reload();
+        } else if (index == 7 && ApiService.isOwner) {
+          _logsKey.currentState?.reload();
         }
       }
     });
@@ -310,6 +332,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   Widget _buildDrawer(BuildContext context, int safeIndex) {
     final currentUser = ApiService.currentUser ?? {};
+    final bool isOwner = ApiService.isOwner;
     final displayName = (currentUser['name'] ?? currentUser['email'] ?? 'User').toString();
     final email = (currentUser['login_email'] ?? currentUser['email'] ?? '').toString();
 
@@ -321,6 +344,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       {'icon': Icons.table_chart_outlined, 'activeIcon': Icons.table_chart, 'label': 'Data Table'},
       {'icon': Icons.dynamic_form_outlined, 'activeIcon': Icons.dynamic_form, 'label': 'Forms Manager'},
       {'icon': Icons.rate_review_outlined, 'activeIcon': Icons.rate_review, 'label': 'Visit Responses'},
+      if (isOwner)
+        {'icon': Icons.receipt_long_outlined, 'activeIcon': Icons.receipt_long, 'label': 'System Logs'},
     ];
 
     return Drawer(

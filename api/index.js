@@ -7,6 +7,7 @@ import path from 'path';
 import crypto from 'crypto';
 import os from 'os';
 import { fileURLToPath } from 'url';
+import auditLogger from './audit_logger.js';
 
 const XLSX = XLSXModule.default || XLSXModule;
 
@@ -184,6 +185,17 @@ function extractUserFromReq(req) {
 }
 
 const DEFAULT_USERS = [
+  {
+    id: 0,
+    email: 'owner@sales.com',
+    username: 'owner',
+    name: 'System Owner',
+    role: 'owner',
+    agent_id: null,
+    salt: '9aa5135892163d09db25a2fe3d136610',
+    password_hash: 'dc96b38e73feef9c390e3e7080c5d83c5581fdc61b9fcb50df2318d049dda6083336e5ffe8e6b56ea1b966337720dea8e2787d8a6141fd9ea92128be2cf7d9eb',
+    created_at: new Date().toISOString()
+  },
   {
     id: 1,
     email: 'admin@sales.com',
@@ -600,6 +612,62 @@ router.use((req, res, next) => {
   next();
 });
 
+// Audit logging interceptor middleware
+router.use((req, res, next) => {
+  const startTime = Date.now();
+  const clientIp = getClientIp(req);
+
+  req.auditEvent = {
+    category: 'system',
+    action: `${req.method} ${req.path}`,
+    details: null,
+    metadata: {}
+  };
+
+  res.on('finish', () => {
+    // Avoid noisy polling / static file logs unless failed
+    if (req.path === '/health' && res.statusCode < 400) return;
+    if (req.path.startsWith('/uploads') && res.statusCode < 400) return;
+
+    const duration = Date.now() - startTime;
+    let level = 'INFO';
+    if (res.statusCode >= 500) level = 'ERROR';
+    else if (res.statusCode >= 400) level = 'WARN';
+
+    let category = req.auditEvent.category;
+    if (category === 'system') {
+      if (req.path.includes('/auth') || req.path.includes('/login')) category = 'auth';
+      else if (req.path.includes('/excel') || req.path.includes('/batches') || req.path.includes('/chillers')) category = 'upload';
+      else if (req.path.includes('/assignments')) category = 'assignment';
+      else if (req.path.includes('/agents')) category = 'agents';
+      else if (req.path.includes('/forms') || req.path.includes('/form-responses')) category = 'forms';
+    }
+
+    const defaultDetails = req.auditEvent.details || `${req.method} ${req.originalUrl || req.url} responded with status ${res.statusCode}`;
+
+    auditLogger.log({
+      level,
+      category,
+      action: req.auditEvent.action,
+      actor: {
+        id: req.user?.id,
+        email: req.user?.email || 'anonymous',
+        username: req.user?.username || 'anonymous',
+        role: req.user?.role || 'guest',
+        ip: clientIp
+      },
+      method: req.method,
+      endpoint: req.originalUrl || req.url,
+      statusCode: res.statusCode,
+      durationMs: duration,
+      details: defaultDetails,
+      metadata: req.auditEvent.metadata
+    });
+  });
+
+  next();
+});
+
 function requireAuth(req, res, next) {
   if (!req.user) {
     return res.status(401).json({ success: false, error: 'Authentication required. Please login.' });
@@ -611,16 +679,77 @@ function requireAdmin(req, res, next) {
   if (!req.user) {
     return res.status(401).json({ success: false, error: 'Authentication required. Please login.' });
   }
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'admin' && req.user.role !== 'owner') {
     return res.status(403).json({ success: false, error: 'Access forbidden. Administrator privileges required.' });
   }
   next();
 }
 
+function requireOwner(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ success: false, error: 'Authentication required. Please login.' });
+  }
+  if (req.user.role !== 'owner') {
+    return res.status(403).json({ success: false, error: 'Access forbidden. System Owner privileges required.' });
+  }
+  next();
+}
+
+// ==========================================
+// System Audit Logs Endpoints (Owner only)
+// ==========================================
+
+router.get('/logs', requireOwner, (req, res) => {
+  const { level, category, search, statusCode, page = 1, limit = 50 } = req.query;
+  const result = auditLogger.getLogs({
+    level,
+    category,
+    search,
+    statusCode,
+    page: parseInt(page) || 1,
+    limit: parseInt(limit) || 50
+  });
+  res.json({ success: true, ...result });
+});
+
+router.delete('/logs', requireOwner, (req, res) => {
+  auditLogger.clear();
+  auditLogger.log({
+    level: 'WARN',
+    category: 'system',
+    action: 'CLEAR_AUDIT_LOGS',
+    actor: {
+      id: req.user.id,
+      email: req.user.email,
+      username: req.user.username,
+      role: req.user.role,
+      ip: getClientIp(req)
+    },
+    method: 'DELETE',
+    endpoint: '/api/logs',
+    statusCode: 200,
+    details: `Audit logs cleared by Owner (${req.user.email})`
+  });
+  res.json({ success: true, message: 'All system logs cleared successfully' });
+});
+
+router.get('/logs/export', requireOwner, (req, res) => {
+  const format = req.query.format === 'csv' ? 'csv' : 'json';
+  const exported = auditLogger.export(format);
+  if (format === 'csv') {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="audit_logs_${Date.now()}.csv"`);
+    return res.send(exported);
+  }
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="audit_logs_${Date.now()}.json"`);
+  res.send(exported);
+});
+
 router.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    version: '2.4.0',
+    version: '2.5.0',
     users: (dbStore.users || []).map(u => ({ email: u.email, role: u.role, salt: u.salt, hash_prefix: u.password_hash?.substring(0, 10) })),
     timestamp: new Date().toISOString()
   });
@@ -682,6 +811,9 @@ router.post(['/auth/login', '/login'], (req, res) => {
     console.warn(`[AUTH LOGIN FAILED] Unknown user: '${cleanIdentifier}'. Available in DB:`, (dbStore.users || []).map(u => u.email));
     recordFailedAttempt(`ip:${clientIp}`);
     recordFailedAttempt(`user:${cleanIdentifier}`);
+    req.auditEvent.category = 'auth';
+    req.auditEvent.action = 'AUTH_LOGIN_FAILED';
+    req.auditEvent.details = `Login failed: user '${cleanIdentifier}' not found`;
     return res.status(401).json({ success: false, error: 'Invalid email or password' });
   }
 
@@ -700,10 +832,16 @@ router.post(['/auth/login', '/login'], (req, res) => {
     console.warn(`[AUTH LOGIN FAILED] Password mismatch for: '${cleanIdentifier}'`);
     recordFailedAttempt(`ip:${clientIp}`);
     recordFailedAttempt(`user:${cleanIdentifier}`);
+    req.auditEvent.category = 'auth';
+    req.auditEvent.action = 'AUTH_LOGIN_FAILED';
+    req.auditEvent.details = `Login failed: incorrect password for '${cleanIdentifier}'`;
     return res.status(401).json({ success: false, error: 'Invalid email or password' });
   }
 
   console.log(`[AUTH LOGIN SUCCESS] Authenticated as '${user.email}' (${user.role})`);
+  req.auditEvent.category = 'auth';
+  req.auditEvent.action = 'AUTH_LOGIN_SUCCESS';
+  req.auditEvent.details = `User '${user.email}' (${user.role}) logged in successfully`;
 
   // Clear failed attempt records on successful login
   clearFailedAttempts(`ip:${clientIp}`);

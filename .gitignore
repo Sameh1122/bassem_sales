@@ -26,3 +26,6 @@ frontend/build/native_assets/
 frontend/build/test_cache/
 frontend/build/unit_test_assets/
 
+# Local logs & runtime data
+logs/
+*.log

@@ -20,7 +20,8 @@ class ApiService {
   }
 
   static bool get isLoggedIn => _token != null && _token!.isNotEmpty && _currentUser != null;
-  static bool get isAdmin => _currentUser != null && _currentUser!['role'] == 'admin';
+  static bool get isOwner => _currentUser != null && _currentUser!['role'] == 'owner';
+  static bool get isAdmin => _currentUser != null && (_currentUser!['role'] == 'admin' || _currentUser!['role'] == 'owner');
   static bool get isAgent => _currentUser != null && _currentUser!['role'] == 'agent';
   static Map<String, dynamic>? get currentUser => _currentUser;
   static String? get token => _token;
@@ -727,4 +728,51 @@ class ApiService {
     }
     throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to review form response');
   }
+
+  // ==========================================
+  // System Audit Logs Methods (Owner Only)
+  // ==========================================
+
+  static Future<Map<String, dynamic>> fetchSystemLogs({
+    String? level,
+    String? category,
+    String? search,
+    int? statusCode,
+    int page = 1,
+    int limit = 50,
+  }) async {
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    if (level != null && level.isNotEmpty && level != 'all') queryParams['level'] = level;
+    if (category != null && category.isNotEmpty && category != 'all') queryParams['category'] = category;
+    if (search != null && search.isNotEmpty) queryParams['search'] = search;
+    if (statusCode != null) queryParams['statusCode'] = statusCode.toString();
+
+    final uri = Uri.parse('$baseUrl/logs').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to fetch system logs');
+  }
+
+  static Future<void> clearSystemLogs() async {
+    final response = await http.delete(Uri.parse('$baseUrl/logs'), headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode != 200) {
+      throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to clear system logs');
+    }
+  }
+
+  static Future<String> exportSystemLogs({String format = 'json'}) async {
+    final response = await http.get(Uri.parse('$baseUrl/logs/export?format=$format'), headers: _authHeaders);
+    if (response.statusCode == 200) {
+      return response.body;
+    }
+    throw Exception('Failed to export system logs');
+  }
 }
+
