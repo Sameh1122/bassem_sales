@@ -7,6 +7,8 @@ class AuditLogger {
     this.maxMemoryLogs = options.maxMemoryLogs || 2500;
     this.logsDir = options.logsDir || path.resolve('logs');
     this.logFilePath = path.join(this.logsDir, 'audit_logs.json');
+    this.statusFilePath = path.join(this.logsDir, 'audit_status.json');
+    this.enabled = true;
     this.logs = [];
     this.init();
   }
@@ -15,6 +17,15 @@ class AuditLogger {
     try {
       if (!fs.existsSync(this.logsDir)) {
         fs.mkdirSync(this.logsDir, { recursive: true });
+      }
+      if (fs.existsSync(this.statusFilePath)) {
+        try {
+          const statusRaw = fs.readFileSync(this.statusFilePath, 'utf8');
+          const parsedStatus = JSON.parse(statusRaw);
+          if (typeof parsedStatus.enabled === 'boolean') {
+            this.enabled = parsedStatus.enabled;
+          }
+        } catch (_) {}
       }
       if (fs.existsSync(this.logFilePath)) {
         const raw = fs.readFileSync(this.logFilePath, 'utf8');
@@ -27,6 +38,25 @@ class AuditLogger {
       console.warn('⚠️ [AuditLogger] Could not load existing logs from disk:', err.message);
       this.logs = [];
     }
+  }
+
+  isEnabled() {
+    return this.enabled;
+  }
+
+  setEnabled(val) {
+    this.enabled = Boolean(val);
+    try {
+      if (!fs.existsSync(this.logsDir)) {
+        fs.mkdirSync(this.logsDir, { recursive: true });
+      }
+      fs.writeFileSync(
+        this.statusFilePath,
+        JSON.stringify({ enabled: this.enabled, updatedAt: new Date().toISOString() }, null, 2),
+        'utf8'
+      );
+    } catch (_) {}
+    return this.enabled;
   }
 
   save() {
@@ -50,8 +80,12 @@ class AuditLogger {
     statusCode = 200,
     durationMs = 0,
     details = '',
-    metadata = {}
+    metadata = {},
+    force = false
   }) {
+    if (!this.enabled && !force) {
+      return null;
+    }
     const logEntry = {
       id: 'log_' + Date.now() + '_' + crypto.randomBytes(3).toString('hex'),
       timestamp: new Date().toISOString(),

@@ -774,5 +774,27 @@ class ApiService {
     }
     throw Exception('Failed to export system logs');
   }
+
+  static Future<bool> getLoggingStatus() async {
+    final response = await http.get(Uri.parse('$baseUrl/logs/status'), headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return decoded['enabled'] == true;
+    }
+    return true;
+  }
+
+  static Future<bool> toggleLogging(bool enabled) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/logs/toggle'),
+      headers: _headers,
+      body: jsonEncode({'enabled': enabled}),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return decoded['enabled'] == true;
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to toggle logging');
+  }
 }
 

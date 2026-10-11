@@ -17,6 +17,8 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
   bool _isLoading = true;
   bool _isClearing = false;
   bool _autoRefresh = true;
+  bool _isLoggingActive = true;
+  bool _isTogglingLogging = false;
   Timer? _autoRefreshTimer;
 
   String _selectedLevel = 'all';
@@ -89,6 +91,9 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
           _stats = Map<String, dynamic>.from(res['stats'] ?? {});
           _totalPages = res['totalPages'] ?? 1;
           _totalLogs = res['total'] ?? 0;
+          if (res.containsKey('loggingEnabled')) {
+            _isLoggingActive = res['loggingEnabled'] == true;
+          }
           _isLoading = false;
         });
       }
@@ -103,6 +108,51 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
             ),
           );
         }
+      }
+    }
+  }
+
+  Future<void> _toggleLoggingState(bool newEnabled) async {
+    setState(() => _isTogglingLogging = true);
+    try {
+      final updated = await ApiService.toggleLogging(newEnabled);
+      if (mounted) {
+        setState(() {
+          _isLoggingActive = updated;
+          _isTogglingLogging = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  updated ? Icons.play_circle_fill : Icons.pause_circle_filled,
+                  color: updated ? const Color(0xFF10B981) : Colors.orangeAccent,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  updated
+                      ? 'System Action Logging is now ACTIVE and recording all events.'
+                      : 'System Action Logging has been PAUSED. No new events will be logged.',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1E293B),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        _loadLogs();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isTogglingLogging = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update logging state: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
     }
   }
@@ -347,9 +397,9 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Text(
         level.toUpperCase(),
@@ -365,14 +415,14 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
+                color: color.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 24),
@@ -424,7 +474,7 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF8B5CF6).withOpacity(0.2),
+                            color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(Icons.receipt_long, color: Color(0xFF8B5CF6), size: 22),
@@ -447,25 +497,72 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
                   spacing: 10,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    // Owner Logging Start/Stop Switch
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _isLoggingActive
+                            ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                            : Colors.orangeAccent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _isLoggingActive
+                              ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                              : Colors.orangeAccent.withValues(alpha: 0.4),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isLoggingActive ? Icons.radio_button_checked : Icons.pause_circle_outline,
+                            color: _isLoggingActive ? const Color(0xFF10B981) : Colors.orangeAccent,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _isLoggingActive ? 'Logging Active' : 'Logging Paused',
+                            style: TextStyle(
+                              color: _isLoggingActive ? const Color(0xFF10B981) : Colors.orangeAccent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Transform.scale(
+                            scale: 0.75,
+                            child: Switch(
+                              value: _isLoggingActive,
+                              activeThumbColor: const Color(0xFF10B981),
+                              activeTrackColor: const Color(0xFF10B981).withValues(alpha: 0.4),
+                              inactiveThumbColor: Colors.orangeAccent,
+                              inactiveTrackColor: Colors.orangeAccent.withValues(alpha: 0.2),
+                              onChanged: _isTogglingLogging ? null : _toggleLoggingState,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     // Auto-refresh switch
                     FilterChip(
                       selected: _autoRefresh,
                       onSelected: _toggleAutoRefresh,
                       backgroundColor: const Color(0xFF1E293B),
-                      selectedColor: const Color(0xFF10B981).withOpacity(0.2),
+                      selectedColor: const Color(0xFF06B6D4).withValues(alpha: 0.2),
                       label: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.circle,
-                            color: _autoRefresh ? const Color(0xFF10B981) : Colors.white30,
+                            color: _autoRefresh ? const Color(0xFF06B6D4) : Colors.white30,
                             size: 10,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             _autoRefresh ? 'Live Stream' : 'Live Paused',
                             style: TextStyle(
-                              color: _autoRefresh ? const Color(0xFF10B981) : Colors.white60,
+                              color: _autoRefresh ? const Color(0xFF06B6D4) : Colors.white60,
                               fontSize: 12,
                             ),
                           ),
@@ -510,7 +607,7 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
                     // Clear logs button
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent.withOpacity(0.2),
+                        backgroundColor: Colors.redAccent.withValues(alpha: 0.2),
                         foregroundColor: Colors.redAccent,
                         side: const BorderSide(color: Colors.redAccent, width: 0.8),
                       ),
@@ -709,10 +806,10 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
                                     color: level == 'ERROR'
-                                        ? Colors.redAccent.withOpacity(0.2)
+                                        ? Colors.redAccent.withValues(alpha: 0.2)
                                         : level == 'WARN'
-                                            ? Colors.orangeAccent.withOpacity(0.2)
-                                            : Colors.white.withOpacity(0.2),
+                                            ? Colors.orangeAccent.withValues(alpha: 0.2)
+                                            : Colors.white.withValues(alpha: 0.2),
                                   ),
                                 ),
                                 child: Row(
@@ -737,10 +834,10 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
                                         color: statusCode >= 500
-                                            ? Colors.redAccent.withOpacity(0.2)
+                                            ? Colors.redAccent.withValues(alpha: 0.2)
                                             : statusCode >= 400
-                                                ? Colors.orangeAccent.withOpacity(0.2)
-                                                : Colors.greenAccent.withOpacity(0.2),
+                                                ? Colors.orangeAccent.withValues(alpha: 0.2)
+                                                : Colors.greenAccent.withValues(alpha: 0.2),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
@@ -771,11 +868,11 @@ class SystemLogsViewScreenState extends State<SystemLogsViewScreen> {
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
                                         color: (actor['role'] == 'owner')
-                                            ? const Color(0xFF8B5CF6).withOpacity(0.2)
+                                            ? const Color(0xFF8B5CF6).withValues(alpha: 0.2)
                                             : (actor['role'] == 'admin')
-                                                ? const Color(0xFF06B6D4).withOpacity(0.2)
+                                                ? const Color(0xFF06B6D4).withValues(alpha: 0.2)
                                                 : (actor['role'] == 'agent')
-                                                    ? const Color(0xFF10B981).withOpacity(0.2)
+                                                    ? const Color(0xFF10B981).withValues(alpha: 0.2)
                                                     : Colors.white10,
                                         borderRadius: BorderRadius.circular(12),
                                       ),

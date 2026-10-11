@@ -699,6 +699,47 @@ function requireOwner(req, res, next) {
 // System Audit Logs Endpoints (Owner only)
 // ==========================================
 
+router.get('/logs/status', requireOwner, (req, res) => {
+  res.json({
+    success: true,
+    enabled: auditLogger.isEnabled()
+  });
+});
+
+router.post('/logs/toggle', requireOwner, (req, res) => {
+  const { enabled } = req.body;
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'Field "enabled" must be a boolean (true/false)' });
+  }
+
+  const newState = auditLogger.setEnabled(enabled);
+
+  // Force-log this configuration change so Owner action is permanently registered
+  auditLogger.log({
+    level: 'WARN',
+    category: 'system',
+    action: newState ? 'LOGGING_STARTED' : 'LOGGING_STOPPED',
+    actor: {
+      id: req.user.id,
+      email: req.user.email,
+      username: req.user.username,
+      role: req.user.role,
+      ip: getClientIp(req)
+    },
+    method: 'POST',
+    endpoint: '/api/logs/toggle',
+    statusCode: 200,
+    details: `System Action Logging ${newState ? 'STARTED / RESUMED' : 'STOPPED / PAUSED'} by Owner (${req.user.email})`,
+    force: true
+  });
+
+  res.json({
+    success: true,
+    enabled: newState,
+    message: `System action logging ${newState ? 'resumed' : 'paused'} successfully`
+  });
+});
+
 router.get('/logs', requireOwner, (req, res) => {
   const { level, category, search, statusCode, page = 1, limit = 50 } = req.query;
   const result = auditLogger.getLogs({
@@ -709,7 +750,11 @@ router.get('/logs', requireOwner, (req, res) => {
     page: parseInt(page) || 1,
     limit: parseInt(limit) || 50
   });
-  res.json({ success: true, ...result });
+  res.json({
+    success: true,
+    loggingEnabled: auditLogger.isEnabled(),
+    ...result
+  });
 });
 
 router.delete('/logs', requireOwner, (req, res) => {
