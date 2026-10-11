@@ -191,8 +191,8 @@ const DEFAULT_USERS = [
     name: 'System Administrator',
     role: 'admin',
     agent_id: null,
-    salt: '144ed1248dffddc9c8098f5a098bcd75',
-    password_hash: '1ccb0885297d7673af859b81b9985e8e6e5c283d482a779bf038af6f53451f3a3762386fa903d19c18480dcd5a2c0e0b05006dc2ac3043963a67844cf792755b',
+    salt: '1f9deb23e4a9e7bcf5ca03ccfc8c0d26',
+    password_hash: 'd3a3182db515d8fa9ae1038adbfab10ccc141f00ef5ac7afcf15565ccf90b4cf937964a90ba9a7004f6c4f03c033669cfee76391b0dda65e3a1fe2f86c2aac07',
     created_at: new Date().toISOString()
   },
   {
@@ -202,8 +202,8 @@ const DEFAULT_USERS = [
     name: 'أمنية',
     role: 'agent',
     agent_id: 1,
-    salt: '05008a113085b5e27a6a68af74385dd1',
-    password_hash: 'f652719fd4c1dba59367955e28caf67c27aad20f925247a25789b8a782cc2236dd7b7cbe26ad9e55ef504e6e615b91c112ff1a9f88fa0488a8ca215bb61720db',
+    salt: '66f2a51f2e3b6561849c34edfe35ada0',
+    password_hash: 'b53bd15e04d46227401883ddd7b6d8a2dcaf5616a0fe9ad5acf31d95246702816b9ab95b9acc8b687e33f22ddeea1588b2aef7ee61fe4f5fc48f480408f44304',
     created_at: new Date().toISOString()
   },
   {
@@ -213,8 +213,8 @@ const DEFAULT_USERS = [
     name: 'مينا',
     role: 'agent',
     agent_id: 2,
-    salt: 'fb563aa05ddaa0ceecb31178145fdfaa',
-    password_hash: '3ea7a2bfd27c5cbd96ae7e57d110fd06e71cd0e3f520041ce10e709af94079385959077a55d0257163d787f7c50f2610f56cae4805913cc99e2d6d14033944d5',
+    salt: '03e9fdeae99fe36067782642b2b02fad',
+    password_hash: 'fd35adf2b0f09b8c1ad3442e546bb4cbe3a7a93e7536c657ea2728d928844106825905cfbc0b692872446f0440bd26080b82ee4179c4b1dcb4113a213d7362e9',
     created_at: new Date().toISOString()
   }
 ];
@@ -620,7 +620,7 @@ function requireAdmin(req, res, next) {
 router.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    version: '2.3.0',
+    version: '2.4.0',
     users: (dbStore.users || []).map(u => ({ email: u.email, role: u.role, salt: u.salt, hash_prefix: u.password_hash?.substring(0, 10) })),
     timestamp: new Date().toISOString()
   });
