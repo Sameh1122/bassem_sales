@@ -12,6 +12,7 @@ class UploadViewScreen extends StatefulWidget {
 
 class _UploadViewScreenState extends State<UploadViewScreen> {
   bool _isLoading = false;
+  bool _onlyThisBatch = true;
   String? _filename;
   int _totalRows = 0;
   int _validCount = 0;
@@ -32,13 +33,8 @@ class _UploadViewScreenState extends State<UploadViewScreen> {
         _validCount = res['validCount'] ?? 0;
         _invalidCount = res['invalidCount'] ?? 0;
         _previewRows = rows;
+        _isLoading = false;
       });
-
-      if (rows.isNotEmpty) {
-        await _confirmSave(bypassValidation: true);
-      } else {
-        setState(() => _isLoading = false);
-      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -74,13 +70,8 @@ class _UploadViewScreenState extends State<UploadViewScreen> {
         _validCount = res['validCount'] ?? 0;
         _invalidCount = res['invalidCount'] ?? 0;
         _previewRows = rows;
+        _isLoading = false;
       });
-
-      if (rows.isNotEmpty) {
-        await _confirmSave(bypassValidation: true);
-      } else {
-        setState(() => _isLoading = false);
-      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -101,6 +92,7 @@ class _UploadViewScreenState extends State<UploadViewScreen> {
         filename: _filename ?? 'Excel_Import.xlsx',
         rows: _previewRows,
         bypassValidation: bypassValidation,
+        onlyThisBatch: _onlyThisBatch,
       );
 
       setState(() => _isLoading = false);
@@ -202,7 +194,7 @@ class _UploadViewScreenState extends State<UploadViewScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Save Action Buttons Bar
+              // Save Action Buttons & Batch Settings Bar
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -210,39 +202,83 @@ class _UploadViewScreenState extends State<UploadViewScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.white12),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.info_outline, color: Colors.amber),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Review missing cells below. You can enforce strict validation or bypass cell validation to save 100% of data into SQLite.',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                    // Option: Accept changes from only this batch
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: _onlyThisBatch,
+                            activeColor: const Color(0xFF06B6D4),
+                            checkColor: Colors.black,
+                            onChanged: (val) {
+                              setState(() => _onlyThisBatch = val ?? true);
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'Accept changes from only this batch (Replace active records)',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'When enabled, active map and table records reflect only this batch. (Note: This feature will be reviewed in the future)',
+                                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    // Strict Upload Button
-                    ElevatedButton.icon(
-                      onPressed: () => _confirmSave(bypassValidation: false),
-                      icon: const Icon(Icons.verified, color: Colors.white, size: 18),
-                      label: Text('Confirm Upload (${_validCount} Clean Rows)'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Bypass Validation Button
-                    ElevatedButton.icon(
-                      onPressed: () => _confirmSave(bypassValidation: true),
-                      icon: const Icon(Icons.shield_outlined, color: Colors.white, size: 18),
-                      label: Text('Bypass Validation & Save All (${_totalRows} Rows)'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF59E0B),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Colors.amber, size: 20),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Review missing cells below. Choose strict validation or bypass validation to complete upload.',
+                            style: TextStyle(color: Colors.white70, fontSize: 13),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // Strict Upload Button
+                        ElevatedButton.icon(
+                          onPressed: () => _confirmSave(bypassValidation: false),
+                          icon: const Icon(Icons.verified, color: Colors.white, size: 18),
+                          label: Text('Confirm Upload (${_validCount} Clean Rows)'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Bypass Validation Button
+                        ElevatedButton.icon(
+                          onPressed: () => _confirmSave(bypassValidation: true),
+                          icon: const Icon(Icons.shield_outlined, color: Colors.white, size: 18),
+                          label: Text('Bypass Validation & Save All (${_totalRows} Rows)'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFF59E0B),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

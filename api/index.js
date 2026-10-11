@@ -335,7 +335,7 @@ function loadDbStore() {
     if (fs.existsSync(DB_FILE)) {
       const content = fs.readFileSync(DB_FILE, 'utf8');
       const parsed = JSON.parse(content);
-      if (parsed && Array.isArray(parsed.chillers) && parsed.chillers.length > 0) {
+      if (parsed && Array.isArray(parsed.chillers)) {
         if (!Array.isArray(parsed.users) || parsed.users.length === 0) {
           parsed.users = [...DEFAULT_USERS];
         } else {
@@ -913,7 +913,7 @@ router.get('/excel/scratch-sample', requireAdmin, (req, res) => {
 
 router.post('/excel/confirm', requireAdmin, (req, res) => {
   dbStore = loadDbStore();
-  const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false } = req.body || {};
+  const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false, onlyThisBatch = true } = req.body || {};
   const rowsToSave = bypassValidation 
     ? rows 
     : rows.filter(r => r.isValid !== false || (r.latitude != null && r.longitude != null));
@@ -927,12 +927,18 @@ router.post('/excel/confirm', requireAdmin, (req, res) => {
     valid_rows: rowsToSave.length,
     invalid_rows: rows.length - rowsToSave.length,
     bypassed_validation: bypassValidation ? 1 : 0,
+    only_this_batch: onlyThisBatch ? 1 : 0,
     uploaded_at: new Date().toISOString()
   });
 
+  // If onlyThisBatch is selected, active chillers reflect ONLY this batch
+  if (onlyThisBatch) {
+    dbStore.chillers = [];
+  }
+
   for (const r of rowsToSave) {
     const code = r.chillerCode || `CH-${Math.random().toString(36).substring(7)}`;
-    const existingIdx = dbStore.chillers.findIndex(c => (c.chiller_code || c.chillerCode) === code);
+    const existingIdx = onlyThisBatch ? -1 : dbStore.chillers.findIndex(c => (c.chiller_code || c.chillerCode) === code);
     const item = {
       id: existingIdx >= 0 ? dbStore.chillers[existingIdx].id : dbStore.chillers.length + 1,
       chiller_code: code,
@@ -1098,38 +1104,33 @@ router.delete('/chillers/clear', requireAdmin, (req, res) => {
   res.json({ success: true, message: 'All active database records cleared' });
 });
 
+// POST /admin/clear-all-batches - Wipe all uploaded batches, chillers, and history
+router.post(['/admin/clear-all-batches', '/batches/clear-all'], requireAdmin, (req, res) => {
+  dbStore = loadDbStore();
+  const deletedBatches = (dbStore.batches || []).length;
+  const deletedChillers = (dbStore.chillers || []).length;
+  dbStore.batches = [];
+  dbStore.chillers = [];
+  dbStore.history = [];
+  saveDbStore(dbStore);
+  res.json({
+    success: true,
+    message: `Database successfully cleared of all uploaded batches (${deletedBatches}) and chillers (${deletedChillers}).`,
+    batchesCount: 0,
+    chillersCount: 0
+  });
+});
+
 router.get('/batches', requireAuth, (req, res) => {
   const batches = dbStore.batches || [];
   res.json({ success: true, batches: [...batches].reverse() });
 });
 
+// Permanently disable batch deletion
 router.delete('/batches/:id', requireAdmin, (req, res) => {
-  const batchId = parseInt(req.params.id);
-  if (isNaN(batchId)) {
-    return res.status(400).json({ success: false, error: 'Invalid batch ID' });
-  }
-
-  const batchIdx = dbStore.batches.findIndex(b => b.id === batchId);
-  if (batchIdx === -1) {
-    return res.status(404).json({ success: false, error: `Batch #${batchId} not found` });
-  }
-
-  const deletedBatch = dbStore.batches.splice(batchIdx, 1)[0];
-
-  // Remove chillers belonging directly to this batch
-  const initialChillersCount = dbStore.chillers.length;
-  dbStore.chillers = dbStore.chillers.filter(c => (c.batch_id || c.batchId) !== batchId);
-  const deletedChillersCount = initialChillersCount - dbStore.chillers.length;
-
-  // Remove history snapshots for this batch
-  dbStore.history = dbStore.history.filter(h => (h.batch_id || h.batchId) !== batchId);
-
-  saveDbStore(dbStore);
-
-  res.json({
-    success: true,
-    message: `Batch #${batchId} ('${deletedBatch.filename}') deleted successfully. Removed ${deletedChillersCount} chiller records.`,
-    deletedBatchId: batchId
+  return res.status(403).json({
+    success: false,
+    error: 'Batch deletion is permanently disabled. Uploaded batches cannot be deleted.'
   });
 });
 

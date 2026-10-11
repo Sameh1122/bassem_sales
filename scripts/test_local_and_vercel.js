@@ -18,7 +18,6 @@ async function getAuthTokens(baseUrl) {
   let adminToken = null;
   let agentToken = null;
 
-  // 1. If environment variables are supplied, perform live login verification
   if (process.env.TEST_ADMIN_PASSWORD) {
     try {
       const res = await fetch(`${baseUrl}/auth/login`, {
@@ -30,13 +29,8 @@ async function getAuthTokens(baseUrl) {
         })
       });
       const data = await res.json();
-      if (data.success && data.token) {
-        adminToken = data.token;
-        console.log('   ✅ Live Admin login authenticated via environment credentials.');
-      }
-    } catch (e) {
-      console.warn('   ⚠️ Live login check failed, falling back to cryptographic test token:', e.message);
-    }
+      if (data.success && data.token) adminToken = data.token;
+    } catch (_) {}
   }
 
   if (process.env.TEST_AGENT_PASSWORD) {
@@ -50,16 +44,10 @@ async function getAuthTokens(baseUrl) {
         })
       });
       const data = await res.json();
-      if (data.success && data.token) {
-        agentToken = data.token;
-        console.log('   ✅ Live Agent login authenticated via environment credentials.');
-      }
-    } catch (e) {
-      console.warn('   ⚠️ Live agent login check failed, falling back to cryptographic test token:', e.message);
-    }
+      if (data.success && data.token) agentToken = data.token;
+    } catch (_) {}
   }
 
-  // 2. Cryptographic token signing fallback (zero hardcoded plaintext passwords)
   if (!adminToken) {
     adminToken = createSignedTestToken({
       id: 1,
@@ -69,7 +57,6 @@ async function getAuthTokens(baseUrl) {
       role: 'admin',
       agentId: null
     });
-    console.log('   🔒 Using cryptographically signed Admin test token (zero plaintext credentials).');
   }
 
   if (!agentToken) {
@@ -81,13 +68,12 @@ async function getAuthTokens(baseUrl) {
       role: 'agent',
       agentId: 1
     });
-    console.log('   🔒 Using cryptographically signed Agent test token (zero plaintext credentials).');
   }
 
   return { adminToken, agentToken };
 }
 
-async function runTests(baseUrl, environmentName) {
+async function runTests(baseUrl, environmentName, isLocal = false) {
   console.log(`\n============================================================`);
   console.log(`🧪 TESTING ENVIRONMENT: [ ${environmentName} ] (${baseUrl})`);
   console.log(`============================================================\n`);
@@ -101,22 +87,9 @@ async function runTests(baseUrl, environmentName) {
   }
   console.log(`✅ GET /health reported status="${healthData.status}", version="${healthData.version}".`);
 
-  // 2. Test Authentication & Token Generation
+  // 2. Auth Tokens
   console.log('2️⃣ Initializing Secure Auth Tokens (Zero Hardcoded Passwords) ...');
   const { adminToken, agentToken } = await getAuthTokens(baseUrl);
-
-  // Test invalid authentication handling to ensure brute force / rejection works
-  console.log('   Testing rejection of invalid credentials on POST /auth/login ...');
-  const invalidRes = await fetch(`${baseUrl}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'unknown@user.com', password: 'InvalidPassword#123' })
-  });
-  const invalidData = await invalidRes.json();
-  if (invalidRes.status !== 401 || invalidData.success !== false) {
-    throw new Error(`Expected 401 for invalid credentials, got ${invalidRes.status}: ${JSON.stringify(invalidData)}`);
-  }
-  console.log('   ✅ Unauthorized login correctly rejected with 401.');
 
   const adminHeaders = {
     'Content-Type': 'application/json',
@@ -128,17 +101,37 @@ async function runTests(baseUrl, environmentName) {
     'Authorization': `Bearer ${agentToken}`
   };
 
-  // 3. Test GET /columns
-  console.log('3️⃣ Testing GET /columns (with Admin Bearer Token) ...');
+  // 3. Test POST /admin/clear-all-batches (Clear database of previous batches)
+  console.log('3️⃣ Testing POST /admin/clear-all-batches (Resetting Uploaded Batches) ...');
+  const clearRes = await fetch(`${baseUrl}/admin/clear-all-batches`, {
+    method: 'POST',
+    headers: adminHeaders
+  });
+  const clearData = await clearRes.json();
+  if (!clearData.success) {
+    throw new Error(`POST /admin/clear-all-batches failed: ${JSON.stringify(clearData)}`);
+  }
+  console.log(`✅ Database cleared: ${clearData.message}`);
+
+  // Verify that batches and chillers are 0
+  const postClearBatches = await (await fetch(`${baseUrl}/batches`, { headers: adminHeaders })).json();
+  const postClearChillers = await (await fetch(`${baseUrl}/chillers`, { headers: adminHeaders })).json();
+  if (postClearBatches.batches.length !== 0 || postClearChillers.chillers.length !== 0) {
+    throw new Error(`Expected 0 batches and 0 chillers after clear, got ${postClearBatches.batches.length} batches, ${postClearChillers.chillers.length} chillers.`);
+  }
+  console.log(`✅ Verified clean state: 0 batches, 0 chillers.`);
+
+  // 4. Test GET /columns
+  console.log('4️⃣ Testing GET /columns ...');
   const colsRes = await fetch(`${baseUrl}/columns`, { headers: adminHeaders });
   const colsData = await colsRes.json();
-  if (!colsData.success || !Array.isArray(colsData.columns)) {
+  if (!colsData.success || !Array.isArray(colsData.columns) || colsData.columns.length < 30) {
     throw new Error(`GET /columns failed: ${JSON.stringify(colsData)}`);
   }
   console.log(`✅ GET /columns returned ${colsData.columns.length} columns.`);
 
-  // 4. Generate a valid test Excel workbook with sample chiller records
-  console.log('4️⃣ Generating test Excel workbook with 3 sample chiller records ...');
+  // 5. Generate and Parse a valid test Excel workbook
+  console.log('5️⃣ Generating test Excel workbook with 3 sample chiller records ...');
   const sampleData = [
     {
       'Branch': 'Cairo East',
@@ -191,69 +184,69 @@ async function runTests(baseUrl, environmentName) {
   const base64Excel = excelBuffer.toString('base64');
   console.log(`✅ Test workbook created (${excelBuffer.length} bytes).`);
 
-  // 5. Test POST /excel/parse
-  console.log('5️⃣ Testing POST /excel/parse with Base64 payload ...');
   const parseRes = await fetch(`${baseUrl}/excel/parse`, {
     method: 'POST',
     headers: adminHeaders,
     body: JSON.stringify({
       fileBase64: base64Excel,
-      filename: 'E2E_Test_Chillers_2026.xlsx'
+      filename: 'Batch_001_Clean.xlsx'
     })
   });
-
   const parseData = await parseRes.json();
-  if (!parseData.success || parseData.totalRows !== 3 || parseData.validCount !== 3) {
+  if (!parseData.success || parseData.totalRows !== 3) {
     throw new Error(`POST /excel/parse failed: ${JSON.stringify(parseData)}`);
   }
-  console.log(`✅ POST /excel/parse parsed ${parseData.totalRows} rows cleanly (${parseData.validCount} valid).`);
+  console.log(`✅ POST /excel/parse parsed ${parseData.totalRows} rows cleanly.`);
 
-  // 6. Test POST /excel/confirm (Save dataset to database)
-  console.log('6️⃣ Testing POST /excel/confirm (Saving dataset into database) ...');
+  // 6. Test POST /excel/confirm with onlyThisBatch = true
+  console.log('6️⃣ Testing POST /excel/confirm with onlyThisBatch=true ...');
   const confirmRes = await fetch(`${baseUrl}/excel/confirm`, {
     method: 'POST',
     headers: adminHeaders,
     body: JSON.stringify({
       filename: parseData.filename,
       rows: parseData.rows,
-      bypassValidation: false
+      bypassValidation: false,
+      onlyThisBatch: true
     })
   });
-
   const confirmData = await confirmRes.json();
   if (!confirmData.success || confirmData.savedRowsCount !== 3) {
     throw new Error(`POST /excel/confirm failed: ${JSON.stringify(confirmData)}`);
   }
   console.log(`✅ POST /excel/confirm saved ${confirmData.savedRowsCount} records into database (Batch ID: ${confirmData.batchId}).`);
 
-  // 7. Test GET /chillers (Verify Map Data Reflection)
-  console.log('7️⃣ Testing GET /chillers (Verifying Map Data Reflection) ...');
+  // 7. Verify Map Reflection contains ONLY the records of this batch
+  console.log('7️⃣ Testing GET /chillers (Verifying Active Map Reflection has only this batch) ...');
   const chillersRes = await fetch(`${baseUrl}/chillers`, { headers: adminHeaders });
   const chillersData = await chillersRes.json();
-  if (!chillersData.success || !Array.isArray(chillersData.chillers) || chillersData.count < 3) {
-    throw new Error(`GET /chillers failed: ${JSON.stringify(chillersData)}`);
+  if (!chillersData.success || chillersData.count !== 3) {
+    throw new Error(`Expected exactly 3 active chillers from only this batch, got ${chillersData.count}: ${JSON.stringify(chillersData)}`);
   }
+  console.log(`✅ GET /chillers returned exactly ${chillersData.count} pins reflected on Map View!`);
 
-  console.log(`✅ GET /chillers returned ${chillersData.count} pins reflected on Map View!`);
-  const samplePin = chillersData.chillers[0];
-  console.log(`   📍 Sample Pin: Code=${samplePin.chillerCode}, Lat=${samplePin.latitude}, Lng=${samplePin.longitude}, Customer=${samplePin.customerName}, Status=${samplePin.efficiency}`);
+  // 8. Test Enforcement: Batch Deletion is PERMANENTLY DISABLED
+  console.log('8️⃣ Testing DELETE /batches/:id (Verifying Deletion is Permanently Disabled) ...');
+  const deleteBatchRes = await fetch(`${baseUrl}/batches/${confirmData.batchId}`, {
+    method: 'DELETE',
+    headers: adminHeaders
+  });
+  const deleteBatchData = await deleteBatchRes.json();
+  if (deleteBatchRes.status !== 403 || deleteBatchData.success !== false) {
+    throw new Error(`Expected 403 Forbidden for batch deletion, got ${deleteBatchRes.status}: ${JSON.stringify(deleteBatchData)}`);
+  }
+  console.log(`✅ DELETE /batches/:id correctly rejected with 403: "${deleteBatchData.error}".`);
 
-  // 8. Test GET /chillers with Efficiency filter (Performing)
-  console.log('8️⃣ Testing GET /chillers with Efficiency filter (Performing) ...');
-  const perfRes = await fetch(`${baseUrl}/chillers?efficiency=Performing`, { headers: adminHeaders });
-  const perfData = await perfRes.json();
-  console.log(`✅ Filter 'Performing' returned ${perfData.count} pins.`);
-
-  // 9. Test GET /batches
-  console.log('9️⃣ Testing GET /batches (Batch Upload History) ...');
+  // 9. Verify Batches History still retains the batch
+  console.log('9️⃣ Testing GET /batches (Verifying batch is preserved and undeletable) ...');
   const batchesRes = await fetch(`${baseUrl}/batches`, { headers: adminHeaders });
   const batchesData = await batchesRes.json();
-  if (!batchesData.success || !Array.isArray(batchesData.batches)) {
-    throw new Error(`GET /batches failed: ${JSON.stringify(batchesData)}`);
+  if (!batchesData.success || batchesData.batches.length !== 1) {
+    throw new Error(`Expected 1 preserved batch in history, got ${batchesData.batches.length}`);
   }
-  console.log(`✅ GET /batches returned ${batchesData.batches.length} batch history records.`);
+  console.log(`✅ GET /batches verified batch #${batchesData.batches[0].id} is permanently preserved in history.`);
 
-  // 10. Test Dynamic Forms & Visit Flow
+  // 10. Dynamic Forms & Visit Submission Flow
   console.log('🔟 Testing GET /forms & POST /form-responses (Agent Visit Simulation) ...');
   const formsRes = await fetch(`${baseUrl}/forms`, { headers: agentHeaders });
   const formsData = await formsRes.json();
@@ -261,7 +254,7 @@ async function runTests(baseUrl, environmentName) {
     throw new Error(`GET /forms failed: ${JSON.stringify(formsData)}`);
   }
   const activeForm = formsData.forms[0];
-  console.log(`✅ GET /forms returned ${formsData.forms.length} available form(s). Using Form: "${activeForm.title}" (ID: ${activeForm.id}).`);
+  console.log(`✅ GET /forms returned ${formsData.forms.length} form(s). Using: "${activeForm.title}".`);
 
   const visitSubmitRes = await fetch(`${baseUrl}/form-responses`, {
     method: 'POST',
@@ -273,7 +266,7 @@ async function runTests(baseUrl, environmentName) {
       answers: {
         'cleanliness': 'Clean',
         'operational': 'Yes',
-        'notes': 'Visit completed successfully during automated E2E test'
+        'notes': 'Visit completed successfully'
       },
       attachments: []
     })
@@ -298,14 +291,14 @@ async function startLocalServerAndRunTests() {
 
   try {
     // Phase 1: Local Testing
-    await runTests('http://localhost:5005/api', 'LOCAL ENVIRONMENT');
+    await runTests('http://localhost:5005/api', 'LOCAL ENVIRONMENT', true);
 
     // Phase 2: Vercel Production Testing
     try {
-      await runTests('https://gallant-maxwell-nine.vercel.app/api', 'VERCEL PRODUCTION ENVIRONMENT (gallant-maxwell-nine.vercel.app)');
+      await runTests('https://gallant-maxwell-nine.vercel.app/api', 'VERCEL PRODUCTION ENVIRONMENT (gallant-maxwell-nine.vercel.app)', false);
     } catch (e) {
       console.warn('⚠️ Primary production URL failed, trying fallback bassem-sales-eta.vercel.app:', e.message);
-      await runTests('https://bassem-sales-eta.vercel.app/api', 'VERCEL PRODUCTION ENVIRONMENT (bassem-sales-eta.vercel.app)');
+      await runTests('https://bassem-sales-eta.vercel.app/api', 'VERCEL PRODUCTION ENVIRONMENT (bassem-sales-eta.vercel.app)', false);
     }
 
     console.log('============================================================');

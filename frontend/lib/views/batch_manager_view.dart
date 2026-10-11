@@ -543,14 +543,17 @@ class BatchManagerViewScreenState extends State<BatchManagerViewScreen> {
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
-                                    IconButton(
-                                      tooltip: 'Delete this batch',
-                                      onPressed: () => _confirmDeleteBatch(batch),
-                                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                                      style: IconButton.styleFrom(
-                                        backgroundColor: Colors.redAccent.withOpacity(0.1),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    const SizedBox(width: 8),
+                                    Tooltip(
+                                      message: 'Permanent Record (Deletion Disabled)',
+                                      child: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.05),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.white12),
+                                        ),
+                                        child: const Icon(Icons.lock_outline, color: Colors.white38, size: 16),
                                       ),
                                     ),
                                   ],
