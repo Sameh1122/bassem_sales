@@ -8,6 +8,12 @@ import crypto from 'crypto';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import auditLogger from './audit_logger.js';
+import {
+  isCloudStorageConfigured,
+  fetchDatabaseFromBlob,
+  saveDatabaseToBlob,
+  getLastCloudSyncTime
+} from './cloud_storage.js';
 
 const XLSX = XLSXModule.default || XLSXModule;
 
@@ -438,16 +444,56 @@ function loadDbStore() {
   return store;
 }
 
+let hasSyncedWithCloud = false;
+
+async function syncWithCloudStorage(force = false) {
+  if (!isCloudStorageConfigured()) return;
+  const now = Date.now();
+  if (!force && hasSyncedWithCloud && (now - getLastCloudSyncTime() < 30000)) {
+    return;
+  }
+  try {
+    const cloudData = await fetchDatabaseFromBlob();
+    if (cloudData && Array.isArray(cloudData.chillers)) {
+      if (Array.isArray(cloudData.users)) {
+        DEFAULT_USERS.forEach(defUser => {
+          const idx = cloudData.users.findIndex(u => u.email && u.email.toLowerCase() === defUser.email.toLowerCase());
+          if (idx !== -1) {
+            cloudData.users[idx].password_hash = defUser.password_hash;
+            cloudData.users[idx].salt = defUser.salt;
+          } else {
+            cloudData.users.push({ ...defUser });
+          }
+        });
+      }
+      Object.assign(dbStore, cloudData);
+      hasSyncedWithCloud = true;
+      try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(dbStore, null, 2), 'utf8');
+      } catch (_) {}
+    } else if (cloudData === null) {
+      hasSyncedWithCloud = true;
+    }
+  } catch (err) {
+    console.warn('[CloudStorage] Notice during syncWithCloudStorage:', err.message);
+  }
+}
+
 function saveDbStore(store) {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(store, null, 2), 'utf8');
   } catch (e) {
     console.error('⚠️ Error writing to persistent DB file:', e.message);
   }
+  hasSyncedWithCloud = true;
+  if (isCloudStorageConfigured()) {
+    saveDatabaseToBlob(store).catch(err => {
+      console.warn('[CloudStorage] Background save warning:', err.message);
+    });
+  }
 }
 
 let dbStore = loadDbStore();
-saveDbStore(dbStore);
 
 function cleanStr(val) {
   if (val === null || val === undefined) return '';
@@ -609,6 +655,16 @@ const router = express.Router();
 // Middleware to extract user from Authorization header
 router.use((req, res, next) => {
   req.user = extractUserFromReq(req);
+  next();
+});
+
+// Middleware to ensure database state is synced from persistent cloud storage (Vercel Blob)
+router.use(async (req, res, next) => {
+  if (isCloudStorageConfigured() && !hasSyncedWithCloud) {
+    try {
+      await syncWithCloudStorage();
+    } catch (_) {}
+  }
   next();
 });
 
@@ -795,6 +851,13 @@ router.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     version: '2.5.0',
+    storage: {
+      type: isCloudStorageConfigured() ? 'Vercel Blob (Persistent Cloud)' : 'Local Disk',
+      cloudSync: hasSyncedWithCloud,
+      lastSync: getLastCloudSyncTime() ? new Date(getLastCloudSyncTime()).toISOString() : null,
+      chillersCount: (dbStore.chillers || []).length,
+      batchesCount: (dbStore.batches || []).length
+    },
     users: (dbStore.users || []).map(u => ({ email: u.email, role: u.role, salt: u.salt, hash_prefix: u.password_hash?.substring(0, 10) })),
     timestamp: new Date().toISOString()
   });
@@ -1094,8 +1157,10 @@ router.get('/excel/scratch-sample', requireAdmin, (req, res) => {
   }
 });
 
-router.post('/excel/confirm', requireAdmin, (req, res) => {
-  dbStore = loadDbStore();
+router.post('/excel/confirm', requireAdmin, async (req, res) => {
+  if (isCloudStorageConfigured() && !hasSyncedWithCloud) {
+    await syncWithCloudStorage();
+  }
   const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false, onlyThisBatch = true } = req.body || {};
   const rowsToSave = bypassValidation 
     ? rows 
@@ -1145,6 +1210,13 @@ router.post('/excel/confirm', requireAdmin, (req, res) => {
   }
 
   saveDbStore(dbStore);
+  if (isCloudStorageConfigured()) {
+    try {
+      await saveDatabaseToBlob(dbStore);
+    } catch (saveErr) {
+      console.warn('[CloudStorage] Notice awaiting blob save:', saveErr.message);
+    }
+  }
 
   const formattedChillers = dbStore.chillers.map(r => ({
     id: r.id,
@@ -1201,10 +1273,14 @@ function getChillerVisitInfo(chillerCode, customerName, store = null) {
   };
 }
 
-router.get('/chillers', requireAuth, (req, res) => {
-  const dbStore = loadDbStore();
+router.get('/chillers', requireAuth, async (req, res) => {
+  if (isCloudStorageConfigured() && (!hasSyncedWithCloud || (Date.now() - getLastCloudSyncTime() > 30000))) {
+    try {
+      await syncWithCloudStorage();
+    } catch (_) {}
+  }
   const { efficiency, customerType, search, batchId } = req.query;
-  let rows = [...dbStore.chillers];
+  let rows = [...(dbStore.chillers || [])];
 
   if (batchId && batchId !== 'All' && batchId !== 'all') {
     const bId = parseInt(batchId);
@@ -1288,14 +1364,25 @@ router.delete('/chillers/clear', requireAdmin, (req, res) => {
 });
 
 // POST /admin/clear-all-batches - Wipe all uploaded batches, chillers, and history
-router.post(['/admin/clear-all-batches', '/batches/clear-all'], requireAdmin, (req, res) => {
-  dbStore = loadDbStore();
+router.post(['/admin/clear-all-batches', '/batches/clear-all'], requireAdmin, async (req, res) => {
+  if (isCloudStorageConfigured() && !hasSyncedWithCloud) {
+    try {
+      await syncWithCloudStorage();
+    } catch (_) {}
+  }
   const deletedBatches = (dbStore.batches || []).length;
   const deletedChillers = (dbStore.chillers || []).length;
   dbStore.batches = [];
   dbStore.chillers = [];
   dbStore.history = [];
   saveDbStore(dbStore);
+  if (isCloudStorageConfigured()) {
+    try {
+      await saveDatabaseToBlob(dbStore);
+    } catch (saveErr) {
+      console.warn('[CloudStorage] Notice awaiting blob save during clear:', saveErr.message);
+    }
+  }
   res.json({
     success: true,
     message: `Database successfully cleared of all uploaded batches (${deletedBatches}) and chillers (${deletedChillers}).`,
@@ -1304,7 +1391,12 @@ router.post(['/admin/clear-all-batches', '/batches/clear-all'], requireAdmin, (r
   });
 });
 
-router.get('/batches', requireAuth, (req, res) => {
+router.get('/batches', requireAuth, async (req, res) => {
+  if (isCloudStorageConfigured() && (!hasSyncedWithCloud || (Date.now() - getLastCloudSyncTime() > 30000))) {
+    try {
+      await syncWithCloudStorage();
+    } catch (_) {}
+  }
   const batches = dbStore.batches || [];
   res.json({ success: true, batches: [...batches].reverse() });
 });

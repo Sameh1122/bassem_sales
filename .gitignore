@@ -29,3 +29,4 @@ frontend/build/unit_test_assets/
 # Local logs & runtime data
 logs/
 *.log
+.env*
