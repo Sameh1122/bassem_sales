@@ -848,6 +848,10 @@ router.get('/logs/export', requireOwner, (req, res) => {
 });
 
 router.get('/health', (req, res) => {
+  const hasToken = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  const tokenPrefix = process.env.BLOB_READ_WRITE_TOKEN ? process.env.BLOB_READ_WRITE_TOKEN.substring(0, 10) + '...' : null;
+  const envKeys = Object.keys(process.env).filter(k => k.includes('BLOB') || k.includes('STORAGE') || k.includes('VERCEL'));
+
   res.json({
     status: 'ok',
     version: '2.5.0',
@@ -856,7 +860,11 @@ router.get('/health', (req, res) => {
       cloudSync: hasSyncedWithCloud,
       lastSync: getLastCloudSyncTime() ? new Date(getLastCloudSyncTime()).toISOString() : null,
       chillersCount: (dbStore.chillers || []).length,
-      batchesCount: (dbStore.batches || []).length
+      batchesCount: (dbStore.batches || []).length,
+      blobConfigured: isCloudStorageConfigured(),
+      hasBlobToken: hasToken,
+      blobTokenPrefix: tokenPrefix,
+      matchingEnvKeys: envKeys
     },
     users: (dbStore.users || []).map(u => ({ email: u.email, role: u.role, salt: u.salt, hash_prefix: u.password_hash?.substring(0, 10) })),
     timestamp: new Date().toISOString()
