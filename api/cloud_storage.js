@@ -8,18 +8,24 @@ try {
   // @vercel/blob not installed or failed to import
 }
 
-// Try loading local .env.local if running in local development
-if (!process.env.BLOB_READ_WRITE_TOKEN && fs.existsSync('.env.local')) {
-  try {
-    const envContent = fs.readFileSync('.env.local', 'utf8');
-    for (const line of envContent.split('\n')) {
-      const match = line.match(/^([^#=]+)=(.*)$/);
-      if (match) {
-        process.env[match[1].trim()] = match[2].trim().replace(/^['"]|['"]$/g, '');
+// Try loading local environment files if running in development
+['.env.local', '.env.production', '.env'].forEach(file => {
+  if (fs.existsSync(file)) {
+    try {
+      const envContent = fs.readFileSync(file, 'utf8');
+      for (const line of envContent.split('\n')) {
+        const match = line.match(/^([^#=]+)=(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          const val = match[2].trim().replace(/^['"]|['"]$/g, '');
+          if (!process.env[key]) {
+            process.env[key] = val;
+          }
+        }
       }
-    }
-  } catch (_) {}
-}
+    } catch (_) {}
+  }
+});
 
 const BLOB_FILENAME = 'chillers_db.json';
 let cachedBlobUrl = null;
@@ -27,8 +33,22 @@ let lastCloudSyncTime = 0;
 let inFlightFetchPromise = null;
 let inFlightSavePromise = null;
 
+function getBlobOptions(extra = {}) {
+  const opts = { ...extra };
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    opts.token = process.env.BLOB_READ_WRITE_TOKEN;
+  } else if (process.env.VERCEL_OIDC_TOKEN && process.env.BLOB_STORE_ID) {
+    opts.oidcToken = process.env.VERCEL_OIDC_TOKEN;
+    opts.storeId = process.env.BLOB_STORE_ID;
+  }
+  return opts;
+}
+
 export function isCloudStorageConfigured() {
-  return Boolean(vercelBlob && (process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_OIDC_TOKEN));
+  if (!vercelBlob) return false;
+  if (process.env.BLOB_READ_WRITE_TOKEN) return true;
+  if (process.env.BLOB_STORE_ID && (process.env.VERCEL_OIDC_TOKEN || process.env.VERCEL)) return true;
+  return false;
 }
 
 /**
@@ -51,13 +71,13 @@ export async function fetchDatabaseFromBlob() {
       if (!targetUrl) {
         const { head, list } = vercelBlob;
         try {
-          const details = await head(BLOB_FILENAME);
+          const details = await head(BLOB_FILENAME, getBlobOptions());
           if (details && details.url) {
             targetUrl = details.url;
             cachedBlobUrl = details.url;
           }
         } catch (headErr) {
-          const { blobs } = await list({ prefix: BLOB_FILENAME });
+          const { blobs } = await list(getBlobOptions({ prefix: BLOB_FILENAME }));
           const match = blobs.find(b => b.pathname === BLOB_FILENAME);
           if (match) {
             targetUrl = match.url;
@@ -120,13 +140,13 @@ export async function saveDatabaseToBlob(store) {
     const { put } = vercelBlob;
     const jsonStr = JSON.stringify(store);
 
-    const blob = await put(BLOB_FILENAME, jsonStr, {
+    const blob = await put(BLOB_FILENAME, jsonStr, getBlobOptions({
       access: 'public',
       addRandomSuffix: false,
       allowOverwrite: true,
       cacheControlMaxAge: 0,
       contentType: 'application/json'
-    });
+    }));
 
     cachedBlobUrl = blob.url;
     lastCloudSyncTime = Date.now();
