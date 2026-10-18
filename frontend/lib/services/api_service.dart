@@ -223,7 +223,7 @@ class ApiService {
     required String filename,
     required List<dynamic> rows,
     bool bypassValidation = false,
-    bool onlyThisBatch = true,
+    bool onlyThisBatch = false,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/excel/confirm'),
@@ -232,7 +232,7 @@ class ApiService {
         'filename': filename,
         'rows': rows,
         'bypassValidation': bypassValidation,
-        'onlyThisBatch': onlyThisBatch,
+        'onlyThisBatch': false,
       }),
     );
     final decoded = _safeJsonDecode(response.body);

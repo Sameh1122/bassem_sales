@@ -348,6 +348,39 @@ const __dirname = path.dirname(__filename);
 
 const DB_FILE = process.env.VERCEL ? '/tmp/chillers_db.json' : path.resolve(os.tmpdir(), 'chillers_db.json');
 
+function reconcileMasterDataset(store) {
+  if (!store) return false;
+  if (!Array.isArray(store.chillers)) store.chillers = [];
+  if (!Array.isArray(store.history) || store.history.length === 0) return false;
+
+  // Auto-restore if active chillers is unexpectedly small compared to history
+  if (store.chillers.length < 500 && store.history.length >= 500) {
+    console.log(`[MasterDataset] Reconciling active master dataset: current=${store.chillers.length}, history=${store.history.length}...`);
+    const map = new Map();
+
+    // 1. Rebuild from history in chronological order
+    for (const item of store.history) {
+      const code = (item.chiller_code || item.chillerCode || '').toString().trim();
+      if (code) {
+        map.set(code.toLowerCase(), { ...item });
+      }
+    }
+
+    // 2. Overlay any active chillers that might have updates
+    for (const item of store.chillers) {
+      const code = (item.chiller_code || item.chillerCode || '').toString().trim();
+      if (code) {
+        map.set(code.toLowerCase(), { ...item });
+      }
+    }
+
+    store.chillers = Array.from(map.values());
+    console.log(`[MasterDataset] Reconciled master dataset with ${store.chillers.length} chillers.`);
+    return true;
+  }
+  return false;
+}
+
 function loadDbStore() {
   try {
     if (fs.existsSync(DB_FILE)) {
@@ -387,6 +420,7 @@ function loadDbStore() {
         if (!Array.isArray(parsed.form_responses)) {
           parsed.form_responses = [];
         }
+        reconcileMasterDataset(parsed);
         return parsed;
       }
     }
@@ -466,8 +500,21 @@ async function syncWithCloudStorage(force = false) {
           }
         });
       }
+      
+      const needsSave = reconcileMasterDataset(cloudData);
+
       Object.assign(dbStore, cloudData);
       hasSyncedWithCloud = true;
+
+      if (needsSave) {
+        console.log('[Auto-Recovery] Persisting reconciled master dataset to Blob...');
+        try {
+          await saveDatabaseToBlob(dbStore);
+        } catch (saveErr) {
+          console.warn('[Auto-Recovery] Notice saving to blob:', saveErr.message);
+        }
+      }
+
       try {
         fs.writeFileSync(DB_FILE, JSON.stringify(dbStore, null, 2), 'utf8');
       } catch (_) {}
@@ -1169,7 +1216,7 @@ router.post('/excel/confirm', requireAdmin, async (req, res) => {
   if (isCloudStorageConfigured() && !hasSyncedWithCloud) {
     await syncWithCloudStorage();
   }
-  const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false, onlyThisBatch = true } = req.body || {};
+  const { filename = 'Uploaded_Sheet.xlsx', rows = [], bypassValidation = false, onlyThisBatch = false } = req.body || {};
   const rowsToSave = bypassValidation 
     ? rows 
     : rows.filter(r => r.isValid !== false || (r.latitude != null && r.longitude != null));
@@ -1183,36 +1230,51 @@ router.post('/excel/confirm', requireAdmin, async (req, res) => {
     valid_rows: rowsToSave.length,
     invalid_rows: rows.length - rowsToSave.length,
     bypassed_validation: bypassValidation ? 1 : 0,
-    only_this_batch: onlyThisBatch ? 1 : 0,
+    only_this_batch: 0,
     uploaded_at: new Date().toISOString()
   });
 
-  // If onlyThisBatch is selected, active chillers reflect ONLY this batch
-  if (onlyThisBatch) {
-    dbStore.chillers = [];
-  }
+  // Master Dataset is incremental (UPSERT) - existing chillers are updated, new chillers are appended.
+  // We NEVER wipe active records.
+  let addedCount = 0;
+  let updatedCount = 0;
 
   for (const r of rowsToSave) {
-    const code = r.chillerCode || `CH-${Math.random().toString(36).substring(7)}`;
-    const existingIdx = onlyThisBatch ? -1 : dbStore.chillers.findIndex(c => (c.chiller_code || c.chillerCode) === code);
+    const rawCode = (r.chillerCode || r['Chiller Code'] || '').toString().trim();
+    const code = rawCode || `CH-${Math.random().toString(36).substring(7)}`;
+    const lowerCode = code.toLowerCase();
+
+    const existingIdx = dbStore.chillers.findIndex(c => {
+      const existingCode = (c.chiller_code || c.chillerCode || '').toString().trim().toLowerCase();
+      return existingCode === lowerCode;
+    });
+
     const item = {
       id: existingIdx >= 0 ? dbStore.chillers[existingIdx].id : dbStore.chillers.length + 1,
       chiller_code: code,
       batch_id: batchId,
-      latitude: r.latitude,
-      longitude: r.longitude,
-      customer_type: r.customerType,
-      efficiency: r.efficiency,
-      branch: r.branch,
-      chiller_type: r.chillerType,
-      chiller_status: r.chillerStatus,
-      condition: r.condition,
-      customer_name: r.customerName,
+      latitude: r.latitude != null ? Number(r.latitude) : (existingIdx >= 0 ? dbStore.chillers[existingIdx].latitude : null),
+      longitude: r.longitude != null ? Number(r.longitude) : (existingIdx >= 0 ? dbStore.chillers[existingIdx].longitude : null),
+      customer_type: r.customerType || (existingIdx >= 0 ? dbStore.chillers[existingIdx].customer_type : 'Retail'),
+      efficiency: r.efficiency || (existingIdx >= 0 ? dbStore.chillers[existingIdx].efficiency : 'Performing'),
+      branch: r.branch || (existingIdx >= 0 ? dbStore.chillers[existingIdx].branch : ''),
+      chiller_type: r.chillerType || (existingIdx >= 0 ? dbStore.chillers[existingIdx].chiller_type : ''),
+      chiller_status: r.chillerStatus || (existingIdx >= 0 ? dbStore.chillers[existingIdx].chiller_status : 'Deployed'),
+      condition: r.condition || (existingIdx >= 0 ? dbStore.chillers[existingIdx].condition : ''),
+      customer_name: r.customerName || (existingIdx >= 0 ? dbStore.chillers[existingIdx].customer_name : ''),
+      customer_address: r.customerAddress || (existingIdx >= 0 ? (dbStore.chillers[existingIdx].customer_address || '') : ''),
+      mobile_number: r.mobileNumber || (existingIdx >= 0 ? (dbStore.chillers[existingIdx].mobile_number || '') : ''),
       raw_data_json: typeof (r.rowObj || r.rawData) === 'object' ? JSON.stringify(r.rowObj || r.rawData || {}) : String(r.rowObj || r.rawData || '{}'),
       updated_at: new Date().toISOString()
     };
-    if (existingIdx >= 0) dbStore.chillers[existingIdx] = item;
-    else dbStore.chillers.push(item);
+
+    if (existingIdx >= 0) {
+      dbStore.chillers[existingIdx] = { ...dbStore.chillers[existingIdx], ...item };
+      updatedCount++;
+    } else {
+      dbStore.chillers.push(item);
+      addedCount++;
+    }
 
     dbStore.history.push({ ...item, id: dbStore.history.length + 1, snapshot_time: new Date().toISOString() });
   }
@@ -1246,8 +1308,34 @@ router.post('/excel/confirm', requireAdmin, async (req, res) => {
     success: true,
     batchId,
     savedRowsCount: rowsToSave.length,
+    addedCount,
+    updatedCount,
+    totalActiveChillers: dbStore.chillers.length,
     chillers: formattedChillers,
-    message: `Successfully saved ${rowsToSave.length} records into database.`
+    message: `Master dataset successfully incremented: ${addedCount} new chillers added, ${updatedCount} chillers updated. Total active chillers: ${dbStore.chillers.length}.`
+  });
+});
+
+router.post('/admin/restore-master-dataset', requireAdmin, async (req, res) => {
+  if (isCloudStorageConfigured() && !hasSyncedWithCloud) {
+    try {
+      await syncWithCloudStorage();
+    } catch (_) {}
+  }
+  const restored = reconcileMasterDataset(dbStore);
+  saveDbStore(dbStore);
+  if (isCloudStorageConfigured()) {
+    try {
+      await saveDatabaseToBlob(dbStore);
+    } catch (saveErr) {
+      console.warn('[CloudStorage] Notice saving restored master dataset:', saveErr.message);
+    }
+  }
+  res.json({
+    success: true,
+    restored,
+    chillersCount: dbStore.chillers.length,
+    message: `Master dataset contains ${dbStore.chillers.length} active chillers.`
   });
 });
 

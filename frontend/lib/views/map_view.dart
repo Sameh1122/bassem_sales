@@ -1103,45 +1103,28 @@ class MapViewScreenState extends State<MapViewScreen> {
                         ),
                       ),
 
-                      // Upload Batch / Date Filter
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.cyan.withOpacity(0.5)),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<dynamic>(
-                            value: _selectedBatchId,
-                            dropdownColor: const Color(0xFF1E293B),
-                            style: const TextStyle(color: Colors.cyanAccent, fontSize: 13, fontWeight: FontWeight.w600),
-                            icon: const Icon(Icons.history_toggle_off, color: Colors.cyan, size: 18),
-                            items: [
-                              const DropdownMenuItem(
-                                value: 'All',
-                                child: Text('📅 All Uploads (Latest Active)'),
+                      // Unified Master Dataset Badge (Single view with latest increment)
+                      Tooltip(
+                        message: 'Unified Master Dataset (reflects all cumulative chillers with latest increments)',
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.cyan.withOpacity(0.5)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.layers_rounded, color: Colors.cyan, size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                _batches.isNotEmpty
+                                    ? 'Master Dataset: ${_chillers.length} Chillers (Latest: Batch #${_batches.first['id']})'
+                                    : 'Master Dataset: ${_chillers.length} Chillers',
+                                style: const TextStyle(color: Colors.cyanAccent, fontSize: 13, fontWeight: FontWeight.w600),
                               ),
-                              ..._batches.map((b) {
-                                final id = b['id'];
-                                final filename = b['filename'] ?? 'Upload';
-                                final rawDate = b['uploaded_at'] ?? '';
-                                String shortDate = rawDate;
-                                if (rawDate.length >= 16) {
-                                  shortDate = rawDate.substring(0, 16).replaceAll('T', ' ');
-                                }
-                                return DropdownMenuItem(
-                                  value: id,
-                                  child: Text('📦 Batch #$id: $filename ($shortDate)'),
-                                );
-                              }).toList(),
                             ],
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() => _selectedBatchId = val);
-                                _loadChillers(forceRecenter: true, forceApi: true);
-                              }
-                            },
                           ),
                         ),
                       ),

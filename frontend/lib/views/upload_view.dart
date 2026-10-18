@@ -12,7 +12,7 @@ class UploadViewScreen extends StatefulWidget {
 
 class _UploadViewScreenState extends State<UploadViewScreen> {
   bool _isLoading = false;
-  bool _onlyThisBatch = true;
+  bool _onlyThisBatch = false;
   String? _filename;
   int _totalRows = 0;
   int _validCount = 0;
@@ -205,36 +205,29 @@ class _UploadViewScreenState extends State<UploadViewScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Option: Accept changes from only this batch
+                    // Incremental Master Dataset Information Banner
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0F172A),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.3)),
+                        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
-                          Checkbox(
-                            value: _onlyThisBatch,
-                            activeColor: const Color(0xFF06B6D4),
-                            checkColor: Colors.black,
-                            onChanged: (val) {
-                              setState(() => _onlyThisBatch = val ?? true);
-                            },
-                          ),
-                          const SizedBox(width: 8),
+                          const Icon(Icons.sync_alt, color: Color(0xFF10B981), size: 22),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: const [
                                 Text(
-                                  'Accept changes from only this batch (Replace active records)',
+                                  'Master Dataset Incremental Sync (UPSERT)',
                                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                 ),
                                 SizedBox(height: 2),
                                 Text(
-                                  'When enabled, active map and table records reflect only this batch. (Note: This feature will be reviewed in the future)',
+                                  'Uploaded records will increment and update the master dataset: existing chillers (by Chiller Code) will be updated, and new chillers will be appended without losing previous records.',
                                   style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
                                 ),
                               ],
