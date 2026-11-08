@@ -6,4 +6,6 @@ __pycache__/
 *.db-wal
 *.sqlite
 .vercel/
+.vercel
 .env
+scratch/

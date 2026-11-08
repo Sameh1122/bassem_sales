@@ -357,8 +357,53 @@ def run_e2e_tests():
     assert code == 200 and sup_resolve["ticket"]["status"] == "RESOLVED"
     print(f"[PASS] E2E Stage 10 (Live Customer Support Chat): Ticket {ticket_no} Created on Client Storefront -> Admin Replied -> Client Responded -> Marked RESOLVED")
 
+    # =========================================================================
+    # STAGE 11: CLIENT ORDER MONITORING, TRACKING & HISTORICAL CLOSED ARCHIVE
+    # =========================================================================
+    # 1. Test Unified Tracking & Scope Aggregation Endpoint
+    code, track_resp = http_req(f"{CORE_URL}/orders/track", "GET")
+    assert code == 200 and track_resp["success"]
+    assert "total_count" in track_resp and "active_count" in track_resp and "closed_count" in track_resp
+    assert track_resp["total_count"] == (track_resp["active_count"] + track_resp["closed_count"])
+    assert len(track_resp["orders"]) == track_resp["total_count"]
+
+    # 2. Test Active Orders Scope Query
+    code, active_orders = http_req(f"{CORE_URL}/orders?scope=active", "GET")
+    assert code == 200 and isinstance(active_orders, list)
+    for ao in active_orders:
+        assert ao["is_closed"] is False, f"Expected active order, got is_closed=True for {ao['order_number']}"
+        assert "timeline" in ao and len(ao["timeline"]) == 5, "Missing 5-step milestone timeline"
+        assert "progress_pct" in ao and 0 <= ao["progress_pct"] <= 100
+        assert "deliveries" in ao
+
+    # 3. Test Closed Orders Scope Query (Delivered, Settled, Cancelled)
+    code, closed_orders = http_req(f"{CORE_URL}/orders?scope=closed", "GET")
+    assert code == 200 and isinstance(closed_orders, list)
+    for co in closed_orders:
+        assert co["is_closed"] is True, f"Expected closed order, got is_closed=False for {co['order_number']}"
+        assert "timeline" in co and len(co["timeline"]) == 5
+        assert co.get("payment_status") == "settled" or co.get("order_status") in ("completed", "completed-settled", "cancelled", "refunded")
+
+    # 4. Test Single Order Tracking by Order Number
+    target_order_num = order["order_number"]
+    code, single_order_resp = http_req(f"{CORE_URL}/orders/{target_order_num}", "GET")
+    assert code == 200 and single_order_resp["success"]
+    so = single_order_resp["order"]
+    assert so["order_number"] == target_order_num
+    assert len(so["timeline"]) == 5
+    assert len(so["deliveries"]) == 2  # Multi-store order has 2 Bosta delivery manifests
+    assert so["stores_count"] == 2
+
+    # 5. Test Live Search Filtering via Query Param (q)
+    code, search_resp = http_req(f"{CORE_URL}/orders/track?q={target_order_num}", "GET")
+    assert code == 200 and search_resp["success"]
+    assert search_resp["total_count"] >= 1
+    assert any(o["order_number"] == target_order_num for o in search_resp["orders"])
+
+    print(f"[PASS] E2E Stage 11 (Client Order Monitoring & History Archive): Verified /orders/track ({track_resp['total_count']} orders: {track_resp['active_count']} active, {track_resp['closed_count']} closed), 5-step visual timelines, Bosta AWBs & single order tracking for #{target_order_num}")
+
     print("=" * 88)
-    print("ALL 10 END-TO-END (E2E) STAGES PASSED 100%!")
+    print("ALL 11 END-TO-END (E2E) STAGES PASSED 100%!")
     print("=" * 88)
 
 

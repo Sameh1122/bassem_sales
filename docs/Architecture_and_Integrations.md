@@ -2,30 +2,34 @@
 
 ## 1. System Architecture Overview
 
-The platform is architected as a **Zero-Inventory Multi-Store Marketplace Facilitator** built on the **WooCommerce REST API v3 (`/wp-json/wc/v3/*`) + High-Performance Order Storage (HPOS)** pattern, serving **5 connected interfaces** across Web and Native Mobile Apps (`Flutter`):
+The platform is architected as a **Zero-Inventory Multi-Store Marketplace Facilitator** built on the **WooCommerce REST API v3 (`/wp-json/wc/v3/*`) + High-Performance Order Storage (HPOS)** pattern, serving **6 connected interfaces** across Web and Native Mobile Apps (`Flutter`):
 
-1. **Client Web Storefront (`Tab 1`)** & **iOS/Android Mobile App (`Tab 2`)**: High-readability Light/Dark adaptive UI (`Plus Jakarta Sans` + `Cairo`) with rounded Category pills, Partner Store filter, 3-step guided checkout, and floating **💬 Support Chat Drawer**.
-2. **Partner Store Portal (`Tab 3`)**: Interactive **1-Click Store Switcher Cards**, top-priority **Incoming Sub-Orders to Pack** table, and Store-Owned Inventory manager.
-3. **Outsourced Delivery Hub (`Tab 4`)**: Direct **Partner Store Pickup $\rightarrow$ Client Drop-off** dispatch board with a **Guided Next-Step Pipeline Button** (`Step 1: Store Packed` $\rightarrow$ `Step 2: Bosta Picked Up` $\rightarrow$ `Step 3: Out for Delivery` $\rightarrow$ `Step 4: Delivered` $\rightarrow$ `Step 5: Settle Cash`).
-4. **Facilitator Control Tower (`Tab 5`)**: Organized into **5 focused sub-tabs** (`Commercial Rules & Fees`, `Customer Support Chat Desk`, `Orders, Deliveries & Settlements`, `All-Stores Inventory, Stores & Categories`, `Webhooks Inspector`, plus `Show All`) for clutter-free 360° administration.
+1. **Client Web Storefront (`Tab 1`)**: High-readability Light/Dark adaptive UI (`Plus Jakarta Sans` + `Cairo`) with Category pills, Partner Store filter, 3-step guided checkout, and floating **💬 Support Chat Drawer**.
+2. **Client My Orders & Tracking Hub (`Tab 2`)**: Dedicated order management portal featuring active vs. historical closed filters, 5-stage milestone stepper, Bosta waybill manifests, and printable Egyptian tax invoices.
+3. **iOS & Android Mobile App Simulator (`Tab 3`)**: Mobile shopping simulator with Apple Pay / Meeza integration and live Firebase Push Notification stream.
+4. **Partner Store Portal (`Tab 4`)**: Interactive **1-Click Store Switcher Cards**, top-priority **Incoming Sub-Orders to Pack** table, and Store-Owned Inventory manager.
+5. **Outsourced Delivery Hub (`Tab 5`)**: Direct **Partner Store Pickup $\rightarrow$ Client Drop-off** dispatch board with a **Guided Next-Step Pipeline Button** (`Step 1: Store Packed` $\rightarrow$ `Step 2: Bosta Picked Up` $\rightarrow$ `Step 3: Out for Delivery` $\rightarrow$ `Step 4: Delivered` $\rightarrow$ `Step 5: Settle Cash`).
+6. **Facilitator Control Tower (`Tab 6`)**: Organized into **5 focused sub-tabs** (`Commercial Rules & Fees`, `Customer Support Chat Desk`, `Orders, Deliveries & Settlements`, `All-Stores Inventory, Stores & Categories`, `Webhooks Inspector`, plus `Show All`) for clutter-free 360° administration.
 
 ```mermaid
 flowchart TB
-    subgraph Touchpoints["5 Role-Based Interfaces (Web + Flutter iOS/Android)"]
+    subgraph Touchpoints["6 Role-Based Interfaces (Web + Flutter iOS/Android)"]
         ClientWeb["1. Client Web Storefront (Category & Store Filter)"]
-        ClientApp["2. iOS & Android Flutter App (Apple Pay & FCM Push)"]
-        StorePortal["3. Partner Store Portal (Store Inventory & Packaging)"]
-        DeliveryHub["4. Outsourced Delivery Hub (Store Pickup -> Client Dropoff)"]
-        AdminConsole["5. Facilitator Admin (Categories, Stores & Commission)"]
+        ClientOrders["2. My Orders & Tracking (Active & Closed History)"]
+        ClientApp["3. iOS & Android Flutter App (Apple Pay & FCM Push)"]
+        StorePortal["4. Partner Store Portal (Store Inventory & Packaging)"]
+        DeliveryHub["5. Outsourced Delivery Hub (Store Pickup -> Client Dropoff)"]
+        AdminConsole["6. Facilitator Admin (Commercial Rules & Support Desk)"]
     end
 
     subgraph CoreEngine["Core Marketplace Facilitator Engine (Port 4000)"]
         REST["WooCommerce v3 REST API (/wp-json/wc/v3/*)"]
         SplitEngine["Multi-Store Cart & Commission Split Calculator"]
         ManifestSplitter["Per-Store Outsourced Delivery Manifest Generator"]
+        OrderEnricher["Order Lifecycle & 5-Stage Stepper Pipeline Enricher"]
         StockSaga["Store Inventory Reservation & 48h Fawry Auto-Release"]
         WebhookAuth["HMAC-SHA512 Webhook Security Verifier"]
-        DB[("HPOS SQLite DB (wc_categories, wc_stores, wc_products, wc_orders, wc_deliveries)")]
+        DB[("HPOS SQLite DB (wc_categories, wc_stores, wc_products, wc_orders, wc_deliveries, wc_settlements)")]
     end
 
     subgraph ExternalIntegrations["Egyptian Fintech & Outsourced 3PL Integrations (Port 4001 Mockup)"]
@@ -37,6 +41,7 @@ flowchart TB
     end
 
     ClientWeb --> REST
+    ClientOrders --> REST
     ClientApp --> REST
     StorePortal --> REST
     DeliveryHub --> REST
@@ -44,10 +49,12 @@ flowchart TB
 
     REST --> SplitEngine
     REST --> ManifestSplitter
+    REST --> OrderEnricher
     REST --> StockSaga
     REST --> WebhookAuth
     SplitEngine --> DB
     ManifestSplitter --> DB
+    OrderEnricher --> DB
     StockSaga --> DB
 
     ManifestSplitter <-->|"Multi-Store Split"| PaymobSplit
@@ -147,12 +154,21 @@ erDiagram
         string order_number UK
         string channel "web | ios_app | android_app"
         string customer_name
+        string customer_phone
+        string area_street
         string governorate
         string payment_method
         string payment_status
+        string order_status
+        float subtotal_egp
+        float vat_amount_egp
+        float shipping_fee_egp
+        float cod_fee_egp
         float total_egp
         float platform_commission_egp
         float net_stores_payout_egp
+        string created_at
+        string updated_at
     }
 
     WC_DELIVERIES ||--o| WC_SETTLEMENTS : "settles_into"
@@ -199,10 +215,13 @@ erDiagram
 
 ---
 
-## 3. REST API Contracts & New Multi-Store Endpoints
+## 3. REST API Contracts & Extended Facilitator Endpoints
 
 | HTTP Method & Endpoint | Actor / Consumer | Description |
 | :--- | :--- | :--- |
+| `GET /wp-json/wc/v3/orders/track` | Client Orders Hub | Returns unified tracking payload: `{success, query, total_count, active_count, closed_count, orders}` enriched with 5-stage timelines, Bosta AWBs, and closed booleans. |
+| `GET /wp-json/wc/v3/orders` | Client Orders Hub, Admin | Enhanced with query parameters `?scope=active|closed|all&phone=...&order_number=...&q=...` to filter active vs. historical closed orders. |
+| `GET /wp-json/wc/v3/orders/{id_or_number}` | Client Orders Hub, Admin | Fetches single order enriched with full 5-stage milestone progression, itemized sub-manifests, and printable invoice payload. |
 | `GET /wp-json/wc/v3/products/categories` | Client Web, Mobile App, Store Portal | Lists all **Product Categories** with bilingual names, icons, and active SKU counts. |
 | `POST /wp-json/wc/v3/products/categories` | Facilitator Admin | Creates a new **Product Category** (`slug`, `name_en`, `name_ar`, `icon_emoji`). |
 | `GET /wp-json/wc/v3/stores` | All Interfaces | Lists all onboarded **Partner Stores**, pickup addresses, commission rates (`%`), and live payout ledgers (`gross_sales_egp`, `commission_egp`, `net_payout_egp`, `settled_payout_egp`, `pending_payout_egp`). |
@@ -225,7 +244,32 @@ erDiagram
 
 ---
 
-## 4. Expected Production Integrations for Your Facilitator Model
+## 4. Client Order Monitoring, Tracking & Tax Invoicing Architecture
+
+### 4.1 Order Classification & Progress Calculation Engine (`enrich_order_dict`)
+The backend HPOS layer dynamically annotates raw database records with rich delivery and lifecycle metadata before serving any order endpoint:
+1. **Active vs. Closed Partitioning:**
+   * An order is classified as `is_closed = True` if its `order_status` is in `('completed', 'completed-settled', 'cancelled', 'refunded')` OR its `payment_status == 'settled'`.
+   * Otherwise, the order is marked `is_closed = False` (Active in Packaging, Courier Transit, or Drop-off).
+2. **5-Stage Progress Stepper Algorithm:**
+   * `Step 1 (Order Placed):` Marked completed upon initial checkout insertion.
+   * `Step 2 (Payment Verified & Split):` Completed if payment status is `paid` or `settled` (or in-progress/pending).
+   * `Step 3 (Store Packaged):` Completed if all fulfilling partner stores have marked their parcels `READY_FOR_COURIER_PICKUP`.
+   * `Step 4 (Out for Delivery - Bosta 3PL):` Completed/Active if Bosta couriers have picked up parcels or parcels are out for delivery.
+   * `Step 5 (Delivered & Settled):` 100% completed once all deliveries reach `DELIVERED` and financial settlement `SETTLED_TO_STORE` is achieved.
+3. **Multi-Store Manifest Transparency:**
+   * Each delivery sub-record exposes `store_name`, `pickup_governorate`, `packaging_status`, `courier_status`, and `courier_tracking_id` (Bosta AWB).
+
+### 4.2 Printable Commercial Tax Invoice Standards
+In full compliance with **Egyptian Tax Authority (ETA)** standards and **E-Commerce Law No. 151/2020**:
+* **Facilitator Entity:** NileConnect E-Commerce Facilitator LLC
+* **Tax Registration Number:** `492-817-309`
+* **Commercial Register:** `184920`
+* **Auditable Itemization:** Product SKU, description, fulfilling partner store origin, quantity, unit price, Egypt VAT 14%, Bosta shipping fee, COD fee, and grand total in Egyptian Pounds (EGP).
+
+---
+
+## 5. Expected Production Integrations for Your Facilitator Model
 
 1. **Paymob Split Payments (`POST https://accept.paymob.com/v1/intention/`):**
    * Pass the `store_splits` array in the payment intention request so Paymob automatically routes `net_store_payout_egp` to each Partner Store's sub-merchant account while depositing `platform_commission_egp` into your facilitator account.
@@ -236,7 +280,7 @@ erDiagram
 
 ---
 
-## 5. Vercel Cloud Deployment Architecture (100% Architectural Parity with Local)
+## 6. Vercel Cloud Deployment Architecture (100% Architectural Parity with Local)
 
 The entire multi-server environment is configured to deploy to **Vercel (`@vercel/python`)** without changing a single line of business logic:
 

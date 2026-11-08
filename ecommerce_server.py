@@ -18,6 +18,7 @@ import sqlite3
 import tempfile
 import urllib.request
 import urllib.error
+import urllib.parse
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -727,6 +728,142 @@ def fetch_enriched_products(conn: sqlite3.Connection, category_id=None, store_id
     return rows
 
 
+def enrich_order_dict(o: dict, conn: sqlite3.Connection) -> dict:
+    order_id = o["id"]
+    items = [dict(i) for i in conn.execute("SELECT * FROM wc_order_items WHERE order_id = ?", (order_id,)).fetchall()]
+    deliveries = [dict(d) for d in conn.execute("SELECT * FROM wc_deliveries WHERE order_id = ? ORDER BY id ASC", (order_id,)).fetchall()]
+    try:
+        o["gateway_meta"] = json.loads(o["gateway_meta"]) if o.get("gateway_meta") else {}
+    except Exception:
+        o["gateway_meta"] = {}
+    o["items"] = items
+    o["deliveries"] = deliveries
+
+    is_closed = o["order_status"] in ("completed", "completed-settled", "cancelled", "refunded") or o.get("payment_status") == "settled"
+    o["is_closed"] = bool(is_closed)
+
+    store_names = list(dict.fromkeys([d["store_name"] for d in deliveries if d.get("store_name")]))
+    o["stores_count"] = len(store_names) if store_names else 1
+    o["stores_summary"] = " + ".join(store_names) if store_names else "Partner Store"
+
+    all_delivered = len(deliveries) > 0 and all(d.get("courier_status") == "DELIVERED" for d in deliveries)
+    any_out = any(d.get("courier_status") == "OUT_FOR_DELIVERY" for d in deliveries)
+    any_pickup = any(d.get("courier_status") in ("PICKED_UP_FROM_STORE", "OUT_FOR_DELIVERY", "DELIVERED") for d in deliveries)
+    all_packed = len(deliveries) > 0 and all(d.get("packaging_status") == "READY_FOR_COURIER_PICKUP" for d in deliveries)
+    any_packed = any(d.get("packaging_status") == "READY_FOR_COURIER_PICKUP" for d in deliveries)
+
+    if o["order_status"] == "cancelled":
+        progress_pct = 0
+        progress_stage = "Cancelled / Stock Returned"
+        progress_stage_ar = "تم الإلغاء وإعادة المخزون للمتجر"
+        status_color = "rose"
+    elif all_delivered:
+        progress_pct = 100
+        progress_stage = "Delivered & Settled" if o.get("payment_status") == "settled" else "Delivered to Drop-off"
+        progress_stage_ar = "تم التوصيل والتسوية المالية" if o.get("payment_status") == "settled" else "تم الاستلام بنجاح"
+        status_color = "emerald"
+    elif any_out:
+        progress_pct = 80
+        progress_stage = "Out for Delivery (Bosta 3PL)"
+        progress_stage_ar = "جاري التوصيل للعميل مع المندوب"
+        status_color = "purple"
+    elif any_pickup:
+        progress_pct = 60
+        progress_stage = "In Courier Transit (Picked Up)"
+        progress_stage_ar = "تم الاستلام من المتجر وجاري النقل"
+        status_color = "indigo"
+    elif all_packed or any_packed:
+        progress_pct = 40
+        progress_stage = "Store Packaged (Courier Scheduled)"
+        progress_stage_ar = "تم تجهيز الطرد وفي انتظار المندوب"
+        status_color = "amber"
+    elif o.get("payment_status") == "paid" or o.get("order_status") in ("processing", "ready-to-ship"):
+        progress_pct = 25
+        progress_stage = "Confirmed & Dispatched to Store(s)"
+        progress_stage_ar = "تم تأكيد الطلب وإرساله للمتاجر"
+        status_color = "cyan"
+    else:
+        progress_pct = 15
+        progress_stage = "Order Placed (Awaiting Verification/OTP)"
+        progress_stage_ar = "تم إنشاء الطلب (بانتظار التأكيد)"
+        status_color = "blue"
+
+    o["progress_pct"] = progress_pct
+    o["progress_stage"] = progress_stage
+    o["progress_stage_ar"] = progress_stage_ar
+    o["status_color"] = status_color
+
+    o["timeline"] = [
+        {
+            "step": 1,
+            "title_en": "Order Placed",
+            "title_ar": "تم إنشاء الطلب",
+            "state": "completed",
+            "time": o.get("created_at")
+        },
+        {
+            "step": 2,
+            "title_en": "Payment Verified & Split",
+            "title_ar": "تأكيد الدفع وتقسيم المبالغ",
+            "state": "completed" if o["payment_status"] in ("paid", "settled") else ("cancelled" if o["order_status"] == "cancelled" else "in-progress" if o["order_status"] != "cancelled" else "pending"),
+            "time": o.get("updated_at") if o["payment_status"] in ("paid", "settled") else None
+        },
+        {
+            "step": 3,
+            "title_en": f"Store Packaging ({len(deliveries)} Sub-Orders)",
+            "title_ar": f"تغليف الطرد بالفرع ({len(deliveries)} استلام)",
+            "state": "completed" if all_packed else ("in-progress" if any_packed else "pending"),
+            "time": None
+        },
+        {
+            "step": 4,
+            "title_en": "Outsourced 3PL Transit (Bosta)",
+            "title_ar": "استلام ونقل الشحنة (بوسطة)",
+            "state": "completed" if all_delivered else ("in-progress" if (any_pickup or any_out) else "pending"),
+            "time": None
+        },
+        {
+            "step": 5,
+            "title_en": "Delivered to Client",
+            "title_ar": "تم التوصيل للعميل",
+            "state": "completed" if all_delivered else "pending",
+            "time": None
+        }
+    ]
+    return o
+
+
+def fetch_enriched_orders(conn: sqlite3.Connection, scope=None, phone=None, order_number=None, q=None) -> list:
+    query = "SELECT * FROM wc_orders WHERE 1=1"
+    params = []
+
+    if order_number:
+        query += " AND order_number LIKE ?"
+        params.append(f"%{order_number.strip()}%")
+
+    if phone:
+        clean_phone = phone.strip()
+        query += " AND (customer_phone LIKE ? OR customer_phone LIKE ?)"
+        params.append(f"%{clean_phone}%")
+        params.append(f"%{clean_phone[-9:]}%" if len(clean_phone) >= 9 else f"%{clean_phone}%")
+
+    if q:
+        query_val = f"%{q.strip()}%"
+        query += " AND (order_number LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ? OR governorate LIKE ?)"
+        params.extend([query_val, query_val, query_val, query_val])
+
+    query += " ORDER BY id DESC"
+    raw_orders = [dict(r) for r in conn.execute(query, params).fetchall()]
+    enriched = [enrich_order_dict(o, conn) for o in raw_orders]
+
+    if scope == "active":
+        enriched = [o for o in enriched if not o["is_closed"]]
+    elif scope == "closed":
+        enriched = [o for o in enriched if o["is_closed"]]
+
+    return enriched
+
+
 class EcommerceRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
@@ -759,7 +896,9 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
         self._send_json({"ok": True})
 
     def do_GET(self):
-        path_only = self.path.split("?")[0]
+        parsed_url = urllib.parse.urlsplit(self.path)
+        path_only = parsed_url.path
+        qs_params = urllib.parse.parse_qs(parsed_url.query)
         if path_only == "/" or path_only.startswith("/index.html"):
             if os.path.exists(INDEX_HTML_PATH):
                 with open(INDEX_HTML_PATH, "rb") as f:
@@ -871,15 +1010,45 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
             self._send_json(rows)
             return
 
+        if path_only == "/wp-json/wc/v3/orders/track":
+            q = qs_params.get("q", [""])[0] or qs_params.get("order_number", [""])[0] or qs_params.get("phone", [""])[0]
+            scope = qs_params.get("scope", ["all"])[0]
+            orders = fetch_enriched_orders(conn, scope=scope, q=q if q else None)
+            active_count = len([o for o in orders if not o["is_closed"]])
+            closed_count = len([o for o in orders if o["is_closed"]])
+            conn.close()
+            self._send_json({
+                "success": True,
+                "query": q,
+                "total_count": len(orders),
+                "active_count": active_count,
+                "closed_count": closed_count,
+                "orders": orders
+            })
+            return
+
+        if path_only.startswith("/wp-json/wc/v3/orders/"):
+            sub = path_only[len("/wp-json/wc/v3/orders/"):]
+            if sub and not sub.startswith("track") and not sub.endswith("/instapay-approve"):
+                if sub.isdigit():
+                    row = conn.execute("SELECT * FROM wc_orders WHERE id = ?", (int(sub),)).fetchone()
+                else:
+                    row = conn.execute("SELECT * FROM wc_orders WHERE order_number = ?", (sub,)).fetchone()
+                if row:
+                    order = enrich_order_dict(dict(row), conn)
+                    conn.close()
+                    self._send_json({"success": True, "order": order})
+                    return
+                conn.close()
+                self._send_json({"error": "Order not found"}, 404)
+                return
+
         if path_only == "/wp-json/wc/v3/orders":
-            orders = [dict(r) for r in conn.execute("SELECT * FROM wc_orders ORDER BY id DESC").fetchall()]
-            for o in orders:
-                o["items"] = [dict(i) for i in conn.execute("SELECT * FROM wc_order_items WHERE order_id = ?", (o["id"],)).fetchall()]
-                o["deliveries"] = [dict(d) for d in conn.execute("SELECT * FROM wc_deliveries WHERE order_id = ?", (o["id"],)).fetchall()]
-                try:
-                    o["gateway_meta"] = json.loads(o["gateway_meta"]) if o["gateway_meta"] else {}
-                except Exception:
-                    o["gateway_meta"] = {}
+            scope = qs_params.get("scope", ["all"])[0]
+            phone = qs_params.get("customer_phone", [""])[0] or qs_params.get("phone", [""])[0]
+            order_num = qs_params.get("order_number", [""])[0]
+            q = qs_params.get("q", [""])[0]
+            orders = fetch_enriched_orders(conn, scope=scope, phone=phone if phone else None, order_number=order_num if order_num else None, q=q if q else None)
             conn.close()
             self._send_json(orders)
             return
@@ -911,14 +1080,8 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
             govs = [dict(r) for r in conn.execute("SELECT * FROM wc_governorates").fetchall()]
             deliveries = [dict(r) for r in conn.execute("SELECT * FROM wc_deliveries ORDER BY id DESC").fetchall()]
             settlements = [dict(r) for r in conn.execute("SELECT * FROM wc_settlements ORDER BY id DESC").fetchall()]
-            orders = [dict(r) for r in conn.execute("SELECT * FROM wc_orders ORDER BY id DESC").fetchall()]
-            for o in orders:
-                o["items"] = [dict(i) for i in conn.execute("SELECT * FROM wc_order_items WHERE order_id = ?", (o["id"],)).fetchall()]
-                o["deliveries"] = [dict(d) for d in conn.execute("SELECT * FROM wc_deliveries WHERE order_id = ?", (o["id"],)).fetchall()]
-                try:
-                    o["gateway_meta"] = json.loads(o["gateway_meta"]) if o["gateway_meta"] else {}
-                except Exception:
-                    o["gateway_meta"] = {}
+            raw_orders = [dict(r) for r in conn.execute("SELECT * FROM wc_orders ORDER BY id DESC").fetchall()]
+            orders = [enrich_order_dict(o, conn) for o in raw_orders]
             webhooks = [dict(r) for r in conn.execute("SELECT * FROM wc_webhooks_log ORDER BY id DESC LIMIT 40").fetchall()]
             pushes = [dict(r) for r in conn.execute("SELECT * FROM wc_push_notifications ORDER BY id DESC LIMIT 25").fetchall()]
             settings_row = conn.execute("SELECT * FROM wc_platform_settings WHERE id = 1").fetchone()

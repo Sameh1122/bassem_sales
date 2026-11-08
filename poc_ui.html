@@ -276,22 +276,25 @@
         </div>
       </div>
 
-      <!-- 5 Primary Role Workspaces -->
+      <!-- 6 Primary Role Workspaces -->
       <nav class="flex flex-wrap items-center gap-2" aria-label="Main Workspaces">
         <button onclick="switchTab('storefront')" id="btn-tab-storefront" class="nav-tab active border border-slate-700 bg-slate-900">
           <span>🛒</span> <span>1. Client Storefront</span>
         </button>
+        <button onclick="switchTab('client-orders')" id="btn-tab-client-orders" class="nav-tab border border-slate-700 bg-slate-900">
+          <span>📦</span> <span>2. My Orders & Tracking (<span id="badge-client-orders">0</span>)</span>
+        </button>
         <button onclick="switchTab('mobile')" id="btn-tab-mobile" class="nav-tab border border-slate-700 bg-slate-900">
-          <span>📱</span> <span>2. Mobile App</span>
+          <span>📱</span> <span>3. Mobile App</span>
         </button>
         <button onclick="switchTab('stores')" id="btn-tab-stores" class="nav-tab border border-slate-700 bg-slate-900">
-          <span>🏪</span> <span>3. Partner Store Portal</span>
+          <span>🏪</span> <span>4. Partner Store Portal</span>
         </button>
         <button onclick="switchTab('delivery')" id="btn-tab-delivery" class="nav-tab border border-slate-700 bg-slate-900">
-          <span>🚚</span> <span>4. Outsourced Delivery (<span id="badge-deliveries">0</span>)</span>
+          <span>🚚</span> <span>5. Outsourced Delivery (<span id="badge-deliveries">0</span>)</span>
         </button>
         <button onclick="switchTab('admin')" id="btn-tab-admin" class="nav-tab border border-slate-700 bg-slate-900">
-          <span>⚙️</span> <span>5. Facilitator Control Tower (<span id="badge-support-open">0</span>💬)</span>
+          <span>⚙️</span> <span>6. Facilitator Control Tower (<span id="badge-support-open">0</span>💬)</span>
         </button>
       </nav>
 
@@ -335,6 +338,9 @@
           </p>
         </div>
         <div class="flex flex-wrap gap-2.5">
+          <button onclick="switchTab('client-orders')" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white btn-solid-white shadow-sm transition flex items-center gap-1.5">
+            <span>📦</span> <span>Track My Orders (<span id="btn-hero-client-orders-count">0</span>)</span>
+          </button>
           <button onclick="toggleClientSupportChat()" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white shadow-sm transition">
             💬 Chat with Customer Support
           </button>
@@ -488,7 +494,93 @@
     </section>
 
     <!-- =================================================================== -->
-    <!-- TAB 2: iOS & ANDROID MOBILE APP SIMULATOR                           -->
+    <!-- TAB 2: CLIENT MY ORDERS & LIVE BOSTA 3PL TRACKING & HISTORY ARCHIVE -->
+    <!-- =================================================================== -->
+    <section id="tab-client-orders" class="hidden space-y-6">
+
+      <!-- Hero Header & Client Action Bar -->
+      <div class="glass p-6 border-l-4 border-l-indigo-600 flex flex-wrap items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="step-badge bg-indigo-500/15 text-indigo-400">CLIENT SELF-SERVICE • NILECONNECT</span>
+            <span class="text-xs text-slate-400 font-medium">Bosta 3PL Tracking • Tax Invoices • Real-Time Order Milestones</span>
+          </div>
+          <h2 class="text-2xl font-extrabold tracking-tight">
+            My Orders, Shipments & Historical Purchases
+          </h2>
+          <p class="text-sm text-slate-400">
+            Monitor real-time courier pickup, Bosta waybills, itemized store manifests, and review past completed orders with downloadable invoices.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2.5">
+          <button onclick="switchTab('storefront')" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5">
+            <span>🛒</span> <span>Browse Products</span>
+          </button>
+          <button onclick="toggleClientSupportChat()" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white shadow-sm transition flex items-center gap-1.5">
+            <span>💬</span> <span>Support Chat</span>
+          </button>
+          <button onclick="refreshClientOrders(true)" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white btn-solid-white shadow-sm transition flex items-center gap-1.5">
+            <span>🔄</span> <span>Refresh Status</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 4 High-Level Metric KPI Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="glass p-4 rounded-2xl space-y-1">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Client Orders</div>
+          <div id="co-kpi-total" class="text-2xl font-black font-mono text-slate-100">0</div>
+          <div class="text-[11px] text-slate-400">Lifetime purchases</div>
+        </div>
+        <div class="glass p-4 rounded-2xl space-y-1 border-b-2 border-b-cyan-500">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+            <span>Active & In-Transit</span>
+          </div>
+          <div id="co-kpi-active" class="text-2xl font-black font-mono text-cyan-300">0</div>
+          <div class="text-[11px] text-slate-400">Packaging or with Bosta</div>
+        </div>
+        <div class="glass p-4 rounded-2xl space-y-1 border-b-2 border-b-emerald-500">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Completed & Closed</div>
+          <div id="co-kpi-closed" class="text-2xl font-black font-mono text-emerald-300">0</div>
+          <div class="text-[11px] text-slate-400">Delivered & settled orders</div>
+        </div>
+        <div class="glass p-4 rounded-2xl space-y-1 border-b-2 border-b-indigo-500">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-400">Total Purchase Value</div>
+          <div id="co-kpi-spent" class="text-2xl font-black font-mono text-indigo-300">0 EGP</div>
+          <div class="text-[11px] text-slate-400">Fulfilled order volume</div>
+        </div>
+      </div>
+
+      <!-- Filter Tabs & Real-Time Search Bar -->
+      <div class="glass p-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-2" id="co-scope-buttons">
+          <button onclick="setClientOrdersScope('all')" id="btn-scope-all" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white btn-solid-white transition shadow-sm flex items-center gap-1.5">
+            <span>🌟</span> <span>All Orders (<span id="co-scope-all-count">0</span>)</span>
+          </button>
+          <button onclick="setClientOrdersScope('active')" id="btn-scope-active" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5">
+            <span>🚚</span> <span>Active & In-Transit (<span id="co-scope-active-count">0</span>)</span>
+          </button>
+          <button onclick="setClientOrdersScope('closed')" id="btn-scope-closed" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5">
+            <span>✅</span> <span>Completed & Closed (<span id="co-scope-closed-count">0</span>)</span>
+          </button>
+        </div>
+        <div class="flex items-center gap-2 flex-1 sm:flex-initial min-w-[280px]">
+          <div class="relative w-full">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-xs">🔍</span>
+            <input id="coSearchInput" oninput="onClientOrderSearch()" type="text" placeholder="Search by Order #, Recipient Phone (010...), or Store..." class="w-full pl-8 pr-8 py-2 text-xs rounded-xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500" />
+            <button onclick="clearClientOrderSearch()" id="coClearSearchBtn" class="hidden absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-200 text-xs font-bold">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Client Orders Dynamic List -->
+      <div id="client-orders-container" class="space-y-4"></div>
+
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 3: iOS & ANDROID MOBILE APP SIMULATOR                           -->
     <!-- =================================================================== -->
     <section id="tab-mobile" class="hidden">
       <div class="grid lg:grid-cols-12 gap-8 items-start">
@@ -1229,6 +1321,36 @@
     </div>
   </div>
 
+  <!-- PRINTABLE / AUDITABLE EGYPTIAN TAX INVOICE MODAL -->
+  <div id="invoiceModal" class="fixed inset-0 z-50 hidden bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div class="glass max-w-2xl w-full rounded-2xl p-6 border-t-4 border-t-indigo-600 shadow-2xl space-y-4 my-8">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-indigo-600 flex items-center justify-center text-white font-extrabold text-lg shadow-md">
+            🇪🇬
+          </div>
+          <div>
+            <h3 class="text-lg font-extrabold" id="invModalTitle">Official E-Commerce Invoice</h3>
+            <p class="text-xs text-slate-400">NileConnect Facilitator LLC • Tax ID: 492-817-309 • CR: 184920</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="printOfficialInvoice()" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1">
+            🖨️ Print / PDF
+          </button>
+          <button onclick="closeInvoiceModal()" class="text-slate-400 hover:text-slate-200 text-base font-bold px-2">✕</button>
+        </div>
+      </div>
+      <div id="invoiceModalBody" class="space-y-4 text-xs text-slate-300"></div>
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+        <button onclick="closeInvoiceModal()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Close</button>
+        <button onclick="printOfficialInvoice()" class="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white transition flex items-center gap-1.5">
+          <span>🖨️</span> <span>Print Official Invoice</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- INSTANT TOAST FEEDBACK NOTIFICATION -->
   <div id="toastBox" class="fixed bottom-5 right-5 z-50 hidden px-5 py-3.5 rounded-2xl bg-emerald-600 text-white btn-solid-white text-sm font-extrabold shadow-2xl transition-all"></div>
 
@@ -1283,10 +1405,15 @@
     }
 
     function switchTab(tab) {
-      ['storefront', 'mobile', 'stores', 'delivery', 'admin'].forEach(t => {
-        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
-        document.getElementById('btn-tab-' + t).classList.toggle('active', t === tab);
+      ['storefront', 'client-orders', 'mobile', 'stores', 'delivery', 'admin'].forEach(t => {
+        const el = document.getElementById('tab-' + t);
+        if (el) el.classList.toggle('hidden', t !== tab);
+        const btn = document.getElementById('btn-tab-' + t);
+        if (btn) btn.classList.toggle('active', t === tab);
       });
+      if (tab === 'client-orders') {
+        renderClientOrdersView();
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -1349,6 +1476,12 @@
       STATE = await res.json();
 
       document.getElementById('badge-deliveries').textContent = STATE.deliveries.length;
+      const allOrders = STATE.orders || [];
+      const activeOrdersCount = allOrders.filter(o => !o.is_closed).length;
+      const badgeOrders = document.getElementById('badge-client-orders');
+      if (badgeOrders) badgeOrders.textContent = activeOrdersCount;
+      const heroOrders = document.getElementById('btn-hero-client-orders-count');
+      if (heroOrders) heroOrders.textContent = activeOrdersCount;
 
       const govSel = document.getElementById('govSelect');
       if (STATE.governorates.length > 0) {
@@ -1423,6 +1556,7 @@
       renderDeliveryHub();
       renderAdminView();
       renderClientSupportDrawer();
+      renderClientOrdersView();
     }
 
     function renderCategoriesBar() {
@@ -1665,6 +1799,9 @@
           </button>
           <button onclick="triggerMockAction('/paymob/simulate-payment', {intention_id:'${order.gateway_ref}', outcome:'DECLINED'})" class="py-3 px-4 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-500 text-white btn-solid-white">
             ❌ Decline
+          </button>
+          <button onclick="closeModal(); switchTab('client-orders');" class="w-full py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white btn-solid-white transition flex items-center justify-center gap-1.5">
+            <span>📦</span> <span>Track in My Orders & Historical View</span>
           </button>
         `;
       } else if (order.payment_method === 'fawry_ref') {
@@ -2586,6 +2723,476 @@
     }
 
     refreshAll();
+
+    // =====================================================================
+    // CLIENT MY ORDERS, REAL-TIME 3PL TRACKING & AUDITABLE INVOICE ENGINE
+    // =====================================================================
+    let CLIENT_ORDERS_SCOPE = 'all'; // 'all', 'active', 'closed'
+    let CLIENT_ORDERS_SEARCH = '';
+    let ACTIVE_INVOICE_ORDER = null;
+
+    function setClientOrdersScope(scope) {
+      CLIENT_ORDERS_SCOPE = scope;
+      ['all', 'active', 'closed'].forEach(s => {
+        const btn = document.getElementById('btn-scope-' + s);
+        if (btn) {
+          if (s === scope) {
+            btn.className = 'px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white btn-solid-white transition shadow-sm flex items-center gap-1.5';
+          } else {
+            btn.className = 'px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5';
+          }
+        }
+      });
+      renderClientOrdersView();
+    }
+
+    function onClientOrderSearch() {
+      const input = document.getElementById('coSearchInput');
+      CLIENT_ORDERS_SEARCH = (input.value || '').trim().toLowerCase();
+      const clearBtn = document.getElementById('coClearSearchBtn');
+      if (clearBtn) {
+        clearBtn.classList.toggle('hidden', CLIENT_ORDERS_SEARCH.length === 0);
+      }
+      renderClientOrdersView();
+    }
+
+    function clearClientOrderSearch() {
+      const input = document.getElementById('coSearchInput');
+      if (input) input.value = '';
+      CLIENT_ORDERS_SEARCH = '';
+      const clearBtn = document.getElementById('coClearSearchBtn');
+      if (clearBtn) clearBtn.classList.add('hidden');
+      renderClientOrdersView();
+    }
+
+    async function refreshClientOrders(showToastMsg) {
+      await refreshAll();
+      if (showToastMsg) {
+        showToast('🔄 Orders & Bosta Tracking statuses refreshed!');
+      }
+    }
+
+    function renderClientOrdersView() {
+      const container = document.getElementById('client-orders-container');
+      if (!container) return;
+
+      const allOrders = STATE.orders || [];
+      const activeOrders = allOrders.filter(o => !o.is_closed);
+      const closedOrders = allOrders.filter(o => o.is_closed);
+      const totalSpent = allOrders
+        .filter(o => o.order_status !== 'cancelled')
+        .reduce((sum, o) => sum + (Number(o.total_egp) || 0), 0);
+
+      // Update KPI counters
+      const elTotal = document.getElementById('co-kpi-total');
+      if (elTotal) elTotal.textContent = allOrders.length;
+      const elActive = document.getElementById('co-kpi-active');
+      if (elActive) elActive.textContent = activeOrders.length;
+      const elClosed = document.getElementById('co-kpi-closed');
+      if (elClosed) elClosed.textContent = closedOrders.length;
+      const elSpent = document.getElementById('co-kpi-spent');
+      if (elSpent) elSpent.textContent = formatEGP(totalSpent);
+
+      // Scope button badge counts
+      const elScopeAll = document.getElementById('co-scope-all-count');
+      if (elScopeAll) elScopeAll.textContent = allOrders.length;
+      const elScopeActive = document.getElementById('co-scope-active-count');
+      if (elScopeActive) elScopeActive.textContent = activeOrders.length;
+      const elScopeClosed = document.getElementById('co-scope-closed-count');
+      if (elScopeClosed) elScopeClosed.textContent = closedOrders.length;
+
+      // Filter by Scope
+      let filtered = allOrders;
+      if (CLIENT_ORDERS_SCOPE === 'active') {
+        filtered = activeOrders;
+      } else if (CLIENT_ORDERS_SCOPE === 'closed') {
+        filtered = closedOrders;
+      }
+
+      // Filter by Search Query
+      if (CLIENT_ORDERS_SEARCH) {
+        filtered = filtered.filter(o => {
+          const num = (o.order_number || '').toLowerCase();
+          const phone = (o.customer_phone || '').toLowerCase();
+          const name = (o.customer_name || '').toLowerCase();
+          const stores = (o.stores_summary || '').toLowerCase();
+          const awbs = (o.deliveries || []).map(d => (d.courier_tracking_id || '').toLowerCase()).join(' ');
+          return num.includes(CLIENT_ORDERS_SEARCH) ||
+                 phone.includes(CLIENT_ORDERS_SEARCH) ||
+                 name.includes(CLIENT_ORDERS_SEARCH) ||
+                 stores.includes(CLIENT_ORDERS_SEARCH) ||
+                 awbs.includes(CLIENT_ORDERS_SEARCH);
+        });
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="glass p-12 text-center rounded-2xl space-y-4">
+            <div class="text-4xl">📦</div>
+            <div class="text-base font-extrabold text-slate-200">No Orders Found</div>
+            <p class="text-xs text-slate-400 max-w-md mx-auto">
+              ${CLIENT_ORDERS_SEARCH ? 'No orders match your search query "' + CLIENT_ORDERS_SEARCH + '".' : (CLIENT_ORDERS_SCOPE === 'active' ? 'You have no active orders in packaging or transit right now.' : 'No orders in this category.')}
+            </p>
+            <div class="pt-2 flex justify-center gap-2">
+              ${CLIENT_ORDERS_SEARCH ? `<button onclick="clearClientOrderSearch()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white transition">Clear Search Filter</button>` : ''}
+              <button onclick="switchTab('storefront')" class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white transition">🛍️ Shop Partner Stores</button>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(order => {
+        const isClosed = order.is_closed;
+        const progressPct = order.progress_pct || 15;
+        const stageEn = order.progress_stage || 'In Progress';
+        const stageAr = order.progress_stage_ar || '';
+        const statusColor = order.status_color || 'indigo';
+        const deliveries = order.deliveries || [];
+        const items = order.items || [];
+        const timeline = order.timeline || [];
+
+        // Channel Icon & Label
+        const channelIcon = order.channel === 'ios_app' ? '🍎 iOS App' : (order.channel === 'android_app' ? '🤖 Android App' : '🌐 Web Storefront');
+
+        // Payment Method Label
+        const payLabels = {
+          'paymob_card': '💳 Paymob Meeza/Card',
+          'paymob_wallet': '📲 Vodafone Cash Wallet',
+          'valu_bnpl': '🛍️ valU BNPL 12m',
+          'fawry_ref': '🧾 Fawry Kiosk Code',
+          'instapay_manual': '⚡ InstaPay Egypt',
+          'cod': '🚚 Cash on Delivery'
+        };
+        const payLabel = payLabels[order.payment_method] || order.payment_method;
+
+        // Payment Status Badge
+        const payStatusClasses = {
+          'paid': 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+          'settled': 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40',
+          'pending': 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+          'pending_fawry': 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+          'cancelled': 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+        };
+        const payStatusClass = payStatusClasses[order.payment_status] || 'bg-slate-800 text-slate-300';
+
+        // Order Status Badge
+        const orderStatusClasses = {
+          'completed': 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+          'completed-settled': 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40',
+          'processing': 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30',
+          'ready-to-ship': 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30',
+          'pending-payment': 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+          'cancelled': 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+        };
+        const orderStatusClass = orderStatusClasses[order.order_status] || 'bg-slate-800 text-slate-300';
+
+        // Render 5-Step Visual Stepper
+        const stepperHtml = timeline.map(step => {
+          let stateClass = '';
+          let icon = '';
+          if (step.state === 'completed') {
+            stateClass = 'border-emerald-500 text-emerald-400 bg-emerald-500/10 font-bold';
+            icon = '✓';
+          } else if (step.state === 'in-progress') {
+            stateClass = 'border-cyan-500 text-cyan-300 bg-cyan-500/20 font-extrabold animate-pulse';
+            icon = '●';
+          } else if (step.state === 'cancelled') {
+            stateClass = 'border-rose-500 text-rose-400 bg-rose-500/10';
+            icon = '✕';
+          } else {
+            stateClass = 'border-slate-700 text-slate-500 bg-slate-900';
+            icon = String(step.step);
+          }
+          return `
+            <div class="flex-1 min-w-[120px] text-center space-y-1">
+              <div class="w-7 h-7 mx-auto rounded-full flex items-center justify-center text-xs border ${stateClass}">
+                ${icon}
+              </div>
+              <div class="text-[11px] font-bold text-slate-200 leading-tight">${step.title_en}</div>
+              <div class="text-[10px] text-slate-400">${step.title_ar}</div>
+              ${step.time ? `<div class="text-[9px] font-mono text-slate-500">${step.time.substring(11, 16)}</div>` : ''}
+            </div>
+          `;
+        }).join('<div class="hidden sm:block w-6 h-[2px] bg-slate-700 mt-3.5"></div>');
+
+        // Render Multi-Store Sub-Orders & Bosta AWB Manifests
+        const deliveriesHtml = deliveries.map(d => {
+          const packStatus = d.packaging_status === 'READY_FOR_COURIER_PICKUP'
+            ? '<span class="text-emerald-400 font-bold">📦 Packed & Ready for Pickup</span>'
+            : '<span class="text-amber-400 font-bold">⏳ Store Packaging in Progress</span>';
+
+          const courierStatus = d.courier_status === 'DELIVERED'
+            ? '<span class="text-emerald-400 font-bold">✅ Delivered to Client</span>'
+            : (d.courier_status === 'OUT_FOR_DELIVERY'
+              ? '<span class="text-purple-400 font-bold">🚚 Out for Delivery</span>'
+              : (d.courier_status === 'PICKED_UP_FROM_STORE'
+                ? '<span class="text-indigo-400 font-bold">🚛 Picked Up & In Transit</span>'
+                : '<span class="text-slate-400">Scheduled for Pickup</span>'));
+
+          const awbLink = d.courier_tracking_id
+            ? `<a href="/mock-dashboard#bosta" target="_blank" class="font-mono font-bold text-cyan-400 hover:text-cyan-300 underline inline-flex items-center gap-1">${d.courier_tracking_id} ↗</a>`
+            : '<span class="font-mono text-slate-500">Generating AWB...</span>';
+
+          return `
+            <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+              <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-base">🏪</span>
+                  <span class="font-extrabold text-slate-100">${d.store_name}</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-400">Origin: ${d.pickup_governorate}</span>
+                </div>
+                <div class="text-xs">
+                  <span class="text-slate-400">Bosta Waybill (AWB):</span> ${awbLink}
+                </div>
+              </div>
+              <div class="grid sm:grid-cols-2 gap-2 text-[11px]">
+                <div><strong>Merchant Packaging:</strong> ${packStatus}</div>
+                <div><strong>3PL Courier Status:</strong> ${courierStatus}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Render Items List
+        const itemsHtml = items.map(item => `
+          <div class="flex items-center justify-between text-xs py-1.5 border-b border-slate-800/60 last:border-0">
+            <div class="flex items-center gap-2.5">
+              <span class="text-base">🛍️</span>
+              <div>
+                <span class="font-bold text-slate-200">${item.product_name}</span>
+                <span class="text-[11px] text-slate-400 ml-1.5">(${item.store_name || 'Partner Store'})</span>
+              </div>
+            </div>
+            <div class="font-mono text-slate-300">
+              ${item.quantity} × ${formatEGP(item.unit_price_egp)} = <strong class="text-emerald-400">${formatEGP(item.line_total_egp)}</strong>
+            </div>
+          </div>
+        `).join('');
+
+        return `
+          <div class="glass rounded-2xl p-5 border border-slate-800 space-y-5 transition hover:border-slate-700 shadow-md">
+
+            <!-- Order Header Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2.5">
+                  <span class="text-base font-black font-mono text-slate-100">#${order.order_number}</span>
+                  <span class="text-xs px-2.5 py-0.5 rounded-full font-bold uppercase ${orderStatusClass}">${order.order_status}</span>
+                  ${isClosed ? '<span class="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold">Closed Archive</span>' : '<span class="text-[10px] px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-bold animate-pulse">Active Shipment</span>'}
+                </div>
+                <div class="text-xs text-slate-400 flex flex-wrap items-center gap-2">
+                  <span>📅 ${order.created_at || 'Just now'}</span>
+                  <span>•</span>
+                  <span>${channelIcon}</span>
+                  <span>•</span>
+                  <span>Stores: <strong class="text-amber-400">${order.stores_summary || 'Partner Store'}</strong></span>
+                </div>
+              </div>
+
+              <!-- Price & Payment Summary -->
+              <div class="text-right space-y-0.5">
+                <div class="text-lg font-black font-mono text-emerald-400">${formatEGP(order.total_egp)}</div>
+                <div class="text-xs flex items-center justify-end gap-1.5">
+                  <span class="text-slate-300">${payLabel}</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded font-bold uppercase ${payStatusClass}">${order.payment_status}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Milestone Progress Banner -->
+            <div class="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2.5">
+              <div class="flex items-center justify-between text-xs">
+                <div class="font-extrabold text-slate-200 flex items-center gap-2">
+                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-${statusColor}-400"></span>
+                  <span>Status: ${stageEn}</span>
+                  <span class="text-slate-400 font-normal">(${stageAr})</span>
+                </div>
+                <div class="font-mono font-bold text-slate-300">${progressPct}% Complete</div>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div class="bg-gradient-to-r from-emerald-500 via-cyan-500 to-indigo-500 h-2 rounded-full transition-all duration-500" style="width: ${progressPct}%"></div>
+              </div>
+              <div class="flex flex-wrap items-center justify-between pt-2 gap-2">
+                ${stepperHtml}
+              </div>
+            </div>
+
+            <!-- Partner Store Sub-Manifests & Bosta AWBs -->
+            <div class="space-y-2">
+              <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Partner Store Fulfillment & Waybills (${deliveries.length} Package Origin(s)):</div>
+              <div class="space-y-2">${deliveriesHtml}</div>
+            </div>
+
+            <!-- Itemized Products in this Order -->
+            <div class="space-y-1.5 p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/80">
+              <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Purchased Items (${items.length} Product Line(s)):</div>
+              ${itemsHtml}
+              <div class="pt-2 mt-1 border-t border-slate-800 text-[11px] text-slate-400 flex flex-wrap justify-between gap-2">
+                <div>Delivery to: <strong>${order.customer_name}</strong> • 📞 <strong>${order.customer_phone}</strong> (${order.area_street}, ${order.governorate})</div>
+                <div>Subtotal: <strong>${formatEGP(order.subtotal_egp)}</strong> • Delivery: <strong>${formatEGP(order.shipping_fee_egp)}</strong></div>
+              </div>
+            </div>
+
+            <!-- Action Buttons Footer -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
+              <div class="flex flex-wrap items-center gap-2">
+                <button onclick="openInvoiceModal('${order.order_number}')" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white btn-solid-white transition flex items-center gap-1.5 shadow-sm">
+                  <span>📄</span> <span>View / Print Tax Invoice</span>
+                </button>
+                <button onclick="openSupportChatForOrder('${order.order_number}')" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white transition flex items-center gap-1.5 shadow-sm">
+                  <span>💬</span> <span>Inquire with Support</span>
+                </button>
+                <button onclick="reorderItems('${order.order_number}')" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+                  <span>🔁</span> <span>Reorder Items</span>
+                </button>
+              </div>
+              <div class="text-xs text-slate-400 font-mono">
+                Order Ref: ${order.order_number}
+              </div>
+            </div>
+
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openInvoiceModal(orderNumber) {
+      const allOrders = STATE.orders || [];
+      const order = allOrders.find(o => o.order_number === orderNumber || String(o.id) === String(orderNumber));
+      if (!order) {
+        alert('Order not found');
+        return;
+      }
+      ACTIVE_INVOICE_ORDER = order;
+
+      const modal = document.getElementById('invoiceModal');
+      const title = document.getElementById('invModalTitle');
+      const body = document.getElementById('invoiceModalBody');
+
+      title.textContent = `Tax Invoice #${order.order_number}`;
+
+      const items = order.items || [];
+      const deliveries = order.deliveries || [];
+
+      const itemsRowsHtml = items.map((it, idx) => `
+        <tr class="border-b border-slate-800 text-slate-300">
+          <td class="py-2 px-2 text-center font-mono text-slate-500">${idx + 1}</td>
+          <td class="py-2 px-3 font-semibold text-slate-100">${it.product_name}</td>
+          <td class="py-2 px-3 text-slate-400">${it.store_name || 'Partner Store'}</td>
+          <td class="py-2 px-2 text-center font-mono">${it.quantity}</td>
+          <td class="py-2 px-3 text-right font-mono">${formatEGP(it.unit_price_egp)}</td>
+          <td class="py-2 px-3 text-right font-mono font-bold text-emerald-400">${formatEGP(it.line_total_egp)}</td>
+        </tr>
+      `).join('');
+
+      const awbsHtml = deliveries.map(d =>
+        `<span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-cyan-400">${d.store_name}: ${d.courier_tracking_id || 'BOS-PENDING'}</span>`
+      ).join(' ');
+
+      body.innerHTML = `
+        <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 grid sm:grid-cols-2 gap-4 text-xs">
+          <div>
+            <div class="text-[11px] font-bold uppercase text-slate-400">Invoice Billed To:</div>
+            <div class="text-sm font-extrabold text-slate-100 mt-1">${order.customer_name}</div>
+            <div class="text-slate-300 font-mono">📞 ${order.customer_phone}</div>
+            <div class="text-slate-400 mt-0.5">${order.area_street}, ${order.governorate}</div>
+          </div>
+          <div class="sm:text-right space-y-1">
+            <div><strong>Invoice No:</strong> <span class="font-mono text-indigo-400 font-bold">INV-${order.order_number}</span></div>
+            <div><strong>Date & Time:</strong> <span class="font-mono text-slate-300">${order.created_at || 'Today'}</span></div>
+            <div><strong>Payment Method:</strong> <span class="text-slate-300">${order.payment_method} (${order.payment_status})</span></div>
+            <div><strong>Order Status:</strong> <span class="font-bold uppercase text-emerald-400">${order.order_status}</span></div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-800">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-900 text-[11px] font-bold uppercase text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="py-2 px-2 text-center">#</th>
+                <th class="py-2 px-3">Item Description</th>
+                <th class="py-2 px-3">Store Origin</th>
+                <th class="py-2 px-2 text-center">Qty</th>
+                <th class="py-2 px-3 text-right">Unit Price</th>
+                <th class="py-2 px-3 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsRowsHtml}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-wrap justify-between items-center gap-4 text-xs">
+          <div class="space-y-1">
+            <div class="text-[11px] font-bold uppercase text-slate-400">Bosta 3PL Tracking Manifests:</div>
+            <div class="flex flex-wrap gap-1.5 text-xs">${awbsHtml}</div>
+          </div>
+          <div class="space-y-1 min-w-[200px]">
+            <div class="flex justify-between text-slate-400"><span>Goods Subtotal:</span><span class="font-mono font-semibold">${formatEGP(order.subtotal_egp)}</span></div>
+            <div class="flex justify-between text-cyan-400"><span>Egypt VAT (14% Inclusive):</span><span class="font-mono font-semibold">${formatEGP(order.vat_amount_egp || 0)}</span></div>
+            <div class="flex justify-between text-slate-400"><span>Bosta 3PL Delivery Fee:</span><span class="font-mono font-semibold">${formatEGP(order.shipping_fee_egp)}</span></div>
+            ${order.cod_fee_egp > 0 ? `<div class="flex justify-between text-amber-400"><span>COD Collection Fee:</span><span class="font-mono font-semibold">+${formatEGP(order.cod_fee_egp)}</span></div>` : ''}
+            <div class="flex justify-between font-extrabold text-sm pt-2 border-t border-slate-800">
+              <span class="text-slate-100">Total Invoice Amount:</span>
+              <span class="font-mono text-emerald-400 text-base">${formatEGP(order.total_egp)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-[10px] text-slate-500 text-center leading-relaxed">
+          NileConnect E-Commerce Facilitator LLC • Tax Registration No: 492-817-309 • Commercial Register: 184920.<br/>
+          Electronic commercial invoice generated under Egypt E-Commerce Law No. 151/2020 & Value Added Tax Law No. 67/2016.
+        </div>
+      `;
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeInvoiceModal() {
+      const modal = document.getElementById('invoiceModal');
+      if (modal) modal.classList.add('hidden');
+      ACTIVE_INVOICE_ORDER = null;
+    }
+
+    function printOfficialInvoice() {
+      window.print();
+    }
+
+    function openSupportChatForOrder(orderNumber) {
+      const drawer = document.getElementById('clientSupportDrawer');
+      if (drawer.classList.contains('hidden')) {
+        drawer.classList.remove('hidden');
+      }
+      document.getElementById('clientChatThreadSelect').value = 'new';
+      renderClientSupportDrawer();
+      const subjInput = document.getElementById('chatSubject');
+      if (subjInput) subjInput.value = `Inquiry regarding Order #${orderNumber}`;
+      const msgInput = document.getElementById('chatInitialMsg');
+      if (msgInput) {
+        msgInput.value = `Hello NileConnect Support, I have an inquiry regarding my order #${orderNumber}: `;
+        msgInput.focus();
+      }
+      showToast(`💬 Support drawer opened for Order #${orderNumber}`);
+    }
+
+    async function reorderItems(orderNumber) {
+      const allOrders = STATE.orders || [];
+      const order = allOrders.find(o => o.order_number === orderNumber || String(o.id) === String(orderNumber));
+      if (!order || !order.items || order.items.length === 0) {
+        alert('No items found in this order to reorder.');
+        return;
+      }
+      CART = order.items.map(it => ({
+        product_id: it.product_id,
+        quantity: it.quantity
+      }));
+      await recalcCart();
+      switchTab('storefront');
+      showToast(`🛒 Reorder added! ${CART.length} product(s) loaded into your cart.`);
+    }
+
   </script>
 </body>
 </html>
