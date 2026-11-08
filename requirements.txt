@@ -1,0 +1,1 @@
+# Zero external third-party dependencies required (uses Python 3.12 standard library sqlite3, hmac, hashlib, http.server)

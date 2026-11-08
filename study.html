@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Egypt E-Commerce Study — Gateways, iOS/Android Apps & 1st-Year Financial Liability</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      scroll-behavior: smooth;
+    }
+    .glass {
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+    }
+    html:not(.dark) .glass {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(203, 213, 225, 0.85);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+    }
+    .mermaid-box {
+      background: #0f172a;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      overflow-x: auto;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+    html:not(.dark) .mermaid-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+    }
+    .tab-btn.active {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+      border-color: transparent;
+      box-shadow: 0 4px 15px rgba(79, 70, 229, 0.35);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 transition-colors duration-200">
+
+  <!-- Sticky Top Navigation -->
+  <header class="sticky top-0 z-50 glass border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 via-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg">
+          EG
+        </div>
+        <div>
+          <span class="font-bold text-base sm:text-lg tracking-tight">Egypt E-Commerce Study</span>
+          <span class="hidden sm:inline-block ml-2 text-xs font-mono uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Gateways + Mobile Apps + Year-1 Liability</span>
+        </div>
+      </div>
+      <nav class="hidden xl:flex items-center gap-5 text-xs font-medium text-slate-300">
+        <a href="#top5" class="hover:text-emerald-400 transition">1. New Top 5</a>
+        <a href="#mobileapps" class="hover:text-emerald-400 transition">2. iOS & Play Store</a>
+        <a href="#liability" class="hover:text-emerald-400 transition">3. Year-1 Liability (EGP)</a>
+        <a href="#gateways" class="hover:text-emerald-400 transition">4. Egypt Gateways</a>
+        <a href="#architectures" class="hover:text-emerald-400 transition">5. Architectures & Flows</a>
+      </nav>
+      <div class="flex items-center gap-2">
+        <a href="http://localhost:4000" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/40 transition flex items-center gap-1.5">
+          🚀 Launch Interactive PoC (Port 4000)
+        </a>
+        <button id="themeToggle" onclick="toggleTheme()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          ☀️ / 🌙 Theme
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Banner -->
+  <section class="relative overflow-hidden py-12 border-b border-slate-800/60">
+    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/30 via-emerald-950/20 to-transparent pointer-events-none"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+      <div class="max-w-4xl">
+        <div class="flex flex-wrap gap-2 mb-4">
+          <span class="px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">1. Egypt & Local Gateways 🇪🇬</span>
+          <span class="px-3 py-1 rounded-full text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">2. Apple App Store & Google Play 📱</span>
+          <span class="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">3. 1st-Year Money Liability 💰</span>
+        </div>
+        <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight mb-4">
+          Recalculated for <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-indigo-400 to-amber-400">Egypt Gateways, Mobile Apps & Year-1 Liability</span>
+        </h1>
+        <p class="text-slate-400 text-base sm:text-lg leading-relaxed">
+          When you require <strong>both iOS & Android apps</strong> plus <strong>Egyptian payment gateways (Paymob, Kashier, Fawry, valU, COD)</strong> while minimizing <strong>1st-Year Financial Liability</strong>, SaaS platforms like Shopify become a massive USD cash drain (charging $150–$400/mo for mobile app builders + 1%–2% penalty fees), propelling <strong>WooCommerce + Flutter</strong> and <strong>Medusa.js 2.0 + Flutter</strong> to the #1 and #2 positions.
+        </p>
+      </div>
+
+      <!-- Recalculated Top 5 KPI Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-8">
+        <a href="#top5" class="glass p-4 rounded-xl border-l-4 border-l-purple-500 hover:border-purple-400 transition">
+          <div class="text-xs font-mono text-purple-400 mb-1">#1 Best Low Liability</div>
+          <div class="font-bold text-base">WooCommerce + Flutter</div>
+          <div class="text-xs text-emerald-400 mt-1 font-mono">Yr-1: ~49k–114k EGP</div>
+        </a>
+        <a href="#top5" class="glass p-4 rounded-xl border-l-4 border-l-indigo-500 hover:border-indigo-400 transition">
+          <div class="text-xs font-mono text-indigo-400 mb-1">#2 Best Custom Tech</div>
+          <div class="font-bold text-base">Medusa 2.0 + Flutter</div>
+          <div class="text-xs text-emerald-400 mt-1 font-mono">Yr-1: ~120k–250k EGP</div>
+        </a>
+        <a href="#top5" class="glass p-4 rounded-xl border-l-4 border-l-rose-500 hover:border-rose-400 transition">
+          <div class="text-xs font-mono text-rose-400 mb-1">#3 High USD Drain (↓)</div>
+          <div class="font-bold text-base">Shopify + App Builder</div>
+          <div class="text-xs text-rose-400 mt-1 font-mono">Yr-1: ~219k–384k+ EGP</div>
+        </a>
+        <a href="#top5" class="glass p-4 rounded-xl border-l-4 border-l-amber-500 hover:border-amber-400 transition">
+          <div class="text-xs font-mono text-amber-400 mb-1">#4 Local MENA SaaS</div>
+          <div class="font-bold text-base">ExpandCart *(No Wuilt App)*</div>
+          <div class="text-xs text-amber-300 mt-1 font-mono">Yr-1: ~77k–142k EGP</div>
+        </a>
+        <a href="#top5" class="glass p-4 rounded-xl border-l-4 border-l-orange-500 hover:border-orange-400 transition col-span-2 sm:col-span-1">
+          <div class="text-xs font-mono text-orange-400 mb-1">#5 Retail Chain ERP</div>
+          <div class="font-bold text-base">Odoo / Magento</div>
+          <div class="text-xs text-rose-400 mt-1 font-mono">Yr-1: ~386k–1.5M+ EGP</div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-20">
+
+    <!-- SECTION 1: RECALCULATED TOP 5 UNDER ALL 3 CONSTRAINTS -->
+    <section id="top5" class="scroll-mt-20">
+      <div class="mb-6">
+        <span class="text-xs font-mono uppercase tracking-wider text-emerald-400">Aspect 01 — Combined 3-Constraint Ranking</span>
+        <h2 class="text-2xl sm:text-3xl font-bold mt-1">Top 5 Solutions Recalculated (Egypt + Mobile Apps + 1st-Year Liability)</h2>
+      </div>
+
+      <div class="glass rounded-2xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-800 bg-slate-900/60 text-xs font-mono uppercase text-slate-400">
+                <th class="py-4 px-4">New Rank</th>
+                <th class="py-4 px-4">Platform + Mobile Stack</th>
+                <th class="py-4 px-4">iOS & Play Store Approach</th>
+                <th class="py-4 px-4">1st-Year Liability (EGP)</th>
+                <th class="py-4 px-4">Why It Ranks Here</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60">
+              <tr class="hover:bg-slate-800/30">
+                <td class="py-4 px-4 font-mono font-bold text-purple-400">#1 Winner</td>
+                <td class="py-4 px-4 font-bold">WooCommerce + Flutter App (FluxStore / Cirilla)</td>
+                <td class="py-4 px-4 text-xs text-slate-300">Ready Flutter template ($79 one-time) + Paymob Native Flutter SDK</td>
+                <td class="py-4 px-4 font-mono text-xs text-emerald-400 font-bold">~49,200 – 114,200 EGP<br><span class="text-slate-400 font-normal">(Yr-2+: ~24k EGP/yr)</span></td>
+                <td class="py-4 px-4 text-xs text-slate-300"><strong>Lowest Year-1 Liability in Egypt.</strong> $0/mo platform fee, $0/mo mobile app fee, 0% transaction penalty, and 100% support for Paymob, Fawry, valU & Bosta.</td>
+              </tr>
+              <tr class="hover:bg-slate-800/30">
+                <td class="py-4 px-4 font-mono font-bold text-indigo-400">#2 (↑ from #4)</td>
+                <td class="py-4 px-4 font-bold">Medusa.js 2.0 + Next.js + Custom Flutter / RN</td>
+                <td class="py-4 px-4 text-xs text-slate-300">100% API-First Headless; Web & Mobile share identical `/store/*` APIs</td>
+                <td class="py-4 px-4 font-mono text-xs text-emerald-400 font-bold">~120,200 – 250,200 EGP<br><span class="text-slate-400 font-normal">(Yr-2+: ~30k EGP/yr)</span></td>
+                <td class="py-4 px-4 text-xs text-slate-300"><strong>Best Custom Engineering & Scalability.</strong> Zero USD SaaS fees forever, native Paymob Mobile SDK (Apple Pay + Wallets + valU), and clean Fawry 24h stock-hold workflows.</td>
+              </tr>
+              <tr class="hover:bg-slate-800/30">
+                <td class="py-4 px-4 font-mono font-bold text-rose-400">#3 (↓ from #2)</td>
+                <td class="py-4 px-4 font-bold">Shopify + SaaS App Builder (Shopney / Vajro)</td>
+                <td class="py-4 px-4 text-xs text-slate-300">Paid SaaS Mobile Builder ($150–$400/mo) + Forced WebView Checkout</td>
+                <td class="py-4 px-4 font-mono text-xs text-rose-400 font-bold">~219,200 – 384,200 EGP<br><span class="text-slate-400 font-normal">(Yr-2+: ~204k+ EGP/yr)</span></td>
+                <td class="py-4 px-4 text-xs text-slate-300"><strong>Heavy Recurring USD Liability Trap.</strong> Paying for Shopify + Mobile App Builder ($1,800–$3,600/yr) + 1%–2% penalty on all Egyptian sales drains cash every year.</td>
+              </tr>
+              <tr class="hover:bg-slate-800/30">
+                <td class="py-4 px-4 font-mono font-bold text-amber-400">#4 (Local SaaS)</td>
+                <td class="py-4 px-4 font-bold">ExpandCart *(Wuilt excluded: no native app)*</td>
+                <td class="py-4 px-4 text-xs text-slate-300">ExpandCart white-label iOS/Android app add-on</td>
+                <td class="py-4 px-4 font-mono text-xs text-amber-300 font-bold">~77,200 – 142,200 EGP<br><span class="text-slate-400 font-normal">(Yr-2+: ~67k EGP/yr)</span></td>
+                <td class="py-4 px-4 text-xs text-slate-300">Good for non-technical Egyptian merchants wanting one local vendor, though mobile app UX and customizability are rigid. *(Wuilt has no native mobile app).*</td>
+              </tr>
+              <tr class="hover:bg-slate-800/30">
+                <td class="py-4 px-4 font-mono font-bold text-orange-400">#5 (Enterprise)</td>
+                <td class="py-4 px-4 font-bold">Odoo E-Commerce / Adobe Commerce (Magento)</td>
+                <td class="py-4 px-4 text-xs text-slate-300">Enterprise Flutter App integrated with Branch POS & Loyalty</td>
+                <td class="py-4 px-4 font-mono text-xs text-rose-400 font-bold">~386,200 – 1.5M+ EGP<br><span class="text-slate-400 font-normal">(Yr-2+: ~186k+ EGP/yr)</span></td>
+                <td class="py-4 px-4 text-xs text-slate-300">Only justified for multi-branch retail chains needing ERP accounting, physical POS sync, and live <strong>Egyptian Tax Authority (ETA) E-Receipts</strong>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: APPLE APP STORE & GOOGLE PLAY MOBILE APP MATRIX -->
+    <section id="mobileapps" class="scroll-mt-20">
+      <div class="mb-6">
+        <span class="text-xs font-mono uppercase tracking-wider text-indigo-400">Requirement 02 — Apple App Store & Google Play Store</span>
+        <h2 class="text-2xl sm:text-3xl font-bold mt-1">Mobile App Capabilities & Egyptian In-App Payment Experience</h2>
+        <p class="text-sm text-slate-400 mt-1">Physical goods are <strong>exempt from Apple's 30% IAP fee</strong>—so you can use Paymob, Kashier, Fawry, Apple Pay, valU & COD directly inside your iOS and Android apps!</p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-6 mb-8">
+        <div class="glass p-5 rounded-xl border-t-2 border-t-emerald-500">
+          <div class="text-xs font-mono text-emerald-400 mb-1">APPLE & GOOGLE STORE FEES</div>
+          <div class="font-bold text-base mb-1">$99/yr Apple + $25 Once Google</div>
+          <p class="text-xs text-slate-300 leading-relaxed">Total mandatory store developer account fee is just <strong>~6,200 EGP in Year 1</strong> (~4,950 EGP/yr thereafter), with <strong>0% Apple/Google commission</strong> on physical retail orders.</p>
+        </div>
+        <div class="glass p-5 rounded-xl border-t-2 border-t-indigo-500">
+          <div class="text-xs font-mono text-indigo-400 mb-1">NATIVE SDK vs WEBVIEW CHECKOUT</div>
+          <div class="font-bold text-base mb-1">Paymob Flutter/RN SDK Wins</div>
+          <p class="text-xs text-slate-300 leading-relaxed"><strong>WooCommerce</strong> & <strong>Medusa 2.0</strong> let you trigger <strong>Paymob's Native Flutter/React Native SDK</strong> (including 1-tap Apple Pay & Vodafone Cash) inside the app. <strong>Shopify</strong> forces users out into a slow WebView browser.</p>
+        </div>
+        <div class="glass p-5 rounded-xl border-t-2 border-t-rose-500">
+          <div class="text-xs font-mono text-rose-400 mb-1">APPLE GUIDELINE 4.2 REJECTION RISK</div>
+          <div class="font-bold text-base mb-1">Never Use Basic WebView Wrappers</div>
+          <p class="text-xs text-slate-300 leading-relaxed">Apple rejects cheap WebView wrappers of websites. Using <strong>Flutter (FluxStore for WooCommerce or Custom Flutter for Medusa)</strong> compiles to 100% native ARM code and passes App Store review smoothly.</p>
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-800 bg-slate-900/60 text-xs font-mono uppercase text-slate-400">
+                <th class="py-3.5 px-4">Mobile App Criterion</th>
+                <th class="py-3.5 px-4 text-purple-400">1. WooCommerce + Flutter</th>
+                <th class="py-3.5 px-4 text-indigo-400">2. Medusa.js 2.0 + Flutter</th>
+                <th class="py-3.5 px-4 text-rose-400">3. Shopify + App Builder</th>
+                <th class="py-3.5 px-4 text-amber-400">4. ExpandCart / Wuilt</th>
+                <th class="py-3.5 px-4 text-orange-400">5. Odoo / Magento</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-xs">
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">Mobile Tech Stack</td>
+                <td class="py-3.5 px-4 text-slate-300">Flutter (FluxStore/Cirilla $79 template or custom)</td>
+                <td class="py-3.5 px-4 text-slate-300">Custom Flutter or React Native (Expo) over REST API</td>
+                <td class="py-3.5 px-4 text-slate-300">SaaS Builder (Shopney / Vajro / Tapcart)</td>
+                <td class="py-3.5 px-4 text-slate-300">ExpandCart White-Label App *(Wuilt = ❌ No App)*</td>
+                <td class="py-3.5 px-4 text-slate-300">Custom Enterprise Flutter / React Native</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">Monthly Mobile App SaaS Fee</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-bold">$0 / month (100% Owned)</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-bold">$0 / month (100% Owned)</td>
+                <td class="py-3.5 px-4 text-rose-400 font-bold">$150 – $400+ / monthForever</td>
+                <td class="py-3.5 px-4 text-amber-300">~$40 – $80 / month (Bundled/Add-on)</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-bold">$0 / month (Owned Code)</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">Paymob / Apple Pay / valU Checkout in App</td>
+                <td class="py-3.5 px-4 text-emerald-300">✅ Native In-App SDK + Apple Pay</td>
+                <td class="py-3.5 px-4 text-emerald-300">✅ 100% Native SDK + Apple Pay + Fawry Hold</td>
+                <td class="py-3.5 px-4 text-amber-300">⚠️ Forced WebView Redirect (`checkoutUrl`)</td>
+                <td class="py-3.5 px-4 text-amber-300">⚠️ In-App WebView Redirect</td>
+                <td class="py-3.5 px-4 text-emerald-300">✅ Native SDK</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">Push Notifications (Promos & Order Tracking)</td>
+                <td class="py-3.5 px-4 text-emerald-300">✅ Free via Firebase FCM / OneSignal</td>
+                <td class="py-3.5 px-4 text-emerald-300">✅ Free via Firebase FCM Module</td>
+                <td class="py-3.5 px-4 text-slate-300">Included in paid $150+/mo builder plan</td>
+                <td class="py-3.5 px-4 text-slate-300">Included in mobile plan</td>
+                <td class="py-3.5 px-4 text-emerald-300">✅ Free via Firebase FCM</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: 1ST-YEAR OPERATIONS MONEY LIABILITY CALCULATOR & TABLE -->
+    <section id="liability" class="scroll-mt-20">
+      <div class="mb-6">
+        <span class="text-xs font-mono uppercase tracking-wider text-amber-400">Requirement 03 — 1st-Year Operations Financial Liability</span>
+        <h2 class="text-2xl sm:text-3xl font-bold mt-1">Interactive 1st-Year Money Liability Calculator (EGP & USD)</h2>
+        <p class="text-sm text-slate-400 mt-1">Adjust your projected Year-1 sales volume below to see how Shopify's 3rd-party gateway penalty + mobile app subscription compares against owning your stack.</p>
+      </div>
+
+      <!-- Interactive Slider Box -->
+      <div class="glass rounded-2xl p-6 mb-8 border border-indigo-500/30">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div>
+            <label for="gmvSlider" class="text-sm font-semibold text-slate-200 block">Projected 1st-Year Gross Sales (GMV) in EGP:</label>
+            <span class="text-xs text-slate-400">Includes all COD, Paymob, Kashier, Fawry & valU orders across Web + Mobile Apps (1 USD ≈ 50 EGP)</span>
+          </div>
+          <div class="text-right">
+            <span id="gmvDisplay" class="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400">5,000,000 EGP / yr</span>
+            <div id="monthlyDisplay" class="text-xs font-mono text-slate-400">(~416,667 EGP / month)</div>
+          </div>
+        </div>
+
+        <input id="gmvSlider" type="range" min="1000000" max="25000000" step="500000" value="5000000" oninput="updateLiability()" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 mb-6" />
+
+        <!-- Dynamic Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div class="bg-slate-900/90 border border-purple-500/30 rounded-xl p-4">
+            <div class="text-xs font-mono text-purple-400">1. WooCommerce + Flutter</div>
+            <div id="calc-woo" class="text-xl font-bold font-mono text-emerald-400 mt-1">79,200 EGP</div>
+            <div class="text-[11px] text-slate-400 mt-1">0 EGP GMV Tax • $0/mo App Fee</div>
+            <div class="text-[11px] font-mono text-purple-300 mt-2">Yr-2 Fixed: ~24,200 EGP/yr</div>
+          </div>
+          <div class="bg-slate-900/90 border border-indigo-500/30 rounded-xl p-4">
+            <div class="text-xs font-mono text-indigo-400">2. Medusa 2.0 + Flutter</div>
+            <div id="calc-medusa" class="text-xl font-bold font-mono text-emerald-400 mt-1">170,200 EGP</div>
+            <div class="text-[11px] text-slate-400 mt-1">0 EGP GMV Tax • $0/mo App Fee</div>
+            <div class="text-[11px] font-mono text-indigo-300 mt-2">Yr-2 Fixed: ~30,200 EGP/yr</div>
+          </div>
+          <div class="bg-slate-900/90 border border-rose-500/40 rounded-xl p-4">
+            <div class="text-xs font-mono text-rose-400">3. Shopify + App Builder</div>
+            <div id="calc-shopify" class="text-xl font-bold font-mono text-rose-400 mt-1">259,200 EGP</div>
+            <div id="calc-shopify-tax" class="text-[11px] text-rose-300 mt-1">Includes 75,000 EGP Penalty Tax</div>
+            <div class="text-[11px] font-mono text-rose-400 mt-2">Yr-2+: ~229,200+ EGP/yr</div>
+          </div>
+          <div class="bg-slate-900/90 border border-amber-500/30 rounded-xl p-4">
+            <div class="text-xs font-mono text-amber-400">4. ExpandCart (w/ App)</div>
+            <div id="calc-expand" class="text-xl font-bold font-mono text-amber-300 mt-1">102,200 EGP</div>
+            <div class="text-[11px] text-slate-400 mt-1">SaaS + White-Label Mobile App</div>
+            <div class="text-[11px] font-mono text-amber-300 mt-2">Yr-2 Fixed: ~67,200 EGP/yr</div>
+          </div>
+          <div class="bg-slate-900/90 border border-orange-500/30 rounded-xl p-4">
+            <div class="text-xs font-mono text-orange-400">5. Odoo / Magento ERP</div>
+            <div id="calc-magento" class="text-xl font-bold font-mono text-rose-400 mt-1">536,200 EGP</div>
+            <div class="text-[11px] text-slate-400 mt-1">Full ERP + POS + ETA Tax + App</div>
+            <div class="text-[11px] font-mono text-orange-300 mt-2">Yr-2 Fixed: ~186,200 EGP/yr</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Line-Item Table -->
+      <div class="glass rounded-2xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-800 bg-slate-900/60 text-xs font-mono uppercase text-slate-400">
+                <th class="py-4 px-4">1st-Year Liability Line Item</th>
+                <th class="py-4 px-4 text-purple-400">1. WooCommerce + Flutter</th>
+                <th class="py-4 px-4 text-indigo-400">2. Medusa.js 2.0 + Flutter</th>
+                <th class="py-4 px-4 text-rose-400">3. Shopify + App Builder</th>
+                <th class="py-4 px-4 text-amber-400">4. ExpandCart + App</th>
+                <th class="py-4 px-4 text-orange-400">5. Odoo / Magento</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-xs">
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">A. Core Platform Subscription (12 Months)</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-mono">0 EGP ($0 Free)</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-mono">0 EGP ($0 MIT License)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~57,000 EGP ($95/mo Plan+Apps)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~45,000 EGP (Annual Tier)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~150,000+ EGP (ERP Licenses)</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">B. Cloud Server, DB & CDN Hosting (12 Months)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~18,000 EGP ($30/mo VPS)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~24,000 EGP ($40/mo Cloud)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~1,000 EGP (Domain Only)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~1,000 EGP (Domain Only)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~80,000+ EGP (Dedicated Cloud)</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">C. Mobile App Builder Subscription (12 Months)</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-mono">0 EGP ($0/mo Owned Code)</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-mono">0 EGP ($0/mo Owned Code)</td>
+                <td class="py-3.5 px-4 text-rose-400 font-mono font-bold">~90,000–180,000 EGP ($150–$300/mo)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~30,000 EGP (App Add-on)</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-mono">0 EGP (Owned Code)</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">D. Apple App Store ($99/yr) + Google Play ($25)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">6,200 EGP ($124)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">6,200 EGP ($124)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">6,200 EGP ($124)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">6,200 EGP ($124)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">6,200 EGP ($124)</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">E. Platform Penalty Tax on 5M EGP Sales *(Excl. Paymob fee)*</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-mono font-bold">0 EGP (0%)</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-mono font-bold">0 EGP (0%)</td>
+                <td class="py-3.5 px-4 text-rose-400 font-mono font-bold">50,000 – 100,000 EGP (1%–2% Tax!)</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-mono">0 EGP (on Pro/Ultimate)</td>
+                <td class="py-3.5 px-4 text-emerald-400 font-mono font-bold">0 EGP (0%)</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">F. One-Time Initial Setup / Dev CapEx (Web + Apps)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~25,000 – 90,000 EGP</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~90,000 – 220,000 EGP</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~15,000 – 40,000 EGP</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~10,000 – 30,000 EGP</td>
+                <td class="py-3.5 px-4 font-mono text-slate-300">~200,000 – 600,000+ EGP</td>
+              </tr>
+              <tr class="bg-slate-900/90 font-bold text-sm">
+                <td class="py-4 px-4">TOTAL 1ST-YEAR LIABILITY RANGE</td>
+                <td class="py-4 px-4 font-mono text-emerald-400">~49k – 114k EGP</td>
+                <td class="py-4 px-4 font-mono text-emerald-400">~120k – 250k EGP</td>
+                <td class="py-4 px-4 font-mono text-rose-400">~219k – 384k+ EGP</td>
+                <td class="py-4 px-4 font-mono text-amber-300">~77k – 142k EGP</td>
+                <td class="py-4 px-4 font-mono text-rose-400">~386k – 1.5M+ EGP</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: EGYPTIAN GATEWAYS MATRIX -->
+    <section id="gateways" class="scroll-mt-20">
+      <div class="mb-6">
+        <span class="text-xs font-mono uppercase tracking-wider text-emerald-400">Requirement 01 — Egyptian Payment Gateways & Couriers</span>
+        <h2 class="text-2xl sm:text-3xl font-bold mt-1">Egyptian Payment Rails Supported Across Web & Mobile Apps</h2>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="glass p-5 rounded-xl">
+          <div class="text-xs font-mono text-emerald-400 mb-1">CARDS, MEEZA & APPLE PAY</div>
+          <div class="font-bold text-base mb-1">Paymob / Kashier / PayTabs</div>
+          <p class="text-xs text-slate-300">Accepts domestic <strong>Meeza</strong> debit cards, Visa/Mastercard, and <strong>Apple Pay</strong> directly inside iOS apps and web checkouts (~2.2%–2.75% + 3 EGP).</p>
+        </div>
+        <div class="glass p-5 rounded-xl">
+          <div class="text-xs font-mono text-purple-400 mb-1">MOBILE WALLETS & INSTAPAY</div>
+          <div class="font-bold text-base mb-1">Vodafone Cash & InstaPay</div>
+          <p class="text-xs text-slate-300">Over 40M active Egyptian wallet users (Vodafone Cash, Orange, e& money, WE Pay) via Paymob/Kashier + custom <strong>InstaPay IPA/QR screenshot upload</strong>.</p>
+        </div>
+        <div class="glass p-5 rounded-xl">
+          <div class="text-xs font-mono text-amber-400 mb-1">KIOSK CASH & COD</div>
+          <div class="font-bold text-base mb-1">FawryPay + Bosta / Mylerz</div>
+          <p class="text-xs text-slate-300">Generates a 10-digit <strong>Fawry Reference Code</strong> (24–48h stock reservation) or verifies <strong>Cash on Delivery (COD)</strong> via automated WhatsApp OTP before dispatching Bosta/Mylerz.</p>
+        </div>
+        <div class="glass p-5 rounded-xl">
+          <div class="text-xs font-mono text-cyan-400 mb-1">BUY NOW, PAY LATER (BNPL)</div>
+          <div class="font-bold text-base mb-1">valU / Sympl / Souhoola</div>
+          <p class="text-xs text-slate-300">Crucial for orders &gt;1,500 EGP. Merchant receives <strong>100% upfront payout</strong> from valU/Sympl/Paymob while the customer pays in 3 to 60 monthly installments.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: UNIFIED WEB + MOBILE APP + EGYPT ARCHITECTURES & FLOWS -->
+    <section id="architectures" class="scroll-mt-20">
+      <div class="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
+        <div>
+          <span class="text-xs font-mono uppercase tracking-wider text-indigo-400">Aspects 04 & 05 — Web + iOS/Android + Egypt Gateways</span>
+          <h2 class="text-2xl sm:text-3xl font-bold mt-1">Technical Architectures & Unified Business Flowchart</h2>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="selectPlatform('all')" id="tab-all" class="tab-btn active px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-900 transition">Show All</button>
+          <button onclick="selectPlatform('woocommerce')" id="tab-woocommerce" class="tab-btn px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-900 transition">1. WooCommerce + Flutter</button>
+          <button onclick="selectPlatform('medusa')" id="tab-medusa" class="tab-btn px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-900 transition">2. Medusa 2.0 + Flutter</button>
+          <button onclick="selectPlatform('shopify')" id="tab-shopify" class="tab-btn px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-900 transition">3. Shopify + App Builder</button>
+        </div>
+      </div>
+
+      <div class="space-y-8">
+        <!-- Arch 1: WooCommerce + Flutter -->
+        <div class="diagram-card glass rounded-2xl p-6" data-platform="woocommerce">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-bold text-purple-300">1. WooCommerce + Flutter (iOS & Android) + Paymob/Fawry/Bosta Architecture</h3>
+            <span class="text-xs font-mono px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-300">#1 Lowest Year-1 Liability (~49k–114k EGP)</span>
+          </div>
+          <div class="mermaid-box">
+            <pre class="mermaid">
+flowchart TB
+    subgraph Clients["Egyptian Shopper Channels (Web + App Store + Play Store)"]
+        Web["WordPress / WooCommerce RTL Web Storefront"]
+        iOS["iOS App (Apple App Store - Flutter / FluxStore)"]
+        Android["Android App (Google Play Store - Flutter / FluxStore)"]
+    end
+
+    subgraph Edge["Cloudflare Cairo Edge & Caching"]
+        CDN["Cloudflare WAF + CDN + Redis Object Cache"]
+    end
+
+    subgraph Backend["WooCommerce Core (Cloud VPS ~30 USD/mo - 0% Tax)"]
+        REST["WC REST API + JWT Auth + Firebase Push Notification Module"]
+        Plugins["Official Plugins: Paymob / Kashier / Fawry / valU / Bosta"]
+        DB[("MySQL 8 (HPOS Custom Order Tables)")]
+    end
+
+    subgraph EgyptFintech["Egyptian Payment & Courier APIs"]
+        PaymobSDK["Paymob Native Flutter SDK (Cards, Meeza, Apple Pay, Wallets, valU)"]
+        FawryAPI["Fawry Reference Code API (24-48h Cash Kiosk)"]
+        BostaAPI["Bosta / Mylerz API (Auto AWB & COD Collection)"]
+    end
+
+    Web --> CDN
+    iOS --> CDN
+    Android --> CDN
+    CDN --> REST
+    REST --> Plugins
+    Plugins --> DB
+    iOS <-->|"Native In-App Payment Sheet"| PaymobSDK
+    Android <-->|"Native In-App Payment Sheet"| PaymobSDK
+    PaymobSDK -->|"HMAC Webhook"| Plugins
+    Plugins <--> FawryAPI
+    Plugins <--> BostaAPI
+            </pre>
+          </div>
+        </div>
+
+        <!-- Arch 2: Medusa 2.0 + Next.js + Flutter -->
+        <div class="diagram-card glass rounded-2xl p-6" data-platform="medusa">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-bold text-indigo-300">2. Medusa.js 2.0 + Next.js + Native Flutter/RN App Architecture</h3>
+            <span class="text-xs font-mono px-2.5 py-1 rounded bg-indigo-500/10 text-indigo-300">#2 Best Custom Tech & Multi-Vendor Architecture</span>
+          </div>
+          <div class="mermaid-box">
+            <pre class="mermaid">
+flowchart TB
+    subgraph Apps["Unified API-First Touchpoints (100% Code Ownership)"]
+        Next["Next.js 15 Web Storefront (Arabic RTL + English)"]
+        FlutteriOS["iOS Native App (Flutter / React Native on App Store)"]
+        FlutterAnd["Android Native App (Flutter / React Native on Play Store)"]
+    end
+
+    subgraph Medusa["Medusa 2.0 Node.js / TypeScript Runtime (0% GMV Tax)"]
+        StoreAPI["Unified /store/* REST API + JWT Customer Auth"]
+        Workflow["Medusa Saga Workflow Engine (Inventory Hold & Rollback)"]
+        PayMod["Egypt Payment Module (Paymob Intention + Fawry + Kashier)"]
+        ShipMod["Egypt Fulfillment Module (Bosta / Mylerz / Khazenly)"]
+        PushMod["Firebase FCM / APNs Push Notification Module"]
+    end
+
+    subgraph Infra["Cloud Infrastructure & Egyptian Providers"]
+        DB[("PostgreSQL + Redis")]
+        Paymob["Paymob Native Mobile SDK & Webhook API"]
+        Fawry["Fawry OTC Reference API"]
+        Bosta["Bosta / Mylerz Courier API"]
+    end
+
+    Next --> StoreAPI
+    FlutteriOS --> StoreAPI
+    FlutterAnd --> StoreAPI
+    StoreAPI --> Workflow
+    Workflow --> PayMod
+    Workflow --> ShipMod
+    Workflow --> PushMod
+    Workflow --> DB
+    FlutteriOS <-->|"Native Apple Pay / Card / Wallet SDK"| Paymob
+    FlutterAnd <-->|"Native Card / Wallet / valU SDK"| Paymob
+    Paymob -->|"Webhook Sync"| PayMod
+    PayMod <--> Fawry
+    ShipMod <--> Bosta
+            </pre>
+          </div>
+        </div>
+
+        <!-- Arch 3: Shopify + App Builder -->
+        <div class="diagram-card glass rounded-2xl p-6" data-platform="shopify">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-bold text-rose-300">3. Shopify + Paid Mobile App Builder Architecture (High USD Liability)</h3>
+            <span class="text-xs font-mono px-2.5 py-1 rounded bg-rose-500/10 text-rose-300">#3 High Recurring USD Cost (~219k–384k+ EGP/yr)</span>
+          </div>
+          <div class="mermaid-box">
+            <pre class="mermaid">
+flowchart TB
+    subgraph Touchpoints["Customer Channels"]
+        Liquid["Shopify Web Storefront"]
+        AppBuilder["Shopney / Tapcart iOS & Android Apps ($150-$400/mo)"]
+    end
+
+    subgraph ShopifyCore["Shopify Cloud (+0.6% to 2% Penalty Fee)"]
+        StorefrontAPI["Shopify Storefront GraphQL API"]
+        WebCheckout["Shopify Hosted WebView Checkout (checkoutUrl)"]
+    end
+
+    subgraph EgyptApps["External Redirect Gateways & Couriers"]
+        PaymobRedirect["Paymob / Kashier External Browser Redirect"]
+        Bosta["Bosta / Mylerz Shopify App"]
+    end
+
+    Liquid --> WebCheckout
+    AppBuilder --> StorefrontAPI
+    AppBuilder -->|"Forced In-App Browser WebView"| WebCheckout
+    WebCheckout -->|"External Redirect"| PaymobRedirect
+    PaymobRedirect -->|"Callback"| WebCheckout
+    WebCheckout --> Bosta
+            </pre>
+          </div>
+        </div>
+
+        <!-- Unified Master Flowchart -->
+        <div class="glass rounded-2xl p-6">
+          <h3 class="text-lg font-bold text-emerald-300 mb-3">5. Unified Egypt Business & Financial Flowchart (Web + iOS/Android + Local Gateways)</h3>
+          <div class="mermaid-box">
+            <pre class="mermaid">
+flowchart TD
+    Customer["Egyptian Customer Opens iOS App, Android App, or Web Store"] --> Browse["Browses Arabic/English Catalog & Receives Firebase Push Promo"]
+    Browse --> Cart["Adds Items to Unified Cart (Synced Across App & Web)"]
+    Cart --> PayChoice{"Selects Egyptian Payment Method in App/Web"}
+
+    PayChoice -->|"1. Apple Pay / Meeza / Visa / Wallet"| NativeSDK["Paymob Native Mobile SDK or Inline Web Iframe"]
+    PayChoice -->|"2. valU / Sympl / Souhoola BNPL"| BNPL["In-App BNPL Installment Approval (0% Store Risk)"]
+    PayChoice -->|"3. Fawry Kiosk Code"| FawryHold["App Displays 10-Digit Fawry Code + Push Reminder Before 24h Expiry"]
+    PayChoice -->|"4. Cash on Delivery (COD)"| WhatsAppOTP["Automated WhatsApp / Push OTP Confirms COD Order"]
+
+    NativeSDK --> OrderConfirmed["Order Confirmed in Backend (0% Apple/Google Fee on Physical Goods)"]
+    BNPL --> OrderConfirmed
+    FawryHold -->|"Paid at Kiosk"| OrderConfirmed
+    WhatsAppOTP --> OrderConfirmed
+
+    OrderConfirmed --> Courier["Auto-Dispatch AWB to Bosta / Mylerz + Live Push Tracking to Customer App"]
+    Courier --> Payout["Net EGP Settled to Egyptian Bank Account (Zero Platform Penalty on WooCommerce/Medusa)"]
+            </pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6: WINNER MONTHLY WORKLOAD & COST BREAKDOWN -->
+    <section id="workload" class="scroll-mt-20">
+      <div class="mb-6">
+        <span class="text-xs font-mono uppercase tracking-wider text-purple-400">#1 Winner Deep-Dive — Monthly Operating & Workload Cost</span>
+        <h2 class="text-2xl sm:text-3xl font-bold mt-1">WooCommerce + Flutter App: Expected Monthly Workload Cost in Egypt</h2>
+        <p class="text-sm text-slate-400 mt-1">Breakdown of Cloud Infrastructure, Developer Maintenance Hours, and Daily Store Operations across 3 growth stages (1 USD ≈ 50 EGP).</p>
+      </div>
+
+      <div class="glass rounded-2xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-800 bg-slate-900/60 text-xs font-mono uppercase text-slate-400">
+                <th class="py-4 px-4">Monthly Workload / Cost Layer</th>
+                <th class="py-4 px-4 text-emerald-400">Stage 1: Launch<br>(10–50 Orders/Day)</th>
+                <th class="py-4 px-4 text-indigo-400">Stage 2: Growth D2C<br>(50–250 Orders/Day)</th>
+                <th class="py-4 px-4 text-purple-400">Stage 3: High Scale<br>(250–1,000+ Orders/Day)</th>
+                <th class="py-4 px-4">What This Workload Covers</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-xs">
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">1. Cloud VPS + Redis + Daily Backups</td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">1,250 – 1,750 EGP/mo<br><span class="text-slate-400">($25 – $35/mo)</span></td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">3,000 – 4,500 EGP/mo<br><span class="text-slate-400">($60 – $90/mo)</span></td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">7,500 – 14,000 EGP/mo<br><span class="text-slate-400">($150 – $280/mo)</span></td>
+                <td class="py-3.5 px-4 text-slate-300">Cloud VPS (Hetzner / Cloudways), Nginx, PHP 8.3, MySQL 8 HPOS, Redis Object Cache & automated S3 backups.</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">2. Cloudflare CDN & WAF (Cairo PoP)</td>
+                <td class="py-3.5 px-4 font-mono text-emerald-400">0 EGP/mo (Free)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">1,250 EGP/mo ($25 Pro)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">1,250 – 2,500 EGP/mo</td>
+                <td class="py-3.5 px-4 text-slate-300">Cairo/Alexandria Edge caching, DDoS protection, and image compression for Egyptian mobile networks.</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">3. Apple App Store & Google Play (Amortized)</td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">~420 EGP/mo</td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">~420 EGP/mo</td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">~420 EGP/mo</td>
+                <td class="py-3.5 px-4 text-slate-300">$99/year Apple Developer account (~8.25 USD/mo) + $25 one-time Google Play account.</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">4. Firebase Push + WhatsApp COD OTP</td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">500 – 1,000 EGP/mo</td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">1,500 – 3,500 EGP/mo</td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">4,000 – 8,000 EGP/mo</td>
+                <td class="py-3.5 px-4 text-slate-300">Firebase Push Notifications are <strong>$0/mo</strong>. Cost is for automated WhatsApp/SMS OTP verification on COD orders.</td>
+              </tr>
+              <tr class="bg-emerald-950/30 font-bold">
+                <td class="py-3.5 px-4 text-emerald-300">SUBTOTAL: Fixed Tech Infrastructure</td>
+                <td class="py-3.5 px-4 font-mono text-emerald-400">~2,170 – 3,170 EGP/mo<br><span class="text-[11px] font-normal">($43 – $63/mo)</span></td>
+                <td class="py-3.5 px-4 font-mono text-emerald-400">~6,170 – 9,670 EGP/mo<br><span class="text-[11px] font-normal">($123 – $193/mo)</span></td>
+                <td class="py-3.5 px-4 font-mono text-emerald-400">~13,170 – 24,920 EGP/mo<br><span class="text-[11px] font-normal">($263 – $498/mo)</span></td>
+                <td class="py-3.5 px-4 text-emerald-300">Mandatory monthly server & API bills (vs. ~35,000+ EGP/mo on Shopify at Stage 2).</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">5. Developer Maintenance Workload<br><span class="text-slate-400 font-normal">(~8 to 15 hrs/month)</span></td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">0 EGP (Self) OR<br>3,500 – 6,000 EGP/mo</td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">6,000 – 12,000 EGP/mo<br><span class="text-slate-400">(Part-Time Retainer)</span></td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">25,000 – 45,000 EGP/mo<br><span class="text-slate-400">(In-House Dev)</span></td>
+                <td class="py-3.5 px-4 text-slate-300">Safe staging updates of WooCommerce/Paymob/Bosta plugins, DB optimization & semi-annual Flutter iOS/Android builds.</td>
+              </tr>
+              <tr>
+                <td class="py-3.5 px-4 font-semibold">6. Store Operations & Order Dispatch<br><span class="text-slate-400 font-normal">(Daily Admin Staff)</span></td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">0 EGP<br><span class="text-slate-400">(Founder ~1.5 hr/day)</span></td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">8,000 – 14,000 EGP/mo<br><span class="text-slate-400">(1 Full-Time Admin)</span></td>
+                <td class="py-3.5 px-4 font-mono text-slate-200">24,000 – 40,000 EGP/mo<br><span class="text-slate-400">(2–3 Ops/CS Staff)</span></td>
+                <td class="py-3.5 px-4 text-slate-300">Uploading catalog, printing Bosta/Mylerz AWBs, managing NDR returns, and reconciling Paymob/Fawry payouts.</td>
+              </tr>
+              <tr class="bg-slate-900/90 font-bold text-sm">
+                <td class="py-4 px-4">TOTAL ALL-IN MONTHLY WORKLOAD COST</td>
+                <td class="py-4 px-4 font-mono text-emerald-400">~2,170 – 9,170 EGP/mo</td>
+                <td class="py-4 px-4 font-mono text-indigo-300">~20,170 – 35,670 EGP/mo</td>
+                <td class="py-4 px-4 font-mono text-purple-300">~62,170 – 109,920 EGP/mo</td>
+                <td class="py-4 px-4 text-xs text-slate-300">All-in monthly cost covering Cloud Servers + App Stores + WhatsApp OTP + Dev Maintenance + Ops Team.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-slate-800/80 py-8 mt-16 text-center text-xs text-slate-500">
+    <p>Egypt E-Commerce Study 🇪🇬 • Egyptian Gateways + Apple/Google Mobile Apps + 1st-Year Operations Financial Liability</p>
+  </footer>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'loose',
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis'
+      }
+    });
+
+    function formatEGP(num) {
+      return num.toLocaleString('en-US') + ' EGP';
+    }
+
+    function updateLiability() {
+      const gmv = parseInt(document.getElementById('gmvSlider').value, 10);
+      const monthly = Math.round(gmv / 12);
+      document.getElementById('gmvDisplay').textContent = formatEGP(gmv) + ' / yr';
+      document.getElementById('monthlyDisplay').textContent = '(~' + formatEGP(monthly) + ' / month)';
+
+      // 1. WooCommerce: ~18k hosting + 6.2k Apple/Google + ~55k avg setup + 0% GMV tax
+      const wooTotal = 18000 + 6200 + 55000;
+      // 2. Medusa 2.0: ~24k hosting + 6.2k Apple/Google + ~140k avg setup + 0% GMV tax
+      const medusaTotal = 24000 + 6200 + 140000;
+      // 3. Shopify: ~57k plan/apps + 1k domain + ~102k mobile app builder ($170/mo) + 6.2k Apple/Google + 25k setup + 1.5% avg penalty on GMV
+      const shopifyPenalty = Math.round(gmv * 0.015);
+      const shopifyTotal = 57000 + 1000 + 102000 + 6200 + 25000 + shopifyPenalty;
+      // 4. ExpandCart: ~45k plan + 1k domain + 30k mobile app + 6.2k Apple/Google + 20k setup
+      const expandTotal = 45000 + 1000 + 30000 + 6200 + 20000;
+      // 5. Odoo / Magento: ~150k license + 80k cloud + 6.2k Apple/Google + 300k setup
+      const magentoTotal = 150000 + 80000 + 6200 + 300000;
+
+      document.getElementById('calc-woo').textContent = formatEGP(wooTotal);
+      document.getElementById('calc-medusa').textContent = formatEGP(medusaTotal);
+      document.getElementById('calc-shopify').textContent = formatEGP(shopifyTotal);
+      document.getElementById('calc-shopify-tax').textContent = 'Includes ' + formatEGP(shopifyPenalty) + ' Penalty Tax';
+      document.getElementById('calc-expand').textContent = formatEGP(expandTotal);
+      document.getElementById('calc-magento').textContent = formatEGP(magentoTotal);
+    }
+
+    function selectPlatform(platform) {
+      const cards = document.querySelectorAll('.diagram-card');
+      const tabs = document.querySelectorAll('.tab-btn');
+
+      tabs.forEach(btn => btn.classList.remove('active'));
+      const activeTab = document.getElementById('tab-' + platform) || document.getElementById('tab-all');
+      if (activeTab) activeTab.classList.add('active');
+
+      cards.forEach(card => {
+        if (platform === 'all' || card.dataset.platform === platform) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      html.classList.toggle('dark');
+      if (html.classList.contains('dark')) {
+        document.body.classList.remove('bg-slate-50', 'text-slate-900');
+        document.body.classList.add('bg-slate-950', 'text-slate-100');
+      } else {
+        document.body.classList.remove('bg-slate-950', 'text-slate-100');
+        document.body.classList.add('bg-slate-50', 'text-slate-900');
+      }
+    }
+
+    updateLiability();
+  </script>
+</body>
+</html>

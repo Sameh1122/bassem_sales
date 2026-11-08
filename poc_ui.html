@@ -1,0 +1,2591 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NileConnect Egypt — Multi-Store Marketplace Facilitator & Outsourced 3PL Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-page: #f4f7fb;
+      --bg-card: #ffffff;
+      --bg-subtle: #f8fafc;
+      --bg-input: #ffffff;
+      --text-main: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --shadow-card: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+    }
+
+    html[data-theme="dark"] {
+      --bg-page: #0b1120;
+      --bg-card: #111827;
+      --bg-subtle: #1e293b;
+      --bg-input: #0f172a;
+      --text-main: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+      --border-color: #1e293b;
+      --border-strong: #334155;
+      --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Cairo', sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      font-size: 14px;
+      line-height: 1.55;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    [dir="rtl"] body {
+      font-family: 'Cairo', 'Plus Jakarta Sans', sans-serif;
+    }
+
+    /* Adaptive Surface Classes so both Light & Dark mode are effortless on the eyes */
+    .glass, .surface-card {
+      background-color: var(--bg-card) !important;
+      border: 1px solid var(--border-color) !important;
+      box-shadow: var(--shadow-card);
+      border-radius: 16px;
+    }
+
+    html[data-theme="light"] .bg-slate-950,
+    html[data-theme="light"] .bg-slate-900,
+    html[data-theme="light"] .bg-slate-900\/90,
+    html[data-theme="light"] .bg-slate-900\/70,
+    html[data-theme="light"] .bg-slate-900\/60 {
+      background-color: var(--bg-subtle) !important;
+      color: var(--text-main) !important;
+    }
+
+    html[data-theme="light"] .bg-slate-800,
+    html[data-theme="light"] .bg-slate-800\/90 {
+      background-color: #eef2f6 !important;
+      color: #0f172a !important;
+    }
+
+    html[data-theme="light"] .text-white,
+    html[data-theme="light"] .text-slate-100,
+    html[data-theme="light"] .text-slate-200 {
+      color: #0f172a !important;
+    }
+
+    html[data-theme="light"] .text-slate-300 {
+      color: #334155 !important;
+    }
+
+    html[data-theme="light"] .text-slate-400,
+    html[data-theme="light"] .text-slate-500 {
+      color: #475569 !important;
+    }
+
+    /* Keep white text inside solid colored buttons & badges */
+    html[data-theme="light"] button.text-white,
+    html[data-theme="light"] .btn-solid-white,
+    html[data-theme="light"] .nav-tab.active,
+    html[data-theme="light"] .cat-pill.active,
+    html[data-theme="light"] .admin-subtab.active,
+    html[data-theme="light"] #toastBox {
+      color: #ffffff !important;
+    }
+
+    /* High-contrast readable semantic colors in Light Mode */
+    html[data-theme="light"] .text-emerald-400,
+    html[data-theme="light"] .text-emerald-300 {
+      color: #047857 !important;
+      font-weight: 700;
+    }
+
+    html[data-theme="light"] .text-amber-400,
+    html[data-theme="light"] .text-amber-300 {
+      color: #b45309 !important;
+      font-weight: 700;
+    }
+
+    html[data-theme="light"] .text-indigo-400,
+    html[data-theme="light"] .text-indigo-300 {
+      color: #4338ca !important;
+      font-weight: 700;
+    }
+
+    html[data-theme="light"] .text-purple-400,
+    html[data-theme="light"] .text-purple-300 {
+      color: #6d28d9 !important;
+      font-weight: 700;
+    }
+
+    html[data-theme="light"] .text-cyan-400,
+    html[data-theme="light"] .text-cyan-300,
+    html[data-theme="light"] .text-teal-300 {
+      color: #0e7490 !important;
+      font-weight: 700;
+    }
+
+    html[data-theme="light"] .text-rose-400,
+    html[data-theme="light"] .text-rose-300 {
+      color: #be123c !important;
+      font-weight: 700;
+    }
+
+    html[data-theme="light"] .border-slate-800,
+    html[data-theme="light"] .border-slate-800\/80,
+    html[data-theme="light"] .border-slate-800\/60,
+    html[data-theme="light"] .border-slate-700 {
+      border-color: var(--border-color) !important;
+    }
+
+    html[data-theme="light"] .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]) {
+      border-color: #e2e8f0 !important;
+    }
+
+    html[data-theme="light"] input,
+    html[data-theme="light"] select,
+    html[data-theme="light"] textarea {
+      background-color: #ffffff !important;
+      border: 1.5px solid #cbd5e1 !important;
+      color: #0f172a !important;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none !important;
+      border-color: #059669 !important;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18) !important;
+    }
+
+    /* Main Workspace Tabs */
+    .nav-tab {
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      transition: all 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav-tab.active {
+      background: linear-gradient(135deg, #059669 0%, #4f46e5 100%) !important;
+      color: #ffffff !important;
+      border-color: transparent !important;
+      box-shadow: 0 6px 16px rgba(5, 150, 105, 0.25);
+      transform: translateY(-1px);
+    }
+
+    /* Category Pills */
+    .cat-pill {
+      padding: 9px 16px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 700;
+      transition: all 0.15s ease;
+    }
+    .cat-pill.active {
+      background: linear-gradient(135deg, #059669 0%, #4f46e5 100%) !important;
+      color: #ffffff !important;
+      border-color: transparent !important;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.22);
+    }
+
+    /* Admin Sub-Navigation Pills */
+    .admin-subtab {
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .admin-subtab.active {
+      background: #0f172a !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+    }
+    html[data-theme="dark"] .admin-subtab.active {
+      background: #10b981 !important;
+      color: #022c22 !important;
+    }
+
+    /* Spacious, Easy-to-Scan Tables */
+    table th {
+      font-size: 12px !important;
+      letter-spacing: 0.03em;
+      padding: 12px 14px !important;
+    }
+    table td {
+      font-size: 13.5px !important;
+      padding: 14px 14px !important;
+      vertical-align: middle;
+    }
+
+    /* Phone Simulator Frame */
+    .phone-frame {
+      width: 390px;
+      height: 780px;
+      border: 12px solid #1e293b;
+      border-radius: 46px;
+      background: var(--bg-card);
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.28), 0 0 0 2px rgba(99, 102, 241, 0.25);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Stepper Pills for Guided Workflow */
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-20">
+
+  <!-- ===================================================================== -->
+  <!-- STICKY HEADER & ROLE-BASED 5-WORKSPACE NAVIGATION                     -->
+  <!-- ===================================================================== -->
+  <header class="sticky top-0 z-50 glass border-b border-slate-800 rounded-none">
+    <div class="max-w-[1440px] mx-auto px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <!-- Brand Identity -->
+      <div class="flex items-center gap-3.5">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-indigo-600 flex items-center justify-center font-extrabold text-xl shadow-md text-white btn-solid-white">
+          🇪🇬
+        </div>
+        <div>
+          <div class="flex items-center gap-2.5">
+            <span class="font-extrabold text-lg tracking-tight">NileConnect Egypt</span>
+            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              Multi-Store Facilitator • Bosta 3PL
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Store-Owned Inventory $\rightarrow$ Client Checkout $\rightarrow$ Outsourced Bosta Pickup $\rightarrow$ Cash Settlement (<a href="/mock-dashboard" target="_blank" class="text-indigo-400 underline font-semibold">Mock Sandbox</a>)
+          </p>
+        </div>
+      </div>
+
+      <!-- 5 Primary Role Workspaces -->
+      <nav class="flex flex-wrap items-center gap-2" aria-label="Main Workspaces">
+        <button onclick="switchTab('storefront')" id="btn-tab-storefront" class="nav-tab active border border-slate-700 bg-slate-900">
+          <span>🛒</span> <span>1. Client Storefront</span>
+        </button>
+        <button onclick="switchTab('mobile')" id="btn-tab-mobile" class="nav-tab border border-slate-700 bg-slate-900">
+          <span>📱</span> <span>2. Mobile App</span>
+        </button>
+        <button onclick="switchTab('stores')" id="btn-tab-stores" class="nav-tab border border-slate-700 bg-slate-900">
+          <span>🏪</span> <span>3. Partner Store Portal</span>
+        </button>
+        <button onclick="switchTab('delivery')" id="btn-tab-delivery" class="nav-tab border border-slate-700 bg-slate-900">
+          <span>🚚</span> <span>4. Outsourced Delivery (<span id="badge-deliveries">0</span>)</span>
+        </button>
+        <button onclick="switchTab('admin')" id="btn-tab-admin" class="nav-tab border border-slate-700 bg-slate-900">
+          <span>⚙️</span> <span>5. Facilitator Control Tower (<span id="badge-support-open">0</span>💬)</span>
+        </button>
+      </nav>
+
+      <!-- Utility Actions: Support Chat, Theme Switcher, Arabic RTL, Study Link -->
+      <div class="flex items-center gap-2">
+        <button onclick="toggleClientSupportChat()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white shadow-sm transition flex items-center gap-1.5">
+          <span>💬</span> <span>Support Chat</span>
+        </button>
+        <button onclick="toggleTheme()" id="themeToggleBtn" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 transition" title="Switch Light / Dark Mode">
+          🌙 Dark Mode
+        </button>
+        <button onclick="toggleLanguage()" id="langBtn" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
+          🌐 العربية
+        </button>
+        <a href="/study" target="_blank" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
+          📊 Study Report
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1440px] mx-auto px-6 py-7">
+
+    <!-- =================================================================== -->
+    <!-- TAB 1: CLIENT STOREFRONT (CLEAN SHOPPING & GUIDED 3-STEP CHECKOUT)  -->
+    <!-- =================================================================== -->
+    <section id="tab-storefront" class="space-y-6">
+
+      <!-- Clean Guided Flow Banner -->
+      <div class="glass p-6 border-l-4 border-l-emerald-600 flex flex-wrap items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="step-badge bg-emerald-500/15 text-emerald-400">STEP 1 OF 4 • CLIENT SHOPPING</span>
+            <span class="text-xs text-slate-400 font-medium">Promo Codes: <code class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-mono font-bold">EGYPT10</code> (10% OFF) • <code class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 font-mono font-bold">RAMADAN200</code> (-200 EGP)</span>
+          </div>
+          <h2 class="text-2xl font-extrabold tracking-tight" id="heroHeading">
+            Shop Directly from Egypt's Partner Stores — Delivered by Bosta 3PL
+          </h2>
+          <p class="text-sm text-slate-400">
+            Select a <strong>Product Category</strong> or <strong>Partner Store</strong> below. Carts with items from multiple stores automatically split into separate courier pickups.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2.5">
+          <button onclick="toggleClientSupportChat()" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white shadow-sm transition">
+            💬 Chat with Customer Support
+          </button>
+          <button onclick="switchTab('stores')" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
+            🏪 Go to Partner Store Portal $\rightarrow$
+          </button>
+        </div>
+      </div>
+
+      <!-- Category Pills & Store Filter Bar -->
+      <div class="glass p-5 flex flex-wrap items-center justify-between gap-4">
+        <div class="space-y-2 flex-1">
+          <div class="text-xs font-bold uppercase tracking-wider text-slate-400">🏷️ Browse by Product Category</div>
+          <div id="category-pills-bar" class="flex flex-wrap gap-2"></div>
+        </div>
+        <div class="min-w-[260px]">
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">🏪 Filter by Partner Store</label>
+          <select id="storeFilterSelect" onchange="renderProducts()" class="w-full rounded-xl px-3.5 py-2.5 text-sm font-semibold">
+            <option value="all">All Partner Stores (3 Stores)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Storefront Main Grid: Products (Left 8 cols) + Checkout (Right 4 cols) -->
+      <div class="grid lg:grid-cols-12 gap-7 items-start">
+
+        <!-- Left 8 Columns: Spacious Product Catalog -->
+        <div class="lg:col-span-8 space-y-4">
+          <div class="flex items-center justify-between px-1">
+            <h3 class="text-lg font-extrabold" id="catalogHeading">Available Products in Partner Stores</h3>
+            <span id="catalogCountLabel" class="text-xs font-semibold text-slate-400">Showing all products</span>
+          </div>
+          <div id="product-grid" class="grid sm:grid-cols-2 gap-5"></div>
+        </div>
+
+        <!-- Right 4 Columns: Clean 3-Step Client Checkout Card -->
+        <div class="lg:col-span-4 glass p-6 space-y-5 sticky top-24 border-t-4 border-t-emerald-600">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3.5">
+            <div>
+              <h3 class="font-extrabold text-lg">🛍️ Your Shopping Cart</h3>
+              <p class="text-xs text-slate-400">Multi-Store Split & Instant Checkout</p>
+            </div>
+            <span id="cart-count-pill" class="text-xs font-mono font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400">0 items</span>
+          </div>
+
+          <!-- Cart Items List -->
+          <div id="cart-items-box" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
+
+          <!-- Promo Code -->
+          <div class="flex gap-2 pt-1">
+            <input id="couponInput" type="text" placeholder="Promo Code (EGYPT10)" value="EGYPT10" oninput="recalcCart()" class="flex-1 rounded-xl px-3.5 py-2 text-xs font-mono font-bold uppercase" />
+            <button onclick="recalcCart()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700">Apply</button>
+          </div>
+
+          <!-- Step 1: Client Delivery Address -->
+          <div class="space-y-2.5 pt-3 border-t border-slate-800">
+            <div class="text-xs font-extrabold uppercase tracking-wider text-slate-400">📍 1. Delivery Drop-off Address (Bosta 3PL)</div>
+            <div class="grid grid-cols-2 gap-2.5">
+              <input id="custName" type="text" value="Ahmed Kamal" placeholder="Full Name" class="rounded-xl px-3 py-2 text-sm" />
+              <input id="custPhone" type="text" value="01012345678" placeholder="010xxxxxxxx" class="rounded-xl px-3 py-2 text-sm font-mono" />
+            </div>
+            <select id="govSelect" onchange="recalcCart()" class="w-full rounded-xl px-3 py-2.5 text-sm font-medium"></select>
+            <input id="custAddress" type="text" value="Nasr City, Abbas El-Akkad St, Bldg 14, Apt 5" placeholder="Street, Building & Apartment" class="w-full rounded-xl px-3 py-2 text-sm" />
+          </div>
+
+          <!-- Step 2: Egyptian Payment Rail -->
+          <div class="space-y-2 pt-3 border-t border-slate-800">
+            <div class="text-xs font-extrabold uppercase tracking-wider text-slate-400">💳 2. Payment Method (Egyptian Gateways)</div>
+            <div class="grid grid-cols-1 gap-2">
+              <label class="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-emerald-500 transition">
+                <div class="flex items-center gap-2.5">
+                  <input type="radio" name="payMethod" value="paymob_card" checked onchange="recalcCart()" class="w-4 h-4 accent-emerald-600" />
+                  <span class="text-sm">💳 <strong>Paymob Split</strong> (Visa / MC / Meeza)</span>
+                </div>
+                <span class="text-xs font-mono text-emerald-400">Auto Split</span>
+              </label>
+              <label class="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-emerald-500 transition">
+                <div class="flex items-center gap-2.5">
+                  <input type="radio" name="payMethod" value="paymob_wallet" onchange="recalcCart()" class="w-4 h-4 accent-emerald-600" />
+                  <span class="text-sm">📲 <strong>Mobile Wallet</strong> (Vodafone / Orange)</span>
+                </div>
+                <span class="text-xs font-mono text-purple-400">Wallet</span>
+              </label>
+              <label class="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-emerald-500 transition">
+                <div class="flex items-center gap-2.5">
+                  <input type="radio" name="payMethod" value="valu_bnpl" onchange="recalcCart()" class="w-4 h-4 accent-emerald-600" />
+                  <span class="text-sm">🛍️ <strong>valU BNPL</strong> (6 / 12 / 24m)</span>
+                </div>
+                <span id="valu-preview-badge" class="text-xs font-mono text-cyan-400">12m Plan</span>
+              </label>
+              <label class="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-emerald-500 transition">
+                <div class="flex items-center gap-2.5">
+                  <input type="radio" name="payMethod" value="fawry_ref" onchange="recalcCart()" class="w-4 h-4 accent-emerald-600" />
+                  <span class="text-sm">🧾 <strong>Fawry Kiosk Code</strong> (Cash)</span>
+                </div>
+                <span class="text-xs font-mono text-amber-400">48h Hold</span>
+              </label>
+              <label class="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-emerald-500 transition">
+                <div class="flex items-center gap-2.5">
+                  <input type="radio" name="payMethod" value="instapay_qr" onchange="recalcCart()" class="w-4 h-4 accent-emerald-600" />
+                  <span class="text-sm">🏦 <strong>InstaPay Egypt</strong> (IPA Transfer)</span>
+                </div>
+                <span class="text-xs font-mono text-indigo-400">0% Fee</span>
+              </label>
+              <label class="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-emerald-500 transition">
+                <div class="flex items-center gap-2.5">
+                  <input type="radio" name="payMethod" value="cod" onchange="recalcCart()" class="w-4 h-4 accent-emerald-600" />
+                  <span class="text-sm">🚚 <strong>Cash on Delivery (COD)</strong></span>
+                </div>
+                <span class="text-xs font-mono text-emerald-400">WhatsApp OTP</span>
+              </label>
+            </div>
+
+            <div id="valu-options-box" class="hidden p-3.5 rounded-xl bg-slate-900 border border-slate-700 space-y-2 mt-2">
+              <label class="block text-xs font-bold text-cyan-400">Select valU Installment Plan:</label>
+              <select id="valuMonths" onchange="recalcCart()" class="w-full rounded-lg px-3 py-2 text-sm">
+                <option value="6">6 Months Installment Plan</option>
+                <option value="12" selected>12 Months Installment Plan</option>
+                <option value="24">24 Months Installment Plan</option>
+              </select>
+            </div>
+            <div id="instapay-options-box" class="hidden p-3.5 rounded-xl bg-slate-900 border border-slate-700 space-y-2 mt-2">
+              <div class="text-xs text-indigo-400">Send to Facilitator IPA: <code class="font-mono font-bold">egyptstore@instapay</code></div>
+              <input id="instapayIpa" type="text" value="ahmed.kamal@instapay" placeholder="Your Sender IPA Address" class="w-full rounded-lg px-3 py-2 text-sm font-mono" />
+            </div>
+          </div>
+
+          <!-- Step 3: Clear Financial Breakdown -->
+          <div class="bg-slate-900 rounded-2xl p-4 space-y-2 text-sm border border-slate-800">
+            <div class="flex justify-between text-xs"><span class="text-slate-400">Partner Stores in Cart:</span><span id="sum-stores-count" class="font-mono text-amber-400 font-bold">1 Store</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Items Subtotal:</span><span id="sum-subtotal" class="font-mono font-semibold">0 EGP</span></div>
+            <div class="flex justify-between text-emerald-400"><span>Promo Discount:</span><span id="sum-discount" class="font-mono">-0 EGP</span></div>
+            <div class="flex justify-between text-cyan-400 text-xs"><span id="sum-vat-label">Egypt VAT (14% Inclusive):</span><span id="sum-vat" class="font-mono">0 EGP</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Bosta 3PL Delivery (<span id="sum-gov-sla">Cairo</span>):</span><span id="sum-shipping" class="font-mono font-semibold">55 EGP</span></div>
+            <div id="sum-cod-row" class="hidden flex justify-between text-amber-400"><span>COD Collection Fee:</span><span id="sum-cod" class="font-mono">+15 EGP</span></div>
+            <div class="flex justify-between font-extrabold text-base pt-2.5 border-t border-slate-800">
+              <span>Total to Pay:</span>
+              <span id="sum-total" class="font-mono text-emerald-400 text-lg">0 EGP</span>
+            </div>
+            <div class="pt-2.5 mt-2 border-t border-slate-800 text-xs text-slate-400 flex justify-between">
+              <span>Facilitator Fee: <strong id="sum-commission" class="text-indigo-400 font-mono">0 EGP</strong></span>
+              <span>Stores Net: <strong id="sum-store-net" class="text-emerald-400 font-mono">0 EGP</strong></span>
+            </div>
+          </div>
+
+          <button onclick="submitOrder('web')" class="w-full py-3.5 rounded-xl font-extrabold text-sm bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white btn-solid-white shadow-lg transition">
+            🔒 Place Order & Dispatch to Store(s)
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 2: iOS & ANDROID MOBILE APP SIMULATOR                           -->
+    <!-- =================================================================== -->
+    <section id="tab-mobile" class="hidden">
+      <div class="grid lg:grid-cols-12 gap-8 items-start">
+        <div class="lg:col-span-5 space-y-6">
+          <div class="glass p-6 space-y-4 border-l-4 border-l-indigo-600">
+            <span class="step-badge bg-indigo-500/15 text-indigo-400">FLUTTER iOS & ANDROID APP</span>
+            <h2 class="text-2xl font-extrabold">Mobile Shopping & Live Push Notifications</h2>
+            <p class="text-sm text-slate-400 leading-relaxed">
+              Test the shopper's mobile app experience on <strong>Apple App Store (iOS)</strong> and <strong>Google Play (Android)</strong>. Every store packaging update, courier pickup, and support desk reply triggers a live <strong>Firebase Push Notification</strong> here.
+            </p>
+            <div class="flex gap-2.5 pt-1">
+              <button onclick="setMobileOS('ios_app')" id="os-ios" class="flex-1 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 text-white btn-solid-white">🍎 iOS (Apple Pay)</button>
+              <button onclick="setMobileOS('android_app')" id="os-android" class="flex-1 py-2.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-300">🤖 Android (Google Play)</button>
+            </div>
+          </div>
+
+          <div class="glass p-6 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-extrabold uppercase tracking-wider text-emerald-400">🔔 Live Firebase Push Feed</h3>
+              <span class="text-xs font-mono text-slate-400">Real-Time Events</span>
+            </div>
+            <div id="push-feed-list" class="space-y-2.5 max-h-[420px] overflow-y-auto pr-1 text-xs"></div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-7 flex justify-center">
+          <div class="phone-frame">
+            <div class="bg-slate-900 px-5 pt-3.5 pb-2.5 flex items-center justify-between text-xs font-mono border-b border-slate-800">
+              <span>9:41 • Vodafone 5G</span>
+              <span id="phone-os-badge" class="text-indigo-400 font-bold">iOS 18 • NileConnect</span>
+              <span>🔋 98%</span>
+            </div>
+
+            <div id="phone-push-banner" class="bg-emerald-500/15 border-b border-emerald-500/30 px-4 py-3 text-xs flex items-start gap-2.5">
+              <span class="text-base">🔔</span>
+              <div class="flex-1">
+                <div id="phone-push-title" class="font-bold text-emerald-400">Welcome to NileConnect Egypt!</div>
+                <div id="phone-push-body" class="text-slate-300 text-xs mt-0.5">Shop directly from Egypt's top local stores with Bosta fast delivery.</div>
+              </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+              <div>
+                <div class="text-[11px] font-bold uppercase text-slate-400 mb-2">Product Categories</div>
+                <div id="mobile-cat-pills" class="flex gap-1.5 overflow-x-auto pb-1"></div>
+              </div>
+
+              <div id="mobile-product-list" class="space-y-2.5"></div>
+
+              <!-- Quick Mobile Checkout Box -->
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div class="font-extrabold text-sm flex justify-between">
+                  <span>In-App Checkout</span>
+                  <span id="mobile-cart-total" class="font-mono text-emerald-400">0 EGP</span>
+                </div>
+                <select id="mobilePayMethod" class="w-full rounded-xl px-3 py-2 text-xs font-medium">
+                  <option value="paymob_card">🍎 Apple Pay / Meeza (Paymob SDK)</option>
+                  <option value="paymob_wallet">📲 Vodafone Cash (Paymob Wallet)</option>
+                  <option value="valu_bnpl">🛍️ valU BNPL (12m Instant OTP)</option>
+                  <option value="fawry_ref">🧾 Fawry Reference Code (48h Hold)</option>
+                  <option value="cod">🚚 Cash on Delivery (WhatsApp OTP)</option>
+                </select>
+                <button onclick="submitMobileOrder()" class="w-full py-2.5 rounded-xl font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white transition">
+                   Pay / Place Mobile Order
+                </button>
+              </div>
+
+              <div class="space-y-2">
+                <div class="font-bold text-slate-400 uppercase text-[11px]">Active App Shipments:</div>
+                <div id="mobile-orders-list" class="space-y-2"></div>
+              </div>
+            </div>
+
+            <div class="bg-slate-900 border-t border-slate-800 px-6 py-3 flex justify-between text-xs font-semibold text-slate-400">
+              <span class="text-emerald-400 font-bold">🏠 Stores</span>
+              <span>🏷️ Categories</span>
+              <span>🛍️ Cart</span>
+              <span onclick="toggleClientSupportChat()" class="cursor-pointer text-indigo-400">💬 Support</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 3: PARTNER STORE PORTAL (VISUAL STORE CARDS & EASY PACKAGING)   -->
+    <!-- =================================================================== -->
+    <section id="tab-stores" class="hidden space-y-6">
+      <div class="glass p-6 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-amber-500">
+        <div>
+          <span class="step-badge bg-amber-500/15 text-amber-400">STEP 2 OF 4 • PARTNER STORE PORTAL</span>
+          <h2 class="text-2xl font-extrabold mt-1">🏪 Partner Store Portal — Manage Store Stock & Pack Orders</h2>
+          <p class="text-sm text-slate-400">Click any Partner Store card below (or use the selector) to manage its inventory, pack incoming orders for Bosta pickup, and track net payouts.</p>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <label class="text-xs font-bold uppercase text-slate-400">Switch Store:</label>
+          <select id="activeStorePortalSelect" onchange="renderStorePortal()" class="rounded-xl px-3.5 py-2.5 text-sm font-bold"></select>
+        </div>
+      </div>
+
+      <!-- Visual 1-Click Partner Store Switcher Cards -->
+      <div id="store-selector-cards" class="grid sm:grid-cols-3 gap-4"></div>
+
+      <!-- Store Financial KPIs -->
+      <div id="store-portal-kpis" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+      <!-- Priority 1: Incoming Sub-Orders for Packaging (Moved up so Store sees orders immediately!) -->
+      <div class="glass p-6 space-y-4 border-t-4 border-t-emerald-600">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="text-lg font-extrabold">📦 1. Incoming Sub-Orders for This Store (Prepare for Bosta Pickup)</h3>
+            <p class="text-xs text-slate-400">Click <strong>"📦 Mark Packaged for Bosta"</strong> when the parcel is ready at the store branch so the Outsourced Courier can pick it up.</p>
+          </div>
+          <button onclick="switchTab('delivery')" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700">
+            🚚 Go to Outsourced Delivery Hub $\rightarrow$
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 bg-slate-900 font-mono text-slate-400">
+                <th>Order #</th>
+                <th>Items to Pack from Store</th>
+                <th>Store Gross</th>
+                <th>Platform Fee</th>
+                <th>Net Store Payout</th>
+                <th>Packaging Status</th>
+                <th>Bosta AWB & Courier</th>
+                <th>Next Store Action</th>
+              </tr>
+            </thead>
+            <tbody id="store-portal-orders-tbody" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Priority 2: Store Inventory & Add New Product -->
+      <div class="grid lg:grid-cols-12 gap-6 items-start">
+        <div class="lg:col-span-8 glass p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-extrabold">🏷️ 2. Store-Owned Inventory (Live Sync with Storefront)</h3>
+              <p class="text-xs text-slate-400">Adjust stock quantities (`+5` / `-1`)—changes reflect immediately on the Client Storefront.</p>
+            </div>
+            <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400">48h Fawry Hold Protected</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 bg-slate-900 font-mono text-slate-400">
+                  <th>SKU & Category</th>
+                  <th>Product</th>
+                  <th>Price</th>
+                  <th>Total</th>
+                  <th>Reserved</th>
+                  <th>Available</th>
+                  <th>Quick Stock Adjust</th>
+                </tr>
+              </thead>
+              <tbody id="store-portal-inventory-tbody" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="lg:col-span-4 glass p-6 space-y-3.5 border-t-4 border-t-amber-500">
+          <h3 class="text-lg font-extrabold">➕ Add New Product to Store</h3>
+          <p class="text-xs text-slate-400">Publish a new product directly from this Partner Store's inventory:</p>
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">Product Category</label>
+            <select id="storeNewProdCategory" class="w-full rounded-xl px-3 py-2 text-sm"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">Unique SKU</label>
+            <input id="storeNewProdSku" type="text" placeholder="e.g. EG-STR-99" class="w-full rounded-xl px-3 py-2 text-sm font-mono" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">Product Name (English)</label>
+            <input id="storeNewProdNameEn" type="text" placeholder="e.g. Anker PowerBank 20,000mAh" class="w-full rounded-xl px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">Product Name (Arabic)</label>
+            <input id="storeNewProdNameAr" type="text" placeholder="باور بانك أنكر 20000" class="w-full rounded-xl px-3 py-2 text-sm" />
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-xs font-bold text-slate-400 mb-1">Price (EGP)</label>
+              <input id="storeNewProdPrice" type="number" value="1800" class="w-full rounded-xl px-3 py-2 text-sm font-mono" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-400 mb-1">Initial Stock</label>
+              <input id="storeNewProdStock" type="number" value="20" class="w-full rounded-xl px-3 py-2 text-sm font-mono" />
+            </div>
+          </div>
+          <button onclick="storeAddProduct()" class="w-full py-3 rounded-xl font-extrabold text-sm bg-amber-600 hover:bg-amber-500 text-white btn-solid-white shadow transition">
+            ➕ Publish Product to Storefront
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 4: OUTSOURCED DELIVERY HUB (STEP-BY-STEP VISUAL PIPELINE)       -->
+    <!-- =================================================================== -->
+    <section id="tab-delivery" class="hidden space-y-6">
+      <div class="glass p-6 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-purple-600">
+        <div>
+          <span class="step-badge bg-purple-500/15 text-purple-400">STEP 3 OF 4 • OUTSOURCED 3PL LOGISTICS (BOSTA / MYLERZ)</span>
+          <h2 class="text-2xl font-extrabold mt-1">🚚 Outsourced Delivery Hub — Store Branch Pickup $\rightarrow$ Client Drop-off</h2>
+          <p class="text-sm text-slate-400">Follow the highlighted <strong>Next Step button</strong> on each shipment to advance the parcel from Store Pickup to Client Delivery & Cash Settlement.</p>
+        </div>
+        <button onclick="refreshAll()" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white btn-solid-white shadow-sm">
+          🔄 Refresh Courier Board
+        </button>
+      </div>
+
+      <!-- Delivery KPIs -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="glass p-5 border-l-4 border-l-amber-500">
+          <div class="text-xs font-bold uppercase text-slate-400">1. Awaiting Store Pack</div>
+          <div id="deliv-kpi-pack" class="text-2xl font-extrabold font-mono text-amber-400 mt-1">0</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-indigo-500">
+          <div class="text-xs font-bold uppercase text-slate-400">2. In Courier Transit</div>
+          <div id="deliv-kpi-transit" class="text-2xl font-extrabold font-mono text-indigo-400 mt-1">0</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-emerald-500">
+          <div class="text-xs font-bold uppercase text-slate-400">3. Delivered to Clients</div>
+          <div id="deliv-kpi-delivered" class="text-2xl font-extrabold font-mono text-emerald-400 mt-1">0</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-purple-500">
+          <div class="text-xs font-bold uppercase text-slate-400">4. COD Cash to Collect</div>
+          <div id="deliv-kpi-cod" class="text-2xl font-extrabold font-mono text-purple-400 mt-1">0 EGP</div>
+        </div>
+      </div>
+
+      <!-- Outsourced Store-to-Client Delivery Board -->
+      <div class="glass p-6 space-y-4">
+        <h3 class="text-lg font-extrabold">Store-to-Client Outsourced Courier Dispatch Board</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 bg-slate-900 font-mono uppercase text-slate-400">
+                <th>Shipment</th>
+                <th>1. Pickup Origin (Store)</th>
+                <th>2. Drop-off (Client)</th>
+                <th>Items, COD & Store Net</th>
+                <th>Bosta AWB & Pipeline</th>
+                <th>Recommended Next Step (1-Click)</th>
+              </tr>
+            </thead>
+            <tbody id="delivery-hub-tbody" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- TAB 5: FACILITATOR CONTROL TOWER (ORGANIZED SUB-TABS FOR EASY USE)  -->
+    <!-- =================================================================== -->
+    <section id="tab-admin" class="hidden space-y-6">
+      <!-- Top Control Tower Header -->
+      <div class="glass p-6 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-emerald-600">
+        <div>
+          <span class="step-badge bg-emerald-500/15 text-emerald-400">STEP 4 OF 4 • 360° FACILITATOR CONTROL TOWER</span>
+          <h2 class="text-2xl font-extrabold mt-1">⚙️ Facilitator Admin — Commercial Rules, Support Desk, Ledgers & Webhooks</h2>
+          <p class="text-sm text-slate-400">Use the focused workspace tabs below to manage <strong>Commercial Fees (Per Store / All Stores)</strong>, reply to <strong>Customer Support Chats</strong>, or inspect <strong>All Ledgers</strong> without visual clutter.</p>
+        </div>
+        <div class="flex flex-wrap gap-2.5">
+          <button onclick="bulkSettleDeliveries('all')" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white shadow-sm">
+            💸 Settle All Delivered Orders
+          </button>
+          <button onclick="refreshAll()" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700">
+            🔄 Refresh Data
+          </button>
+        </div>
+      </div>
+
+      <!-- 8-Card 360° Facilitator Executive KPIs (Clean & Scannable) -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="glass p-5 border-l-4 border-l-emerald-500">
+          <div class="text-xs font-bold uppercase text-slate-400">1. Marketplace GMV</div>
+          <div id="kpi-gmv" class="text-2xl font-extrabold font-mono text-emerald-400 mt-1">0 EGP</div>
+          <div id="kpi-orders-sub" class="text-xs text-slate-400 mt-1">Across All Partner Stores</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-indigo-500">
+          <div class="text-xs font-bold uppercase text-slate-400">2. Your Commission</div>
+          <div id="kpi-commission" class="text-2xl font-extrabold font-mono text-indigo-400 mt-1">0 EGP</div>
+          <div id="kpi-commission-sub" class="text-xs text-emerald-400 mt-1">Realized: 0 EGP • Pending: 0 EGP</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-amber-500">
+          <div class="text-xs font-bold uppercase text-slate-400">3. Stores Net Payout</div>
+          <div id="kpi-stores-payout" class="text-2xl font-extrabold font-mono text-amber-400 mt-1">0 EGP</div>
+          <div id="kpi-stores-payout-sub" class="text-xs text-emerald-400 mt-1">Settled: 0 EGP • Escrow: 0 EGP</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-cyan-500">
+          <div class="text-xs font-bold uppercase text-slate-400">4. Egypt VAT Ledger</div>
+          <div id="kpi-vat-total" class="text-2xl font-extrabold font-mono text-cyan-400 mt-1">0 EGP</div>
+          <div id="kpi-vat-mode" class="text-xs text-slate-400 mt-1">Mode: 14% INCLUSIVE</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-purple-500">
+          <div class="text-xs font-bold uppercase text-slate-400">5. 3PL Deliveries</div>
+          <div id="kpi-deliv-summary" class="text-lg font-extrabold font-mono text-purple-400 mt-1">0 Delivered / 0 Transit</div>
+          <div id="kpi-deliv-sub" class="text-xs text-slate-400 mt-1">Bosta Store-to-Client AWBs</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-teal-500">
+          <div class="text-xs font-bold uppercase text-slate-400">6. Stores Inventory</div>
+          <div id="kpi-stock-summary" class="text-lg font-extrabold font-mono text-teal-300 mt-1">0 Units Available</div>
+          <div id="kpi-stock-sub" class="text-xs text-amber-400 mt-1">0 Reserved • 0 Total SKUs</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-rose-500">
+          <div class="text-xs font-bold uppercase text-slate-400">7. Support Live Desk</div>
+          <div id="kpi-support-summary" class="text-lg font-extrabold font-mono text-rose-400 mt-1">0 Open Chats</div>
+          <div id="kpi-support-sub" class="text-xs text-slate-400 mt-1">Live Client Support Threads</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-blue-500">
+          <div class="text-xs font-bold uppercase text-slate-400">8. Webhooks & Security</div>
+          <div id="kpi-webhooks-summary" class="text-lg font-extrabold font-mono text-indigo-400 mt-1">0 Events Logged</div>
+          <div id="kpi-cats-stores" class="text-xs text-emerald-400 mt-1">🔒 100% HMAC-SHA512 Verified</div>
+        </div>
+      </div>
+
+      <!-- Focused Admin Sub-Navigation Bar (Eliminates Scroll Fatigue!) -->
+      <div class="glass p-3 flex flex-wrap items-center gap-2">
+        <button onclick="switchAdminSubTab('commercial')" id="adm-btn-commercial" class="admin-subtab active bg-slate-900">
+          🎛️ 1. Commercial Rules & Fees (Per-Store / All)
+        </button>
+        <button onclick="switchAdminSubTab('support')" id="adm-btn-support" class="admin-subtab bg-slate-900">
+          🎧 2. Customer Support Chat Desk
+        </button>
+        <button onclick="switchAdminSubTab('logistics')" id="adm-btn-logistics" class="admin-subtab bg-slate-900">
+          💸 3. Orders, Deliveries & Cash Settlements
+        </button>
+        <button onclick="switchAdminSubTab('inventory')" id="adm-btn-inventory" class="admin-subtab bg-slate-900">
+          📦 4. All-Stores Inventory, Stores & Categories
+        </button>
+        <button onclick="switchAdminSubTab('webhooks')" id="adm-btn-webhooks" class="admin-subtab bg-slate-900">
+          🔌 5. Webhooks Inspector
+        </button>
+        <button onclick="switchAdminSubTab('all')" id="adm-btn-all" class="admin-subtab bg-slate-900 ml-auto">
+          👁️ Show All Sections Together
+        </button>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- ADMIN SECTION 1: COMMERCIAL POLICY ENGINE & GOVERNORATE FEES      -->
+      <!-- ================================================================= -->
+      <div id="adm-sec-commercial" class="space-y-6">
+        <div class="grid lg:grid-cols-12 gap-6">
+          <!-- Left 7 Cols: Per-Store or All-Stores Commercial Rules Engine -->
+          <div class="lg:col-span-7 glass p-6 space-y-5 border-t-4 border-t-amber-500">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 class="text-lg font-extrabold">🎛️ Commercial Policy Engine (All Stores or Specific Store)</h3>
+                <p class="text-xs text-slate-400">Manage Commission %, Egypt VAT %, Delivery Fee Override, COD Fee & Settlement Cycle.</p>
+              </div>
+              <span class="text-xs font-mono font-bold px-3 py-1 rounded-full bg-amber-500/15 text-amber-400">Live Checkout Sync</span>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-bold uppercase text-slate-400 mb-1.5">1. Select Target Scope (All Partner Stores OR a Specific Store)</label>
+                <select id="ruleTargetScope" onchange="onRuleScopeChange()" class="w-full rounded-xl px-3.5 py-2.5 text-sm font-bold">
+                  <option value="all">🌐 Apply to ALL Partner Stores (Global Bulk Policy)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1">Facilitator Commission (%)</label>
+                <input id="ruleCommissionPct" type="number" step="0.5" value="10" class="w-full rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1">Egypt VAT Rate (%)</label>
+                <input id="ruleVatPct" type="number" step="0.5" value="14" class="w-full rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1">VAT Calculation Mode</label>
+                <select id="ruleVatMode" class="w-full rounded-xl px-3.5 py-2.5 text-sm font-medium">
+                  <option value="INCLUSIVE">INCLUSIVE (Included in Shelf Price)</option>
+                  <option value="ADDITIVE">ADDITIVE (+Added on Top at Checkout)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1">Store Delivery Fee Override (EGP)</label>
+                <input id="ruleDeliveryOverride" type="number" placeholder="Blank = Gov Rate (0 = Free Shipping)" class="w-full rounded-xl px-3.5 py-2.5 text-sm font-mono" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1">Extra Multi-Store Pickup Fee (EGP)</label>
+                <input id="ruleExtraPickupFee" type="number" value="25" class="w-full rounded-xl px-3.5 py-2.5 text-sm font-mono" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-400 mb-1">Cash on Delivery (COD) Fee (EGP)</label>
+                <input id="ruleCodFee" type="number" value="15" class="w-full rounded-xl px-3.5 py-2.5 text-sm font-mono" />
+              </div>
+
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-bold text-slate-400 mb-1">Cash Settlement Schedule & Payout Rail</label>
+                <select id="ruleSettlementCycle" class="w-full rounded-xl px-3.5 py-2.5 text-sm font-mono">
+                  <option value="T+1 InstaPay / Paymob Split">T+1 InstaPay Corporate / Paymob Split</option>
+                  <option value="Instant Paymob Split Escrow">Instant Paymob Split Escrow Release</option>
+                  <option value="T+3 Bank Wire Settlement">T+3 Corporate Bank Wire Settlement</option>
+                  <option value="Weekly Thursday Payout Batch">Weekly Thursday Payout Batch</option>
+                </select>
+              </div>
+            </div>
+
+            <button onclick="saveCommercialRules()" class="w-full py-3 rounded-xl font-extrabold text-sm bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-500 hover:to-indigo-500 text-white btn-solid-white shadow-md transition">
+              💾 Save & Apply Commercial Policy Rules
+            </button>
+          </div>
+
+          <!-- Right 5 Cols: Governorate Delivery Fees & Bulk Settlement -->
+          <div class="lg:col-span-5 space-y-6">
+            <div class="glass p-6 space-y-4 border-t-4 border-t-purple-600">
+              <h3 class="text-lg font-extrabold">🚚 Governorate 3PL Delivery Fees</h3>
+              <p class="text-xs text-slate-400">Adjust Bosta 3PL delivery fees for a single Governorate or across ALL Governorates:</p>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="col-span-2">
+                  <label class="block text-xs font-bold text-slate-400 mb-1">Target Governorate</label>
+                  <select id="adminGovRateSelect" onchange="onAdminGovSelectChange()" class="w-full rounded-xl px-3.5 py-2.5 text-sm font-bold">
+                    <option value="ALL">🌐 Apply Uniform Rate to ALL Governorates</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-400 mb-1">Delivery Fee (EGP)</label>
+                  <input id="adminGovFeeInput" type="number" value="55" class="w-full rounded-xl px-3 py-2 text-sm font-mono" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-400 mb-1">Delivery SLA</label>
+                  <input id="adminGovSlaInput" type="text" value="Next-Day (24h)" class="w-full rounded-xl px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <button onclick="saveGovernorateFee()" class="w-full py-2.5 rounded-xl font-extrabold text-xs bg-purple-600 hover:bg-purple-500 text-white btn-solid-white shadow-sm">
+                🚚 Update Governorate Delivery Rate
+              </button>
+            </div>
+
+            <div class="glass p-6 space-y-4 border-t-4 border-t-emerald-600">
+              <h3 class="text-lg font-extrabold">💸 Bulk Cash Settlement Dispatcher</h3>
+              <p class="text-xs text-slate-400">Settle all `DELIVERED` orders for All Partner Stores or a Specific Store in one click:</p>
+              <div class="flex gap-2.5">
+                <select id="bulkSettleStoreSelect" class="flex-1 rounded-xl px-3.5 py-2.5 text-sm font-bold">
+                  <option value="all">🌐 All Partner Stores (Settle All Eligible)</option>
+                </select>
+                <button onclick="bulkSettleDeliveries()" class="px-5 py-2.5 rounded-xl font-extrabold text-xs bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white whitespace-nowrap shadow-sm">
+                  💸 Settle Now
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- ADMIN SECTION 2: CUSTOMER SUPPORT & LIVE CLIENT CHAT DESK         -->
+      <!-- ================================================================= -->
+      <div id="adm-sec-support" class="hidden glass p-6 space-y-5 border-l-4 border-l-rose-500">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="text-xl font-extrabold">🎧 Customer Support & Live Client Chat Desk</h3>
+            <p class="text-sm text-slate-400">Two-way live messaging connected to the Client Storefront <strong>"💬 Support Chat"</strong> drawer and Mobile App.</p>
+          </div>
+          <span id="support-desk-badge" class="px-3.5 py-1.5 rounded-full bg-rose-500/15 text-rose-400 text-xs font-mono font-bold">0 Open Tickets</span>
+        </div>
+
+        <div class="grid lg:grid-cols-12 gap-6">
+          <!-- Ticket List (5 cols) -->
+          <div class="lg:col-span-5 space-y-2.5 max-h-[460px] overflow-y-auto pr-1" id="admin-support-tickets-list"></div>
+
+          <!-- Active Ticket Conversation & Admin Reply Box (7 cols) -->
+          <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4">
+            <div id="admin-active-ticket-header" class="flex items-center justify-between border-b border-slate-800 pb-3 text-sm">
+              <span class="text-slate-400">Select a support chat thread on the left</span>
+            </div>
+            <div id="admin-active-ticket-messages" class="space-y-3 max-h-80 overflow-y-auto py-2 px-1 text-sm"></div>
+            <div class="pt-3 border-t border-slate-800 flex gap-2.5">
+              <input id="adminSupportReplyInput" type="text" placeholder="Type official Facilitator Support reply to client..." class="flex-1 rounded-xl px-4 py-2.5 text-sm" onkeydown="if(event.key==='Enter') adminSendSupportReply()" />
+              <button onclick="adminSendSupportReply()" class="px-5 py-2.5 rounded-xl font-extrabold text-xs bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white shadow-sm">
+                📤 Send Reply
+              </button>
+              <button onclick="adminToggleTicketStatus()" id="adminResolveTicketBtn" class="px-4 py-2.5 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700">
+                ✓ Resolve
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- ADMIN SECTION 3: ORDERS, DELIVERIES & CASH SETTLEMENTS LEDGERS    -->
+      <!-- ================================================================= -->
+      <div id="adm-sec-logistics" class="hidden space-y-6">
+        <!-- Master Outsourced Deliveries & Fulfillment Control -->
+        <div class="glass p-6 space-y-4 border-l-4 border-l-purple-600">
+          <div>
+            <h3 class="text-lg font-extrabold">🚚 Master Outsourced 3PL Deliveries & Fulfillment Control</h3>
+            <p class="text-xs text-slate-400">Monitor and advance any Store-to-Client Bosta AWB or trigger Cash Settlement directly from the Control Tower.</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 bg-slate-900 font-mono uppercase text-slate-400">
+                  <th>Delivery & Order #</th>
+                  <th>Store Pickup $\rightarrow$ Client Dropoff</th>
+                  <th>Gross / Fee / Store Net / COD</th>
+                  <th>Packaging</th>
+                  <th>Bosta AWB & Status</th>
+                  <th>Settlement</th>
+                  <th>Admin Quick Action</th>
+                </tr>
+              </thead>
+              <tbody id="admin-deliveries-tbody" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Cash Settlement & Commission Realization Ledger -->
+        <div class="glass p-6 space-y-4 border-l-4 border-l-emerald-600">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-extrabold">💸 Cash Settlement & Commission Realization Ledger (`wc_settlements`)</h3>
+              <p class="text-xs text-slate-400">Completed Store Payouts (`STL-xxxxxx`) and Realized Facilitator Commission after Outsourced Delivery.</p>
+            </div>
+            <span id="settlements-count-badge" class="px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-mono font-bold">0 Settled</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 bg-slate-900 font-mono uppercase text-slate-400">
+                  <th>Settlement Ref</th>
+                  <th>Order & AWB</th>
+                  <th>Partner Store</th>
+                  <th>Store Gross</th>
+                  <th>Realized Commission</th>
+                  <th>Net Paid to Store</th>
+                  <th>Payout Rail & Timestamp</th>
+                </tr>
+              </thead>
+              <tbody id="admin-settlements-tbody" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Master Orders Table -->
+        <div class="glass p-6 space-y-4">
+          <h3 class="text-lg font-extrabold">🧾 Master Client Orders, VAT, Delivery & Payment Simulation</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 bg-slate-900 font-mono uppercase text-slate-400">
+                  <th>Order #</th>
+                  <th>Client & Dropoff</th>
+                  <th>Payment Rail</th>
+                  <th>Total / VAT / Deliv / Fee / Store Net</th>
+                  <th>Payment & Order Status</th>
+                  <th>Simulate Payment Action</th>
+                </tr>
+              </thead>
+              <tbody id="admin-orders-tbody" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- ADMIN SECTION 4: ALL-STORES INVENTORY, STORES & CATEGORIES        -->
+      <!-- ================================================================= -->
+      <div id="adm-sec-inventory" class="hidden space-y-6">
+        <div class="glass p-6 space-y-4 border-l-4 border-l-teal-500">
+          <div>
+            <h3 class="text-lg font-extrabold">📦 Master All-Stores Inventory, Pricing, VAT & Commission Matrix</h3>
+            <p class="text-xs text-slate-400">Every SKU across all Partner Stores with its active Commission %, VAT %, Delivery Fee Policy, and live Stock Controls.</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 bg-slate-900 font-mono uppercase text-slate-400">
+                  <th>SKU & Category</th>
+                  <th>Product Name</th>
+                  <th>Partner Store & Origin</th>
+                  <th>Price</th>
+                  <th>Comm % / VAT %</th>
+                  <th>Delivery Policy</th>
+                  <th>Stock / Held / Avail</th>
+                  <th>Stock Control</th>
+                </tr>
+              </thead>
+              <tbody id="admin-all-inventory-tbody" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-6">
+          <!-- Product Categories Manager -->
+          <div class="glass p-6 space-y-4">
+            <h3 class="text-lg font-extrabold">🏷️ Product Categories Manager</h3>
+            <div id="admin-categories-list" class="grid grid-cols-2 gap-3 text-xs"></div>
+            <div class="pt-3 border-t border-slate-800 space-y-2.5">
+              <div class="text-xs font-bold uppercase text-slate-400">➕ Create New Product Category</div>
+              <div class="grid grid-cols-3 gap-2">
+                <input id="newCatNameEn" type="text" placeholder="English Name" class="rounded-xl px-3 py-2 text-sm" />
+                <input id="newCatNameAr" type="text" placeholder="الاسم بالعربية" class="rounded-xl px-3 py-2 text-sm" />
+                <input id="newCatEmoji" type="text" placeholder="Emoji" value="⌚" class="rounded-xl px-3 py-2 text-sm" />
+              </div>
+              <button onclick="adminCreateCategory()" class="w-full py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white">Add Category</button>
+            </div>
+          </div>
+
+          <!-- Partner Stores Onboarding & Summary -->
+          <div class="glass p-6 space-y-4">
+            <h3 class="text-lg font-extrabold">🏪 Partner Stores & Active Commercial Terms</h3>
+            <div id="admin-stores-list" class="space-y-2.5 text-xs"></div>
+            <div class="pt-3 border-t border-slate-800 space-y-2.5">
+              <div class="text-xs font-bold uppercase text-slate-400">➕ Onboard New Partner Store</div>
+              <div class="grid grid-cols-2 gap-2">
+                <input id="newStoreNameEn" type="text" placeholder="Store Name (EN)" class="rounded-xl px-3 py-2 text-sm" />
+                <input id="newStoreNameAr" type="text" placeholder="اسم المتجر (AR)" class="rounded-xl px-3 py-2 text-sm" />
+              </div>
+              <div class="grid grid-cols-3 gap-2">
+                <select id="newStoreGov" class="rounded-xl px-3 py-2 text-sm">
+                  <option value="CAIRO">Cairo</option>
+                  <option value="GIZA">Giza</option>
+                  <option value="ALEX">Alexandria</option>
+                  <option value="DAKAHLIA">Dakahlia</option>
+                </select>
+                <input id="newStoreAddress" type="text" placeholder="Pickup Address" class="rounded-xl px-3 py-2 text-sm" />
+                <input id="newStoreComm" type="number" placeholder="Comm %" value="10" class="rounded-xl px-3 py-2 text-sm font-mono" />
+              </div>
+              <button onclick="adminCreateStore()" class="w-full py-2.5 rounded-xl font-bold text-xs bg-amber-600 hover:bg-amber-500 text-white btn-solid-white">Onboard Partner Store</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- ADMIN SECTION 5: WEBHOOKS & API INSPECTOR                         -->
+      <!-- ================================================================= -->
+      <div id="adm-sec-webhooks" class="hidden glass p-6 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="text-lg font-extrabold">🔌 Outbound API Calls & Inbound HMAC-SHA512 Webhooks Inspector (:4000 ↔ :4001)</h3>
+            <p class="text-xs text-slate-400">Filter by provider to inspect real-time signed payloads between the Core Engine and Egyptian Integrations.</p>
+          </div>
+          <select id="webhookProviderFilter" onchange="renderAdminView()" class="rounded-xl px-3.5 py-2 text-xs font-mono font-bold">
+            <option value="ALL">All Providers & Events</option>
+            <option value="PAYMOB">PAYMOB (3DS & Split)</option>
+            <option value="FAWRY">FAWRY (48h Kiosk)</option>
+            <option value="VALU">VALU (BNPL)</option>
+            <option value="WHATSAPP">WHATSAPP (COD OTP)</option>
+            <option value="BOSTA">BOSTA (3PL Courier)</option>
+            <option value="SETTLEMENT">SETTLEMENT (Cash Payouts)</option>
+            <option value="COMMERCIAL_ENGINE">COMMERCIAL_ENGINE (Policy Updates)</option>
+          </select>
+        </div>
+        <div id="webhooks-inspector-list" class="space-y-2.5 font-mono text-xs max-h-[500px] overflow-y-auto pr-1"></div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- FLOATING CLIENT "CHAT WITH SUPPORT" LAUNCHER BUTTON -->
+  <button onclick="toggleClientSupportChat()" class="fixed bottom-5 left-5 z-40 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white btn-solid-white text-sm font-extrabold shadow-2xl flex items-center gap-2.5 transition">
+    <span>💬</span>
+    <span>Chat with Support</span>
+    <span id="floating-support-badge" class="px-2 py-0.5 rounded-full bg-black/25 text-white btn-solid-white font-mono text-xs">Live</span>
+  </button>
+
+  <!-- INTERACTIVE CLIENT LIVE SUPPORT CHAT DRAWER -->
+  <div id="clientSupportDrawer" class="fixed bottom-20 left-5 z-50 hidden w-[410px] max-w-[94vw] glass rounded-2xl border border-emerald-500/50 shadow-2xl overflow-hidden flex flex-col">
+    <div class="bg-gradient-to-r from-emerald-700 to-indigo-700 px-5 py-3.5 flex items-center justify-between text-white btn-solid-white">
+      <div>
+        <div class="text-sm font-extrabold flex items-center gap-1.5 text-white btn-solid-white">🎧 NileConnect Customer Support</div>
+        <div class="text-xs opacity-90 text-white btn-solid-white">Connected Live to Facilitator Support Desk</div>
+      </div>
+      <button onclick="toggleClientSupportChat()" class="text-white btn-solid-white text-base font-bold px-2">✕</button>
+    </div>
+
+    <div class="p-4 space-y-3.5 text-xs max-h-[72vh] overflow-y-auto">
+      <div>
+        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Select Conversation or Start New</label>
+        <select id="clientChatThreadSelect" onchange="renderClientSupportDrawer()" class="w-full rounded-xl px-3 py-2 text-xs font-bold">
+          <option value="new">➕ Start a New Support Chat</option>
+        </select>
+      </div>
+
+      <!-- New Support Ticket Form -->
+      <div id="clientNewChatForm" class="space-y-2.5 bg-slate-900 p-3.5 rounded-xl border border-slate-800">
+        <div class="grid grid-cols-2 gap-2">
+          <input id="chatCustName" type="text" value="Ahmed Kamal" placeholder="Your Name" class="rounded-lg px-3 py-2 text-xs" />
+          <input id="chatCustPhone" type="text" value="01012345678" placeholder="01xxxxxxxxx" class="rounded-lg px-3 py-2 text-xs font-mono" />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <input id="chatOrderNum" type="text" placeholder="Order # (Optional)" class="rounded-lg px-3 py-2 text-xs font-mono" />
+          <select id="chatStoreId" class="rounded-lg px-3 py-2 text-xs">
+            <option value="">Any Partner Store</option>
+          </select>
+        </div>
+        <select id="chatSubject" class="w-full rounded-lg px-3 py-2 text-xs">
+          <option value="Outsourced Bosta Delivery & Tracking">🚚 Outsourced Bosta Delivery & Tracking</option>
+          <option value="Payment / Fawry / valU / InstaPay Issue">💳 Payment / Fawry / valU / InstaPay Issue</option>
+          <option value="Product Availability & Store Inquiry">🏪 Product Availability & Store Inquiry</option>
+          <option value="Return / Refund / Replacement Request">🔄 Return / Refund / Replacement Request</option>
+        </select>
+        <textarea id="chatInitialMsg" rows="2" placeholder="How can our Facilitator Support team help you today?" class="w-full rounded-lg px-3 py-2 text-xs"></textarea>
+        <button onclick="clientCreateSupportTicket()" class="w-full py-2.5 rounded-xl font-extrabold text-xs bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white shadow-sm">
+          💬 Start Live Support Chat
+        </button>
+      </div>
+
+      <!-- Existing Thread Messages & Client Reply Box -->
+      <div id="clientExistingChatBox" class="hidden space-y-3">
+        <div id="clientChatMessagesList" class="space-y-2.5 max-h-60 overflow-y-auto p-3 rounded-xl bg-slate-900 border border-slate-800"></div>
+        <div class="flex gap-2">
+          <input id="clientChatReplyInput" type="text" placeholder="Write a message to Support..." class="flex-1 rounded-xl px-3 py-2 text-xs" onkeydown="if(event.key==='Enter') clientSendSupportReply()" />
+          <button onclick="clientSendSupportReply()" class="px-4 py-2 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INTERACTIVE EGYPT PAYMENT / OTP / KIOSK MODAL -->
+  <div id="paymentModal" class="fixed inset-0 z-50 hidden bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass max-w-lg w-full rounded-2xl p-6 border-t-4 border-t-emerald-600 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <span class="text-xs font-mono font-bold uppercase text-emerald-400" id="modalBadge">Egyptian Gateway Sandbox</span>
+          <h3 class="text-xl font-extrabold mt-0.5" id="modalTitle">Complete Payment Simulation</h3>
+        </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-base font-bold px-2">✕</button>
+      </div>
+      <div id="modalBody" class="space-y-3 text-sm text-slate-300"></div>
+      <div id="modalActions" class="flex flex-wrap gap-2.5 pt-2"></div>
+    </div>
+  </div>
+
+  <!-- INSTANT TOAST FEEDBACK NOTIFICATION -->
+  <div id="toastBox" class="fixed bottom-5 right-5 z-50 hidden px-5 py-3.5 rounded-2xl bg-emerald-600 text-white btn-solid-white text-sm font-extrabold shadow-2xl transition-all"></div>
+
+  <script>
+    const API_BASE = '/wp-json/wc/v3';
+
+    function showToast(msg) {
+      const el = document.getElementById('toastBox');
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => el.classList.add('hidden'), 2800);
+    }
+
+    let STATE = {
+      platform_settings: {},
+      categories: [],
+      stores: [],
+      products: [],
+      governorates: [],
+      deliveries: [],
+      settlements: [],
+      orders: [],
+      support_tickets: [],
+      webhooks_log: [],
+      push_notifications: []
+    };
+    let SELECTED_CATEGORY_ID = 'all';
+    let ACTIVE_ADMIN_TICKET_ID = null;
+    let ACTIVE_ADMIN_SUBTAB = 'commercial';
+    let CART = [
+      { product_id: 1, quantity: 1 },
+      { product_id: 3, quantity: 1 }
+    ];
+    let LANG = 'en';
+    let MOBILE_OS = 'ios_app';
+
+    function formatEGP(n) {
+      return Number(n || 0).toLocaleString('en-US') + ' EGP';
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      const btn = document.getElementById('themeToggleBtn');
+      if (btn) {
+        btn.textContent = next === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+      }
+      showToast(next === 'light' ? '☀️ Switched to Clean Eye-Friendly Light Mode' : '🌙 Switched to Dark Mode');
+    }
+
+    function switchTab(tab) {
+      ['storefront', 'mobile', 'stores', 'delivery', 'admin'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+        document.getElementById('btn-tab-' + t).classList.toggle('active', t === tab);
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function switchAdminSubTab(sub) {
+      ACTIVE_ADMIN_SUBTAB = sub;
+      const secs = ['commercial', 'support', 'logistics', 'inventory', 'webhooks'];
+      secs.forEach(s => {
+        const el = document.getElementById('adm-sec-' + s);
+        if (el) {
+          el.classList.toggle('hidden', sub !== 'all' && sub !== s);
+        }
+        const btn = document.getElementById('adm-btn-' + s);
+        if (btn) btn.classList.toggle('active', sub === s);
+      });
+      const allBtn = document.getElementById('adm-btn-all');
+      if (allBtn) allBtn.classList.toggle('active', sub === 'all');
+    }
+
+    function toggleLanguage() {
+      LANG = LANG === 'en' ? 'ar' : 'en';
+      document.documentElement.dir = LANG === 'ar' ? 'rtl' : 'ltr';
+      document.documentElement.lang = LANG;
+      document.getElementById('langBtn').textContent = LANG === 'ar' ? '🌐 English' : '🌐 العربية';
+      renderCategoriesBar();
+      renderProducts();
+      recalcCart();
+    }
+
+    function setMobileOS(os) {
+      MOBILE_OS = os;
+      document.getElementById('os-ios').className = os === 'ios_app'
+        ? 'flex-1 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 text-white btn-solid-white'
+        : 'flex-1 py-2.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-300';
+      document.getElementById('os-android').className = os === 'android_app'
+        ? 'flex-1 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white btn-solid-white'
+        : 'flex-1 py-2.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-300';
+      document.getElementById('phone-os-badge').textContent = os === 'ios_app'
+        ? 'iOS 18 • NileConnect'
+        : 'Android 15 • NileConnect';
+    }
+
+    function selectCategory(catId) {
+      SELECTED_CATEGORY_ID = catId;
+      renderCategoriesBar();
+      renderProducts();
+      renderMobileView();
+    }
+
+    function selectPortalStoreCard(storeId) {
+      const sel = document.getElementById('activeStorePortalSelect');
+      if (sel) {
+        sel.value = String(storeId);
+        renderStorePortal();
+        showToast(`🏪 Switched to Partner Store #${storeId}`);
+      }
+    }
+
+    async function refreshAll() {
+      const res = await fetch(`${API_BASE}/system/state`);
+      STATE = await res.json();
+
+      document.getElementById('badge-deliveries').textContent = STATE.deliveries.length;
+
+      const govSel = document.getElementById('govSelect');
+      if (STATE.governorates.length > 0) {
+        const curGov = govSel.value || 'CAIRO';
+        govSel.innerHTML = STATE.governorates.map(g =>
+          `<option value="${g.code}">${g.name_en} — ${g.shipping_egp} EGP (${g.sla_days})</option>`
+        ).join('');
+        govSel.value = curGov;
+      }
+
+      const openTicketsCount = (STATE.support_tickets || []).filter(t => t.status === 'OPEN').length;
+      const badgeSup = document.getElementById('badge-support-open');
+      if (badgeSup) badgeSup.textContent = openTicketsCount;
+      const floatSup = document.getElementById('floating-support-badge');
+      if (floatSup) floatSup.textContent = `${openTicketsCount} Open`;
+
+      const ruleScopeSel = document.getElementById('ruleTargetScope');
+      if (ruleScopeSel) {
+        const curScope = ruleScopeSel.value || 'all';
+        ruleScopeSel.innerHTML = `<option value="all">🌐 Apply to ALL Partner Stores (Global Bulk Policy)</option>` +
+          STATE.stores.map(s => `<option value="${s.id}">🏪 Store #${s.id}: ${s.name_en} (${s.governorate})</option>`).join('');
+        ruleScopeSel.value = curScope;
+      }
+
+      const bulkSettleSel = document.getElementById('bulkSettleStoreSelect');
+      if (bulkSettleSel) {
+        const curBulk = bulkSettleSel.value || 'all';
+        bulkSettleSel.innerHTML = `<option value="all">🌐 All Partner Stores (Settle All Eligible)</option>` +
+          STATE.stores.map(s => `<option value="${s.id}">🏪 ${s.name_en} (${s.governorate})</option>`).join('');
+        bulkSettleSel.value = curBulk;
+      }
+
+      const adminGovSel = document.getElementById('adminGovRateSelect');
+      if (adminGovSel) {
+        const curAdminGov = adminGovSel.value || 'ALL';
+        adminGovSel.innerHTML = `<option value="ALL">🌐 Apply Uniform Rate to ALL Governorates</option>` +
+          STATE.governorates.map(g => `<option value="${g.code}">📍 ${g.name_en} — Current: ${g.shipping_egp} EGP (${g.sla_days})</option>`).join('');
+        adminGovSel.value = curAdminGov;
+      }
+
+      const chatStoreSel = document.getElementById('chatStoreId');
+      if (chatStoreSel) {
+        const curChatStore = chatStoreSel.value || '';
+        chatStoreSel.innerHTML = `<option value="">Any Partner Store</option>` +
+          STATE.stores.map(s => `<option value="${s.id}">🏪 ${s.name_en}</option>`).join('');
+        chatStoreSel.value = curChatStore;
+      }
+
+      const storeFilter = document.getElementById('storeFilterSelect');
+      const currentFilterVal = storeFilter.value || 'all';
+      storeFilter.innerHTML = `<option value="all">All Partner Stores (${STATE.stores.length} Stores)</option>` +
+        STATE.stores.map(s => `<option value="${s.id}">🏪 ${s.name_en} (${s.governorate})</option>`).join('');
+      storeFilter.value = currentFilterVal;
+
+      const portalSel = document.getElementById('activeStorePortalSelect');
+      const currentPortalVal = portalSel.value || (STATE.stores[0] ? String(STATE.stores[0].id) : '1');
+      portalSel.innerHTML = STATE.stores.map(s =>
+        `<option value="${s.id}">🏪 ${s.name_en} — Commission: ${s.commission_pct}%</option>`
+      ).join('');
+      portalSel.value = currentPortalVal;
+
+      const storeCatSel = document.getElementById('storeNewProdCategory');
+      storeCatSel.innerHTML = STATE.categories.map(c =>
+        `<option value="${c.id}">${c.icon_emoji} ${c.name_en} (${c.name_ar})</option>`
+      ).join('');
+
+      renderCategoriesBar();
+      renderProducts();
+      await recalcCart();
+      renderMobileView();
+      renderStorePortal();
+      renderDeliveryHub();
+      renderAdminView();
+      renderClientSupportDrawer();
+    }
+
+    function renderCategoriesBar() {
+      const bar = document.getElementById('category-pills-bar');
+      const allBtn = `
+        <button onclick="selectCategory('all')" class="cat-pill ${SELECTED_CATEGORY_ID === 'all' ? 'active' : 'bg-slate-900 text-slate-300 border-slate-700'} border transition flex items-center gap-2">
+          <span>🌐</span>
+          <span>${LANG === 'ar' ? 'جميع الأقسام' : 'All Categories'} (${STATE.products.length})</span>
+        </button>
+      `;
+      const catBtns = STATE.categories.map(c => {
+        const title = LANG === 'ar' ? c.name_ar : c.name_en;
+        const active = String(SELECTED_CATEGORY_ID) === String(c.id);
+        return `
+          <button onclick="selectCategory(${c.id})" class="cat-pill ${active ? 'active' : 'bg-slate-900 text-slate-300 border-slate-700'} border transition flex items-center gap-2">
+            <span>${c.icon_emoji}</span>
+            <span>${title} (${c.product_count})</span>
+          </button>
+        `;
+      }).join('');
+      bar.innerHTML = allBtn + catBtns;
+    }
+
+    function getFilteredProducts() {
+      const storeFilter = document.getElementById('storeFilterSelect').value;
+      return STATE.products.filter(p => {
+        const matchCat = SELECTED_CATEGORY_ID === 'all' || String(p.category_id) === String(SELECTED_CATEGORY_ID);
+        const matchStore = storeFilter === 'all' || String(p.store_id) === String(storeFilter);
+        return matchCat && matchStore;
+      });
+    }
+
+    function renderProducts() {
+      const filtered = getFilteredProducts();
+      document.getElementById('catalogCountLabel').textContent = `Showing ${filtered.length} product(s) from Partner Stores`;
+      const grid = document.getElementById('product-grid');
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-2 glass p-10 text-center text-slate-400">No products match this Category / Store filter.</div>`;
+        return;
+      }
+      grid.innerHTML = filtered.map(p => {
+        const title = LANG === 'ar' ? p.name_ar : p.name_en;
+        const catName = LANG === 'ar' ? p.category_name_ar : p.category_name_en;
+        const storeName = LANG === 'ar' ? p.store_name_ar : p.store_name_en;
+        const m12 = Math.round((p.price_egp * 1.216) / 12);
+        return `
+          <div class="glass p-5 flex flex-col justify-between hover:border-emerald-500 transition">
+            <div>
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <span class="text-xs font-bold px-3 py-1 rounded-full bg-indigo-500/15 text-indigo-400">
+                  ${p.category_icon || '🏷️'} ${catName}
+                </span>
+                <span class="text-xs font-mono text-slate-400">${p.sku}</span>
+              </div>
+              <div class="flex items-start gap-3.5 my-2">
+                <div class="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-3xl shrink-0">
+                  ${p.image_emoji}
+                </div>
+                <div>
+                  <h4 class="font-extrabold text-base leading-snug">${title}</h4>
+                  <div class="text-xs text-amber-400 font-semibold mt-1">🏪 ${storeName} • ${p.store_gov}</div>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-800 flex items-baseline justify-between">
+                <span class="text-2xl font-extrabold font-mono text-emerald-400">${formatEGP(p.price_egp)}</span>
+                ${p.valu_eligible ? `<span class="text-xs text-cyan-400 font-mono">🛍️ ${formatEGP(m12)}/mo valU</span>` : ''}
+              </div>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
+              <span class="text-xs font-mono ${p.available_stock > 0 ? 'text-slate-300' : 'text-rose-400'}">
+                Available Stock: <strong>${p.available_stock}</strong> ${p.reserved_quantity > 0 ? `<span class="text-amber-400">(${p.reserved_quantity} held)</span>` : ''}
+              </span>
+              <button onclick="addToCart(${p.id})" class="px-4 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white shadow-sm transition">
+                + Add to Cart
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addToCart(productId) {
+      const existing = CART.find(i => i.product_id === productId);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        CART.push({ product_id: productId, quantity: 1 });
+      }
+      const p = STATE.products.find(x => x.id === productId);
+      showToast(`🛒 Added "${p ? p.name_en : 'Item'}" to Cart!`);
+      recalcCart();
+    }
+
+    function updateQty(productId, delta) {
+      const idx = CART.findIndex(i => i.product_id === productId);
+      if (idx === -1) return;
+      CART[idx].quantity += delta;
+      if (CART[idx].quantity <= 0) CART.splice(idx, 1);
+      recalcCart();
+    }
+
+    function getSelectedPaymentMethod() {
+      const el = document.querySelector('input[name="payMethod"]:checked');
+      return el ? el.value : 'paymob_card';
+    }
+
+    async function recalcCart() {
+      const payMethod = getSelectedPaymentMethod();
+      document.getElementById('valu-options-box').classList.toggle('hidden', payMethod !== 'valu_bnpl');
+      document.getElementById('instapay-options-box').classList.toggle('hidden', payMethod !== 'instapay_qr');
+
+      const gov = document.getElementById('govSelect').value || 'CAIRO';
+      const coupon = document.getElementById('couponInput').value || '';
+
+      const res = await fetch(`${API_BASE}/cart/calculate`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          items: CART,
+          governorate: gov,
+          payment_method: payMethod,
+          coupon_code: coupon
+        })
+      });
+      const calc = await res.json();
+
+      const totalQty = calc.items.reduce((s, i) => s + i.quantity, 0);
+      document.getElementById('cart-count-pill').textContent = `${totalQty} items`;
+
+      const cartBox = document.getElementById('cart-items-box');
+      if (calc.items.length === 0) {
+        cartBox.innerHTML = `<p class="text-slate-400 py-3 text-center text-sm">Your cart is empty. Click "+ Add to Cart" on any product.</p>`;
+      } else {
+        cartBox.innerHTML = calc.items.map(it => `
+          <div class="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800">
+            <div class="pr-2">
+              <div class="font-bold text-sm leading-tight">${LANG === 'ar' ? it.name_ar : it.name_en}</div>
+              <div class="text-xs text-amber-400 mt-0.5">🏪 ${it.store_name} (${it.store_gov})</div>
+              <div class="text-xs font-mono text-emerald-400 mt-0.5">${formatEGP(it.unit_price_egp)} × ${it.quantity} = ${formatEGP(it.line_total_egp)}</div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="updateQty(${it.product_id}, -1)" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-sm">-</button>
+              <span class="font-mono font-bold px-1.5 text-sm">${it.quantity}</span>
+              <button onclick="updateQty(${it.product_id}, 1)" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-sm">+</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('sum-stores-count').textContent = `${calc.stores_count} Partner Store(s) -> ${calc.stores_count} Bosta Pickup(s)`;
+      document.getElementById('sum-subtotal').textContent = formatEGP(calc.subtotal_egp);
+      document.getElementById('sum-discount').textContent = `-${formatEGP(calc.discount_egp)}`;
+      const vatLabel = document.getElementById('sum-vat-label');
+      const vatVal = document.getElementById('sum-vat');
+      if (vatLabel && vatVal) {
+        vatLabel.textContent = calc.vat_mode === 'ADDITIVE' ? 'Egypt VAT (+Added at Checkout):' : 'Egypt VAT (Included in Price):';
+        vatVal.textContent = calc.vat_mode === 'ADDITIVE' ? `+${formatEGP(calc.vat_egp)}` : formatEGP(calc.vat_egp);
+      }
+      document.getElementById('sum-gov-sla').textContent = calc.governorate ? `${calc.governorate.code}` : 'Cairo';
+      document.getElementById('sum-shipping').textContent = formatEGP(calc.shipping_egp);
+      document.getElementById('sum-cod-row').classList.toggle('hidden', calc.cod_fee_egp <= 0);
+      document.getElementById('sum-cod').textContent = `+${formatEGP(calc.cod_fee_egp)}`;
+      document.getElementById('sum-total').textContent = formatEGP(calc.total_egp);
+      document.getElementById('sum-commission').textContent = formatEGP(calc.platform_commission_egp);
+      document.getElementById('sum-store-net').textContent = formatEGP(calc.net_stores_payout_egp);
+      document.getElementById('mobile-cart-total').textContent = formatEGP(calc.total_egp);
+      document.getElementById('valu-preview-badge').textContent = `${formatEGP(calc.valu_plans['12_months'])}/mo`;
+    }
+
+    async function submitOrder(channelOverride) {
+      if (CART.length === 0) {
+        alert('Please add at least one product to your cart first.');
+        return;
+      }
+      const channel = channelOverride || 'web';
+      const payMethod = channel === 'web'
+        ? getSelectedPaymentMethod()
+        : document.getElementById('mobilePayMethod').value;
+
+      const payload = {
+        channel: channel,
+        items: CART,
+        governorate: document.getElementById('govSelect').value || 'CAIRO',
+        payment_method: payMethod,
+        coupon_code: document.getElementById('couponInput').value || '',
+        customer_name: document.getElementById('custName').value || 'Ahmed Kamal',
+        customer_phone: document.getElementById('custPhone').value || '01012345678',
+        area_street: document.getElementById('custAddress').value || 'Nasr City, Cairo',
+        valu_months: parseInt(document.getElementById('valuMonths').value || '12', 10),
+        instapay_ipa: document.getElementById('instapayIpa').value || 'ahmed.kamal@instapay'
+      };
+
+      const res = await fetch(`${API_BASE}/orders`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Order creation failed');
+        return;
+      }
+
+      await refreshAll();
+      openOrderSimulationModal(data.order);
+    }
+
+    function submitMobileOrder() {
+      submitOrder(MOBILE_OS);
+    }
+
+    function openOrderSimulationModal(order) {
+      const modal = document.getElementById('paymentModal');
+      const badge = document.getElementById('modalBadge');
+      const title = document.getElementById('modalTitle');
+      const body = document.getElementById('modalBody');
+      const actions = document.getElementById('modalActions');
+
+      const delivs = order.deliveries || [];
+      const storesText = delivs.map(d => `🏪 ${d.store_name} (${d.pickup_governorate})`).join(' + ');
+
+      badge.textContent = `Order #${order.order_number} • ${delivs.length} Partner Store Pickup(s)`;
+
+      const splitSummaryHtml = `
+        <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
+          <div><strong>Pickup Origin Store(s):</strong> <span class="text-amber-400">${storesText}</span></div>
+          <div><strong>Client Total:</strong> <span class="text-emerald-400 font-mono font-bold">${formatEGP(order.total_egp)}</span></div>
+          <div><strong>Your Facilitator Commission:</strong> <span class="text-indigo-400 font-mono">${formatEGP(order.platform_commission_egp)}</span> • <strong>Net to Store(s):</strong> <span class="text-emerald-400 font-mono">${formatEGP(order.net_stores_payout_egp)}</span></div>
+        </div>
+      `;
+
+      if (order.payment_method === 'paymob_card' || order.payment_method === 'paymob_wallet') {
+        title.textContent = `💳 Paymob Split Intention (${order.gateway_ref})`;
+        body.innerHTML = splitSummaryHtml + `
+          <p class="text-slate-300 text-xs">Partner Store inventory is reserved. Click Approve below to complete 3DS and dispatch Bosta pickups:</p>
+        `;
+        actions.innerHTML = `
+          <button onclick="triggerMockAction('/paymob/simulate-payment', {intention_id:'${order.gateway_ref}', outcome:'APPROVED'})" class="flex-1 py-3 px-4 rounded-xl font-extrabold text-xs bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white">
+            ✅ Approve Paymob 3DS & Schedule Store Pickup(s)
+          </button>
+          <button onclick="triggerMockAction('/paymob/simulate-payment', {intention_id:'${order.gateway_ref}', outcome:'DECLINED'})" class="py-3 px-4 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-500 text-white btn-solid-white">
+            ❌ Decline
+          </button>
+        `;
+      } else if (order.payment_method === 'fawry_ref') {
+        title.textContent = `🧾 Fawry Kiosk Code: ${order.gateway_ref}`;
+        body.innerHTML = splitSummaryHtml + `
+          <div class="p-4 rounded-xl bg-slate-900 border border-amber-500/40 text-center">
+            <div class="text-2xl font-extrabold font-mono tracking-widest">${order.gateway_ref}</div>
+            <div class="text-xs text-amber-400 mt-1">Partner Store stock reserved for 48 Hours</div>
+          </div>
+        `;
+        actions.innerHTML = `
+          <button onclick="triggerMockAction('/fawry/simulate-kiosk', {fawry_ref:'${order.gateway_ref}', action:'PAID'})" class="flex-1 py-3 px-4 rounded-xl font-extrabold text-xs bg-amber-600 hover:bg-amber-500 text-white btn-solid-white">
+            💵 Pay Cash at Fawry Kiosk
+          </button>
+          <button onclick="triggerMockAction('/fawry/simulate-kiosk', {fawry_ref:'${order.gateway_ref}', action:'EXPIRED'})" class="py-3 px-4 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-500 text-white btn-solid-white">
+            ⏰ Expire 48h (Return Stock)
+          </button>
+        `;
+      } else if (order.payment_method === 'valu_bnpl') {
+        title.textContent = `🛍️ valU BNPL Plan (${order.gateway_ref})`;
+        body.innerHTML = splitSummaryHtml;
+        actions.innerHTML = `
+          <button onclick="triggerMockAction('/valu/simulate-approval', {valu_id:'${order.gateway_ref}'})" class="w-full py-3 px-4 rounded-xl font-extrabold text-xs bg-cyan-600 hover:bg-cyan-500 text-white btn-solid-white">
+            ✅ Confirm valU OTP (1234) & Schedule Store Pickup
+          </button>
+        `;
+      } else if (order.payment_method === 'cod') {
+        title.textContent = `💬 WhatsApp COD Confirmation OTP`;
+        body.innerHTML = splitSummaryHtml + `
+          <p class="text-slate-300 text-xs">Verify WhatsApp OTP <strong>4455</strong> to confirm the COD order and notify the Partner Store(s):</p>
+        `;
+        actions.innerHTML = `
+          <button onclick="triggerMockAction('/whatsapp/verify-otp', {order_id:'${order.id}', otp:'4455'})" class="w-full py-3 px-4 rounded-xl font-extrabold text-xs bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white">
+            ✅ Verify WhatsApp OTP (4455) & Dispatch Bosta Pickup
+          </button>
+        `;
+      } else if (order.payment_method === 'instapay_qr') {
+        title.textContent = `🏦 InstaPay Transfer (${order.gateway_ref})`;
+        body.innerHTML = splitSummaryHtml;
+        actions.innerHTML = `
+          <button onclick="approveInstaPay(${order.id})" class="w-full py-3 px-4 rounded-xl font-extrabold text-xs bg-indigo-600 hover:bg-indigo-500 text-white btn-solid-white">
+            ✅ Approve InstaPay Receipt & Schedule Store Pickup
+          </button>
+        `;
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('paymentModal').classList.add('hidden');
+    }
+
+    async function triggerMockAction(mockPath, payload) {
+      showToast(`⚡ Executing ${mockPath} via HMAC Webhook...`);
+      await fetch(`${API_BASE}/mock-proxy`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ mock_path: mockPath, payload: payload })
+      });
+      closeModal();
+      await refreshAll();
+      showToast(`✅ Webhook processed & state updated!`);
+    }
+
+    async function approveInstaPay(orderId) {
+      showToast(`🏦 Approving InstaPay Receipt for Order #${orderId}...`);
+      await fetch(`${API_BASE}/orders/${orderId}/instapay-approve`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      closeModal();
+      await refreshAll();
+      showToast(`✅ InstaPay Approved & Bosta Pickup Scheduled!`);
+    }
+
+    // =====================================================================
+    // TAB 2: MOBILE VIEW RENDERER
+    // =====================================================================
+    function renderMobileView() {
+      if (STATE.push_notifications.length > 0) {
+        const latest = STATE.push_notifications[0];
+        document.getElementById('phone-push-title').textContent = latest.title_en;
+        document.getElementById('phone-push-body').textContent = LANG === 'ar' ? latest.body_ar : latest.body_en;
+      }
+
+      const pushList = document.getElementById('push-feed-list');
+      pushList.innerHTML = STATE.push_notifications.length === 0
+        ? '<p class="text-slate-400">No push notifications yet.</p>'
+        : STATE.push_notifications.map(p => `
+            <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+              <div class="flex justify-between text-[11px] font-mono text-emerald-400">
+                <span>${p.target_platform}</span>
+                <span>${p.created_at}</span>
+              </div>
+              <div class="font-bold text-sm">${p.title_en}</div>
+              <div class="text-slate-300 text-xs">${p.body_en}</div>
+            </div>
+          `).join('');
+
+      const mobCats = document.getElementById('mobile-cat-pills');
+      mobCats.innerHTML = `
+        <button onclick="selectCategory('all')" class="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${SELECTED_CATEGORY_ID === 'all' ? 'bg-emerald-600 text-white btn-solid-white' : 'bg-slate-900 text-slate-300'}">All</button>
+      ` + STATE.categories.map(c => `
+        <button onclick="selectCategory(${c.id})" class="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${String(SELECTED_CATEGORY_ID) === String(c.id) ? 'bg-emerald-600 text-white btn-solid-white' : 'bg-slate-900 text-slate-300'}">${c.icon_emoji} ${c.name_en.split(' ')[0]}</button>
+      `).join('');
+
+      const filtered = getFilteredProducts();
+      const mobProd = document.getElementById('mobile-product-list');
+      mobProd.innerHTML = filtered.slice(0, 4).map(p => `
+        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">${p.image_emoji}</span>
+            <div>
+              <div class="font-bold text-xs leading-tight">${p.name_en.slice(0, 28)}</div>
+              <div class="text-[11px] text-amber-400">🏪 ${p.store_name_en}</div>
+              <div class="text-xs font-mono text-emerald-400 font-bold">${formatEGP(p.price_egp)}</div>
+            </div>
+          </div>
+          <button onclick="addToCart(${p.id})" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white btn-solid-white font-bold text-xs">+ Add</button>
+        </div>
+      `).join('');
+
+      const mobOrders = document.getElementById('mobile-orders-list');
+      mobOrders.innerHTML = STATE.deliveries.length === 0
+        ? '<p class="text-slate-400">No active shipments yet.</p>'
+        : STATE.deliveries.slice(0, 4).map(d => `
+            <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+              <div class="flex justify-between font-mono text-xs">
+                <span class="font-bold">#${d.order_number}</span>
+                <span class="text-purple-400">${d.bosta_awb || 'Awaiting Payment'}</span>
+              </div>
+              <div class="text-[11px] text-amber-400">From: ${d.store_name} (${d.pickup_governorate})</div>
+              <div class="text-[11px] text-emerald-400">Status: ${d.courier_status}</div>
+            </div>
+          `).join('');
+    }
+
+    // =====================================================================
+    // TAB 3: PARTNER STORE PORTAL RENDERER
+    // =====================================================================
+    function renderStorePortal() {
+      const storeId = parseInt(document.getElementById('activeStorePortalSelect').value || '1', 10);
+      const store = STATE.stores.find(s => s.id === storeId) || STATE.stores[0];
+      if (!store) return;
+
+      // Render Visual Store Selector Cards
+      const cardsEl = document.getElementById('store-selector-cards');
+      if (cardsEl) {
+        cardsEl.innerHTML = STATE.stores.map(s => {
+          const isAct = s.id === store.id;
+          return `
+            <div onclick="selectPortalStoreCard(${s.id})" class="glass p-4 cursor-pointer transition ${isAct ? 'border-2 border-amber-500 ring-2 ring-amber-500/20' : 'hover:border-slate-400'}">
+              <div class="flex items-center justify-between">
+                <span class="font-extrabold text-base">🏪 ${s.name_en}</span>
+                <span class="text-xs font-mono px-2.5 py-0.5 rounded-full ${isAct ? 'bg-amber-500 text-white btn-solid-white' : 'bg-slate-800 text-slate-300'}">${isAct ? '✓ Active Store' : 'Select'}</span>
+              </div>
+              <div class="text-xs text-slate-400 mt-1">📍 ${s.governorate} • ${s.pickup_address}</div>
+              <div class="text-xs font-mono mt-2 flex justify-between">
+                <span class="text-indigo-400">Commission: ${s.commission_pct}%</span>
+                <span class="text-emerald-400">Net Settled: ${formatEGP(s.settled_payout_egp || 0)}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      const storeProducts = STATE.products.filter(p => p.store_id === store.id);
+      const storeDeliveries = STATE.deliveries.filter(d => d.store_id === store.id);
+
+      document.getElementById('store-portal-kpis').innerHTML = `
+        <div class="glass p-5 border-l-4 border-l-amber-500">
+          <div class="text-xs font-bold uppercase text-slate-400">Store Gross Sales</div>
+          <div class="text-2xl font-extrabold font-mono mt-1">${formatEGP(store.gross_sales_egp)}</div>
+          <div class="text-xs text-amber-400 mt-1">📍 ${store.pickup_address}</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-indigo-500">
+          <div class="text-xs font-bold uppercase text-slate-400">Facilitator Fee (${store.commission_pct}%)</div>
+          <div class="text-2xl font-extrabold font-mono text-indigo-400 mt-1">-${formatEGP(store.commission_egp)}</div>
+          <div class="text-xs text-slate-400 mt-1">VAT: ${store.vat_pct ?? 14}%</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-emerald-500">
+          <div class="text-xs font-bold uppercase text-slate-400">Settled Cash Paid Out</div>
+          <div class="text-2xl font-extrabold font-mono text-emerald-400 mt-1">${formatEGP(store.settled_payout_egp || 0)}</div>
+          <div class="text-xs text-amber-400 mt-1">Pending Escrow: ${formatEGP(store.pending_payout_egp || 0)}</div>
+        </div>
+        <div class="glass p-5 border-l-4 border-l-purple-500">
+          <div class="text-xs font-bold uppercase text-slate-400">Store Sub-Orders</div>
+          <div class="text-2xl font-extrabold font-mono text-purple-400 mt-1">${storeDeliveries.length}</div>
+          <div class="text-xs text-slate-400 mt-1">Outsourced Bosta Pickups</div>
+        </div>
+      `;
+
+      const invBody = document.getElementById('store-portal-inventory-tbody');
+      invBody.innerHTML = storeProducts.map(p => `
+        <tr class="hover:bg-slate-900/50">
+          <td>
+            <div class="font-mono font-bold">${p.sku}</div>
+            <span class="text-xs text-indigo-400">${p.category_icon} ${p.category_name_en}</span>
+          </td>
+          <td class="font-bold">${p.image_emoji} ${p.name_en}</td>
+          <td class="font-mono text-emerald-400 font-bold">${formatEGP(p.price_egp)}</td>
+          <td class="font-mono">${p.stock_quantity}</td>
+          <td class="font-mono text-amber-400 font-bold">${p.reserved_quantity}</td>
+          <td class="font-mono text-emerald-400 font-bold">${p.available_stock}</td>
+          <td>
+            <button onclick="adjustStoreStock(${p.id}, 5)" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white btn-solid-white font-mono text-xs font-bold mr-1">+5 Stock</button>
+            <button onclick="adjustStoreStock(${p.id}, -1)" class="px-3 py-1.5 rounded-lg bg-rose-600 text-white btn-solid-white font-mono text-xs font-bold">-1</button>
+          </td>
+        </tr>
+      `).join('');
+
+      const ordBody = document.getElementById('store-portal-orders-tbody');
+      if (storeDeliveries.length === 0) {
+        ordBody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">No incoming sub-orders for ${store.name_en} yet. Place an order on the Storefront!</td></tr>`;
+      } else {
+        ordBody.innerHTML = storeDeliveries.map(d => `
+          <tr class="hover:bg-slate-900/50">
+            <td class="font-mono font-bold">#${d.order_number}</td>
+            <td class="font-medium">${d.items_summary}</td>
+            <td class="font-mono">${formatEGP(d.store_subtotal_egp)}</td>
+            <td class="font-mono text-indigo-400">-${formatEGP(d.platform_commission_egp)}</td>
+            <td class="font-mono font-bold text-emerald-400">${formatEGP(d.net_store_payout_egp)}</td>
+            <td class="font-mono">
+              <span class="px-2.5 py-1 rounded-full text-xs ${d.packaging_status === 'READY_FOR_COURIER_PICKUP' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}">${d.packaging_status === 'READY_FOR_COURIER_PICKUP' ? '✓ Packed for Courier' : '⏳ Awaiting Pack'}</span>
+            </td>
+            <td class="font-mono text-purple-400">${d.bosta_awb || 'Awaiting Payment'}<div class="text-xs text-slate-400">${d.courier_status}</div></td>
+            <td>
+              ${d.packaging_status !== 'READY_FOR_COURIER_PICKUP'
+                ? `<button onclick="markStoreReady(${d.id})" class="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white btn-solid-white font-bold text-xs shadow-sm">📦 Mark Packaged for Bosta</button>`
+                : (d.courier_status === 'DELIVERED' && d.settlement_status !== 'SETTLED_TO_STORE'
+                    ? `<button onclick="settleDeliveryCash(${d.id})" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white font-bold text-xs shadow-sm">💸 Settle Cash Payout</button>`
+                    : (d.settlement_status === 'SETTLED_TO_STORE'
+                        ? `<span class="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 font-mono text-xs">💸 Settled (${d.settlement_ref})</span>`
+                        : `<span class="text-xs text-emerald-400 font-semibold">✓ Ready for Bosta Pickup</span>`))}
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    async function adjustStoreStock(productId, delta) {
+      await fetch(`${API_BASE}/products/${productId}/stock`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ delta })
+      });
+      await refreshAll();
+      showToast(`📦 Store Inventory Updated (${delta > 0 ? '+' + delta : delta} units)!`);
+    }
+
+    async function storeAddProduct() {
+      const store_id = parseInt(document.getElementById('activeStorePortalSelect').value || '1', 10);
+      const category_id = parseInt(document.getElementById('storeNewProdCategory').value || '1', 10);
+      const sku = document.getElementById('storeNewProdSku').value || `EG-STR-${Date.now() % 10000}`;
+      const name_en = document.getElementById('storeNewProdNameEn').value || 'New Store Product';
+      const name_ar = document.getElementById('storeNewProdNameAr').value || 'منتج جديد من المتجر';
+      const price_egp = parseFloat(document.getElementById('storeNewProdPrice').value || '1500');
+      const stock_quantity = parseInt(document.getElementById('storeNewProdStock').value || '20', 10);
+
+      await fetch(`${API_BASE}/products`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ store_id, category_id, sku, name_en, name_ar, price_egp, stock_quantity })
+      });
+      await refreshAll();
+      showToast(`✅ Published "${name_en}" to Partner Store Inventory!`);
+    }
+
+    async function markStoreReady(deliveryId) {
+      await fetch(`${API_BASE}/deliveries/${deliveryId}/store-ready`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      await refreshAll();
+      showToast(`📦 Sub-Order #${deliveryId} marked Ready for Outsourced Bosta Pickup!`);
+    }
+
+    async function settleDeliveryCash(deliveryId) {
+      showToast(`💸 Initiating Cash Settlement & Commission Split for Delivery #${deliveryId}...`);
+      const res = await fetch(`${API_BASE}/deliveries/${deliveryId}/settle`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      await refreshAll();
+      if (data.settlement && data.settlement.settlement_ref) {
+        showToast(`✅ Cash Settled (${data.settlement.settlement_ref})! Store Paid & Commission Realized.`);
+      } else {
+        showToast(`✅ Cash Settlement Completed!`);
+      }
+    }
+
+    // =====================================================================
+    // TAB 4: OUTSOURCED DELIVERY HUB RENDERER (GUIDED NEXT-STEP PIPELINE)
+    // =====================================================================
+    function buildCourierActionHtml(d) {
+      if (!d.bosta_awb) {
+        return `<span class="text-xs text-slate-400">⏳ Complete Client Payment / OTP first</span>`;
+      }
+      // Highlight the recommended NEXT step as a prominent button, with secondary options in a clean row
+      let primaryBtn = '';
+      if (d.packaging_status !== 'READY_FOR_COURIER_PICKUP') {
+        primaryBtn = `<button onclick="markStoreReady(${d.id})" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white btn-solid-white font-extrabold text-xs shadow-sm">📦 Step 1: Mark Store Packed</button>`;
+      } else if (d.courier_status === 'PICKUP_SCHEDULED') {
+        primaryBtn = `<button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'PICKED_UP_FROM_STORE'})" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white btn-solid-white font-extrabold text-xs shadow-sm">🚚 Step 2: Bosta Picked Up from Store</button>`;
+      } else if (d.courier_status === 'PICKED_UP_FROM_STORE') {
+        primaryBtn = `<button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'OUT_FOR_DELIVERY'})" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white btn-solid-white font-extrabold text-xs shadow-sm">🛵 Step 3: Out for Delivery</button>`;
+      } else if (d.courier_status === 'OUT_FOR_DELIVERY') {
+        primaryBtn = `<button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'DELIVERED'})" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white font-extrabold text-xs shadow-sm">✅ Step 4: Mark Delivered to Client</button>`;
+      } else if (d.courier_status === 'DELIVERED' && d.settlement_status !== 'SETTLED_TO_STORE') {
+        primaryBtn = `<button onclick="settleDeliveryCash(${d.id})" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white font-extrabold text-xs shadow-sm">💸 Step 5: Settle Cash & Commission</button>`;
+      } else if (d.settlement_status === 'SETTLED_TO_STORE') {
+        return `<span class="px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-400 font-mono text-xs font-bold">✓ Completed & Settled (${d.settlement_ref})</span>`;
+      }
+
+      // Also provide quick jump buttons underneath for fast testing
+      const quickLinks = d.courier_status !== 'DELIVERED' ? `
+        <div class="flex flex-wrap gap-1 mt-1.5">
+          <button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'PICKED_UP_FROM_STORE'})" class="px-2 py-0.5 rounded bg-slate-800 text-[11px] hover:bg-slate-700">Pickup</button>
+          <button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'OUT_FOR_DELIVERY'})" class="px-2 py-0.5 rounded bg-slate-800 text-[11px] hover:bg-slate-700">Out</button>
+          <button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'DELIVERED'})" class="px-2 py-0.5 rounded bg-slate-800 text-[11px] hover:bg-slate-700">Deliver</button>
+          <button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'NDR_UNREACHABLE'})" class="px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 text-[11px]">NDR</button>
+        </div>
+      ` : '';
+
+      return `<div>${primaryBtn}${quickLinks}</div>`;
+    }
+
+    function renderDeliveryHub() {
+      const awaitingPack = STATE.deliveries.filter(d => d.packaging_status === 'AWAITING_STORE_PACKAGING').length;
+      const inTransit = STATE.deliveries.filter(d => ['PICKUP_SCHEDULED', 'PICKED_UP_FROM_STORE', 'OUT_FOR_DELIVERY'].includes(d.courier_status)).length;
+      const delivered = STATE.deliveries.filter(d => d.courier_status === 'DELIVERED').length;
+      const codTotal = STATE.deliveries.reduce((s, d) => s + (d.cod_to_collect_egp || 0), 0);
+
+      document.getElementById('deliv-kpi-pack').textContent = awaitingPack;
+      document.getElementById('deliv-kpi-transit').textContent = inTransit;
+      document.getElementById('deliv-kpi-delivered').textContent = delivered;
+      document.getElementById('deliv-kpi-cod').textContent = formatEGP(codTotal);
+
+      const tbody = document.getElementById('delivery-hub-tbody');
+      if (STATE.deliveries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">No outsourced deliveries yet. Place an order on the Storefront!</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = STATE.deliveries.map(d => `
+        <tr class="hover:bg-slate-900/50">
+          <td class="font-mono">
+            <div class="font-extrabold">DELIV #${d.id}</div>
+            <div class="text-xs text-slate-400">Order #${d.order_number}</div>
+          </td>
+          <td>
+            <div class="font-bold text-amber-400">🏪 ${d.store_name}</div>
+            <div class="text-xs text-slate-300">${d.pickup_governorate} • ${d.pickup_address}</div>
+            <div class="font-mono text-xs text-slate-400">${d.store_phone}</div>
+          </td>
+          <td>
+            <div class="font-bold text-emerald-400">👤 ${d.customer_name}</div>
+            <div class="text-xs text-slate-300">${d.dropoff_governorate} • ${d.dropoff_address}</div>
+            <div class="font-mono text-xs text-slate-400">${d.customer_phone}</div>
+          </td>
+          <td>
+            <div class="font-medium">${d.items_summary}</div>
+            <div class="font-mono text-xs mt-1">
+              COD: <strong class="text-amber-400">${formatEGP(d.cod_to_collect_egp)}</strong> •
+              Store Net: <strong class="text-emerald-400">${formatEGP(d.net_store_payout_egp)}</strong>
+            </div>
+          </td>
+          <td class="font-mono">
+            <div class="font-extrabold text-purple-400">${d.bosta_awb || 'Pending Payment'}</div>
+            <div class="text-xs text-emerald-400 mt-0.5">${d.courier_status}</div>
+            <div class="text-[11px] text-slate-400">${d.packaging_status === 'READY_FOR_COURIER_PICKUP' ? '✓ Store Packed' : '⏳ Awaiting Store Pack'}</div>
+          </td>
+          <td>${buildCourierActionHtml(d)}</td>
+        </tr>
+      `).join('');
+    }
+
+    // =====================================================================
+    // TAB 5: 360° FACILITATOR ADMIN, COMMERCIAL RULES, SUPPORT & WEBHOOKS
+    // =====================================================================
+    function renderAdminView() {
+      const activeOrders = STATE.orders.filter(o => o.order_status !== 'cancelled');
+      const totalGmv = activeOrders.reduce((s, o) => s + o.total_egp, 0);
+      const totalComm = activeOrders.reduce((s, o) => s + (o.platform_commission_egp || 0), 0);
+      const totalStoreNet = activeOrders.reduce((s, o) => s + (o.net_stores_payout_egp || 0), 0);
+      const totalVat = activeOrders.reduce((s, o) => s + (o.vat_egp || 0), 0);
+
+      const realizedComm = STATE.stores.reduce((s, st) => s + (st.settled_commission_egp || 0), 0);
+      const pendingComm = Math.max(0, totalComm - realizedComm);
+      const settledStoresPayout = STATE.stores.reduce((s, st) => s + (st.settled_payout_egp || 0), 0);
+      const pendingStoresPayout = STATE.stores.reduce((s, st) => s + (st.pending_payout_egp || 0), 0);
+
+      const delivDelivered = STATE.deliveries.filter(d => d.courier_status === 'DELIVERED').length;
+      const delivTransit = STATE.deliveries.filter(d => ['PICKUP_SCHEDULED', 'PICKED_UP_FROM_STORE', 'OUT_FOR_DELIVERY'].includes(d.courier_status)).length;
+      const delivAwaitingPack = STATE.deliveries.filter(d => d.packaging_status === 'AWAITING_STORE_PACKAGING').length;
+
+      const totalAvailUnits = STATE.products.reduce((s, p) => s + (p.available_stock || 0), 0);
+      const totalReservedUnits = STATE.products.reduce((s, p) => s + (p.reserved_quantity || 0), 0);
+
+      const tickets = STATE.support_tickets || [];
+      const openTickets = tickets.filter(t => t.status === 'OPEN').length;
+      const totalMessages = tickets.reduce((s, t) => s + (t.messages ? t.messages.length : 0), 0);
+
+      document.getElementById('kpi-gmv').textContent = formatEGP(totalGmv);
+      document.getElementById('kpi-orders-sub').textContent = `${activeOrders.length} Active Orders • ${STATE.stores.length} Stores`;
+      document.getElementById('kpi-commission').textContent = formatEGP(totalComm);
+      document.getElementById('kpi-commission-sub').textContent = `Realized: ${formatEGP(realizedComm)} • Pending: ${formatEGP(pendingComm)}`;
+      document.getElementById('kpi-stores-payout').textContent = formatEGP(totalStoreNet);
+      document.getElementById('kpi-stores-payout-sub').textContent = `Settled: ${formatEGP(settledStoresPayout)} • Escrow: ${formatEGP(pendingStoresPayout)}`;
+      document.getElementById('kpi-vat-total').textContent = formatEGP(totalVat);
+      const pSettings = STATE.platform_settings || {};
+      document.getElementById('kpi-vat-mode').textContent = `Mode: ${pSettings.default_vat_pct || 14}% ${pSettings.vat_mode || 'INCLUSIVE'}`;
+      document.getElementById('kpi-deliv-summary').textContent = `${delivDelivered} Delivered / ${delivTransit} Transit`;
+      document.getElementById('kpi-deliv-sub').textContent = `${delivAwaitingPack} Awaiting Store Pack • ${STATE.deliveries.length} Total`;
+      document.getElementById('kpi-stock-summary').textContent = `${totalAvailUnits} Units Available`;
+      document.getElementById('kpi-stock-sub').textContent = `${totalReservedUnits} Reserved • ${STATE.products.length} Total SKUs`;
+      document.getElementById('kpi-support-summary').textContent = `${openTickets} Open / ${tickets.length} Total`;
+      document.getElementById('kpi-support-sub').textContent = `${totalMessages} Live Chat Messages`;
+      document.getElementById('kpi-webhooks-summary').textContent = `${STATE.webhooks_log.length} Events Logged`;
+      document.getElementById('kpi-cats-stores').textContent = `${STATE.categories.length} Cats • ${STATE.stores.length} Stores • 🔒 HMAC OK`;
+
+      if (document.activeElement && !['ruleCommissionPct', 'ruleVatPct', 'ruleDeliveryOverride', 'ruleExtraPickupFee', 'ruleCodFee'].includes(document.activeElement.id)) {
+        onRuleScopeChange(true);
+      }
+
+      // Render Admin Customer Support Desk
+      const supBadge = document.getElementById('support-desk-badge');
+      if (supBadge) supBadge.textContent = `${openTickets} Open Ticket(s)`;
+      if (!ACTIVE_ADMIN_TICKET_ID && tickets.length > 0) {
+        ACTIVE_ADMIN_TICKET_ID = tickets[0].id;
+      }
+      const ticketsListEl = document.getElementById('admin-support-tickets-list');
+      if (ticketsListEl) {
+        ticketsListEl.innerHTML = tickets.length === 0
+          ? `<div class="p-4 text-slate-400 text-sm">No customer support tickets yet.</div>`
+          : tickets.map(t => {
+              const isSelected = t.id === ACTIVE_ADMIN_TICKET_ID;
+              const lastMsg = t.messages && t.messages.length > 0 ? t.messages[t.messages.length - 1].message_text : '';
+              return `
+                <div onclick="selectAdminSupportTicket(${t.id})" class="p-4 rounded-xl border cursor-pointer transition ${isSelected ? 'bg-slate-800 border-rose-500 ring-2 ring-rose-500/20' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}">
+                  <div class="flex items-center justify-between text-xs font-mono">
+                    <span class="font-extrabold">${t.ticket_number} ${t.order_number ? `• #${t.order_number}` : ''}</span>
+                    <span class="px-2.5 py-0.5 rounded-full ${t.status === 'OPEN' ? 'bg-rose-500/15 text-rose-400' : 'bg-emerald-500/15 text-emerald-400'}">${t.status}</span>
+                  </div>
+                  <div class="font-bold text-sm text-amber-400 mt-1">👤 ${t.customer_name} (${t.customer_phone})</div>
+                  <div class="text-xs text-indigo-400 mt-0.5">${t.subject} ${t.store_name_en ? `• 🏪 ${t.store_name_en}` : ''}</div>
+                  <div class="text-xs text-slate-400 truncate mt-1">${lastMsg}</div>
+                </div>
+              `;
+            }).join('');
+      }
+      renderActiveAdminTicket();
+
+      // Master All-Stores Inventory & Commercial Matrix
+      const allInvBody = document.getElementById('admin-all-inventory-tbody');
+      if (allInvBody) {
+        allInvBody.innerHTML = STATE.products.map(p => {
+          const delivPol = (p.delivery_fee_override_egp !== null && p.delivery_fee_override_egp !== undefined && p.delivery_fee_override_egp >= 0)
+            ? `<span class="text-emerald-400 font-bold">${p.delivery_fee_override_egp === 0 ? 'FREE (0 EGP)' : formatEGP(p.delivery_fee_override_egp)} Override</span>`
+            : `<span class="text-slate-400">Gov Rate (${p.store_gov})</span>`;
+          return `
+            <tr class="hover:bg-slate-900/50">
+              <td class="font-mono">
+                <div class="font-bold">${p.sku}</div>
+                <div class="text-xs text-indigo-400">${p.category_icon || '🏷️'} ${p.category_name_en}</div>
+              </td>
+              <td class="font-bold">${p.image_emoji} ${p.name_en}</td>
+              <td>
+                <div class="text-amber-400 font-bold">🏪 ${p.store_name_en}</div>
+                <div class="text-xs font-mono text-slate-400">${p.store_gov} • ${p.settlement_cycle || 'T+1'}</div>
+              </td>
+              <td class="font-mono font-bold text-emerald-400">${formatEGP(p.price_egp)}</td>
+              <td class="font-mono">
+                <span class="text-indigo-400 font-bold">${p.commission_pct}% Fee</span> •
+                <span class="text-cyan-400">${p.vat_pct ?? 14}% VAT</span>
+              </td>
+              <td class="font-mono text-xs">${delivPol}</td>
+              <td class="font-mono text-xs">
+                Total: <strong>${p.stock_quantity}</strong> |
+                Held: <strong class="text-amber-400">${p.reserved_quantity}</strong> |
+                Avail: <strong class="text-emerald-400">${p.available_stock}</strong>
+              </td>
+              <td>
+                <button onclick="adjustStoreStock(${p.id}, 5)" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white btn-solid-white font-mono text-xs font-bold mr-1">+5</button>
+                <button onclick="adjustStoreStock(${p.id}, -1)" class="px-2.5 py-1 rounded-lg bg-rose-600 text-white btn-solid-white font-mono text-xs font-bold">-1</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // Master Outsourced Deliveries & Fulfillment Control in Admin
+      const admDelivBody = document.getElementById('admin-deliveries-tbody');
+      if (admDelivBody) {
+        if (STATE.deliveries.length === 0) {
+          admDelivBody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-400">No deliveries yet.</td></tr>`;
+        } else {
+          admDelivBody.innerHTML = STATE.deliveries.map(d => `
+            <tr class="hover:bg-slate-900/50">
+              <td class="font-mono"><strong>DELIV #${d.id}</strong><div class="text-xs text-slate-400">#${d.order_number}</div></td>
+              <td>
+                <div class="text-amber-400 font-bold">🏪 ${d.store_name} (${d.pickup_governorate})</div>
+                <div class="text-emerald-400 text-xs">→ 👤 ${d.customer_name} (${d.dropoff_governorate})</div>
+              </td>
+              <td class="font-mono text-xs">
+                Gross: ${formatEGP(d.store_subtotal_egp)} | Fee: <span class="text-indigo-400">${formatEGP(d.platform_commission_egp)}</span><br/>
+                Store Net: <strong class="text-emerald-400">${formatEGP(d.net_store_payout_egp)}</strong> | COD: <strong class="text-amber-400">${formatEGP(d.cod_to_collect_egp)}</strong>
+              </td>
+              <td class="font-mono text-xs">${d.packaging_status === 'READY_FOR_COURIER_PICKUP' ? '✓ Packed' : '⏳ Awaiting'}</td>
+              <td class="font-mono"><div class="text-purple-400 font-bold">${d.bosta_awb || 'Pending'}</div><div class="text-xs text-emerald-400">${d.courier_status}</div></td>
+              <td class="font-mono text-xs">
+                <span class="px-2.5 py-0.5 rounded-full ${d.settlement_status === 'SETTLED_TO_STORE' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}">${d.settlement_status}</span>
+              </td>
+              <td>${buildCourierActionHtml(d)}</td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      // Categories list
+      document.getElementById('admin-categories-list').innerHTML = STATE.categories.map(c => `
+        <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+          <div>
+            <div class="font-bold text-sm">${c.icon_emoji} ${c.name_en}</div>
+            <div class="text-slate-400 text-xs">${c.name_ar}</div>
+          </div>
+          <span class="px-2.5 py-1 rounded-full bg-indigo-500/15 text-indigo-400 font-mono text-xs font-bold">${c.product_count} SKUs</span>
+        </div>
+      `).join('');
+
+      // Stores list with Commercial Rules Summary
+      document.getElementById('admin-stores-list').innerHTML = STATE.stores.map(s => {
+        const delivBadge = (s.delivery_fee_override_egp !== null && s.delivery_fee_override_egp !== undefined && s.delivery_fee_override_egp >= 0)
+          ? `Deliv Override: ${s.delivery_fee_override_egp} EGP`
+          : `Deliv: Gov Rate`;
+        return `
+          <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+            <div>
+              <div class="font-bold text-sm text-amber-400">🏪 ${s.name_en} (${s.governorate})</div>
+              <div class="text-slate-400 text-xs mt-0.5">Fee: <strong class="text-indigo-400">${s.commission_pct}%</strong> • VAT: <strong class="text-cyan-400">${s.vat_pct ?? 14}%</strong> • ${delivBadge} • ${s.settlement_cycle || 'T+1'}</div>
+            </div>
+            <div class="text-right font-mono">
+              <div class="text-emerald-400 font-bold text-sm">Settled: ${formatEGP(s.settled_payout_egp || 0)}</div>
+              <div class="text-amber-400 text-xs">Pending: ${formatEGP(s.pending_payout_egp || 0)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Cash Settlements Ledger
+      const settlements = STATE.settlements || [];
+      const stlBadge = document.getElementById('settlements-count-badge');
+      if (stlBadge) stlBadge.textContent = `${settlements.length} Settled Transaction(s)`;
+      const stlBody = document.getElementById('admin-settlements-tbody');
+      if (stlBody) {
+        if (settlements.length === 0) {
+          stlBody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-400">No cash settlements completed yet. Deliver an order and click "Settle Cash & Commission"!</td></tr>`;
+        } else {
+          stlBody.innerHTML = settlements.map(st => `
+            <tr class="hover:bg-slate-900/50">
+              <td class="font-mono font-bold text-emerald-400">${st.settlement_ref}</td>
+              <td class="font-mono">#${st.order_number} • <span class="text-purple-400">${st.bosta_awb || 'AWB'}</span></td>
+              <td class="font-bold text-amber-400">🏪 ${st.store_name}</td>
+              <td class="font-mono">${formatEGP(st.gross_amount_egp)}</td>
+              <td class="font-mono font-bold text-indigo-400">+${formatEGP(st.platform_commission_egp)}</td>
+              <td class="font-mono font-bold text-emerald-400">${formatEGP(st.net_store_payout_egp)}</td>
+              <td class="font-mono text-xs text-slate-400">${st.payout_rail} • ${st.created_at}</td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      // Master Orders
+      const tbody = document.getElementById('admin-orders-tbody');
+      if (STATE.orders.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400">No orders yet.</td></tr>`;
+      } else {
+        tbody.innerHTML = STATE.orders.map(o => {
+          let actionBtns = '';
+          if (o.payment_status === 'awaiting-3ds-or-wallet') {
+            actionBtns += `<button onclick="triggerMockAction('/paymob/simulate-payment', {intention_id:'${o.gateway_ref}', outcome:'APPROVED'})" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white btn-solid-white font-bold text-xs mr-1">Approve 3DS</button>`;
+          } else if (o.payment_status === 'on-hold-fawry') {
+            actionBtns += `<button onclick="triggerMockAction('/fawry/simulate-kiosk', {fawry_ref:'${o.gateway_ref}', action:'PAID'})" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white btn-solid-white font-bold text-xs mr-1">Pay Fawry</button>`;
+            actionBtns += `<button onclick="triggerMockAction('/fawry/simulate-kiosk', {fawry_ref:'${o.gateway_ref}', action:'EXPIRED'})" class="px-3 py-1.5 rounded-lg bg-rose-600 text-white btn-solid-white font-bold text-xs">Expire</button>`;
+          } else if (o.payment_status === 'awaiting-valu-otp') {
+            actionBtns += `<button onclick="triggerMockAction('/valu/simulate-approval', {valu_id:'${o.gateway_ref}'})" class="px-3 py-1.5 rounded-lg bg-cyan-600 text-white btn-solid-white font-bold text-xs">Approve valU</button>`;
+          } else if (o.payment_status === 'awaiting-cod-otp') {
+            actionBtns += `<button onclick="triggerMockAction('/whatsapp/verify-otp', {order_id:'${o.id}', otp:'4455'})" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white btn-solid-white font-bold text-xs">Verify WA OTP</button>`;
+          } else if (o.payment_status === 'awaiting-instapay') {
+            actionBtns += `<button onclick="approveInstaPay(${o.id})" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white btn-solid-white font-bold text-xs">Approve InstaPay</button>`;
+          }
+
+          return `
+            <tr class="hover:bg-slate-900/50">
+              <td class="font-mono font-bold">#${o.order_number} (${o.channel})</td>
+              <td><div class="font-semibold">${o.customer_name}</div><div class="text-xs text-slate-400">${o.governorate}</div></td>
+              <td class="font-mono text-xs">${o.payment_method}<div class="text-slate-400">${o.gateway_ref}</div></td>
+              <td class="font-mono text-xs">
+                Total: <span class="text-emerald-400 font-bold">${formatEGP(o.total_egp)}</span> |
+                VAT: <span class="text-cyan-400">${formatEGP(o.vat_egp || 0)}</span> |
+                Deliv: <span>${formatEGP(o.shipping_egp)}</span><br/>
+                Your Fee: <span class="text-indigo-400 font-bold">${formatEGP(o.platform_commission_egp)}</span> |
+                Stores Net: <span class="text-amber-400 font-bold">${formatEGP(o.net_stores_payout_egp)}</span>
+              </td>
+              <td class="font-mono text-xs">${o.payment_status} / ${o.order_status}</td>
+              <td>${actionBtns || '<span class="text-emerald-400 font-mono text-xs font-bold">✓ Dispatched to Delivery Hub</span>'}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // Webhooks with Provider Filter
+      const whFilter = (document.getElementById('webhookProviderFilter') || {}).value || 'ALL';
+      const filteredWh = STATE.webhooks_log.filter(w => whFilter === 'ALL' || String(w.provider).toUpperCase().includes(whFilter));
+      const whBox = document.getElementById('webhooks-inspector-list');
+      whBox.innerHTML = filteredWh.map(w => `
+        <div class="p-3.5 rounded-xl bg-slate-900 border-l-4 ${w.direction === 'INBOUND_WEBHOOK' ? 'border-l-emerald-500' : 'border-l-indigo-500'}">
+          <div class="flex justify-between">
+            <span><strong>${w.direction}</strong> • <span class="text-amber-400">${w.provider}</span> • ${w.event_name}</span>
+            <span class="text-emerald-400">🔒 HMAC Verified • ${w.created_at}</span>
+          </div>
+          <div class="text-slate-400 break-all mt-1 text-xs">${w.payload_json}</div>
+        </div>
+      `).join('');
+    }
+
+    // =====================================================================
+    // COMMERCIAL RULES, GOVERNORATE FEES & BULK SETTLEMENT FUNCTIONS
+    // =====================================================================
+    function onRuleScopeChange(silent) {
+      const scope = (document.getElementById('ruleTargetScope') || {}).value || 'all';
+      const p = STATE.platform_settings || {};
+      document.getElementById('ruleVatMode').value = p.vat_mode || 'INCLUSIVE';
+      document.getElementById('ruleExtraPickupFee').value = p.extra_store_pickup_fee_egp ?? 25;
+
+      if (scope === 'all') {
+        document.getElementById('ruleCommissionPct').value = p.default_commission_pct ?? 10;
+        document.getElementById('ruleVatPct').value = p.default_vat_pct ?? 14;
+        document.getElementById('ruleDeliveryOverride').value = '';
+        document.getElementById('ruleCodFee').value = p.cod_fee_egp ?? 15;
+        document.getElementById('ruleSettlementCycle').value = p.default_settlement_cycle || 'T+1 InstaPay / Paymob Split';
+      } else {
+        const st = STATE.stores.find(s => String(s.id) === String(scope));
+        if (st) {
+          document.getElementById('ruleCommissionPct').value = st.commission_pct ?? 10;
+          document.getElementById('ruleVatPct').value = st.vat_pct ?? 14;
+          document.getElementById('ruleDeliveryOverride').value = (st.delivery_fee_override_egp !== null && st.delivery_fee_override_egp !== undefined) ? st.delivery_fee_override_egp : '';
+          document.getElementById('ruleCodFee').value = st.cod_fee_override_egp ?? (p.cod_fee_egp ?? 15);
+          document.getElementById('ruleSettlementCycle').value = st.settlement_cycle || 'T+1 InstaPay / Paymob Split';
+        }
+      }
+    }
+
+    async function saveCommercialRules() {
+      const target_scope = document.getElementById('ruleTargetScope').value || 'all';
+      const commission_pct = parseFloat(document.getElementById('ruleCommissionPct').value || '10');
+      const vat_pct = parseFloat(document.getElementById('ruleVatPct').value || '14');
+      const vat_mode = document.getElementById('ruleVatMode').value || 'INCLUSIVE';
+      const rawDeliv = document.getElementById('ruleDeliveryOverride').value;
+      const delivery_fee_override_egp = rawDeliv === '' ? null : parseFloat(rawDeliv);
+      const extra_store_pickup_fee_egp = parseFloat(document.getElementById('ruleExtraPickupFee').value || '25');
+      const cod_fee_egp = parseFloat(document.getElementById('ruleCodFee').value || '15');
+      const settlement_cycle = document.getElementById('ruleSettlementCycle').value;
+
+      await fetch(`${API_BASE}/settings/commercial-rules`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          target_scope,
+          commission_pct,
+          vat_pct,
+          vat_mode,
+          delivery_fee_override_egp,
+          extra_store_pickup_fee_egp,
+          cod_fee_egp,
+          settlement_cycle
+        })
+      });
+      await refreshAll();
+      showToast(`🎛️ Applied Commercial Rules (${target_scope === 'all' ? 'ALL Partner Stores' : 'Store #' + target_scope}): Comm ${commission_pct}%, VAT ${vat_pct}% (${vat_mode})!`);
+    }
+
+    function onAdminGovSelectChange() {
+      const code = document.getElementById('adminGovRateSelect').value;
+      if (code !== 'ALL') {
+        const g = STATE.governorates.find(x => x.code === code);
+        if (g) {
+          document.getElementById('adminGovFeeInput').value = g.shipping_egp;
+          document.getElementById('adminGovSlaInput').value = g.sla_days;
+        }
+      }
+    }
+
+    async function saveGovernorateFee() {
+      const code = document.getElementById('adminGovRateSelect').value || 'CAIRO';
+      const shipping_egp = parseFloat(document.getElementById('adminGovFeeInput').value || '55');
+      const sla_days = document.getElementById('adminGovSlaInput').value || 'Next-Day (24h)';
+      await fetch(`${API_BASE}/governorates/update`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ code, shipping_egp, sla_days })
+      });
+      await refreshAll();
+      showToast(`🚚 Updated Delivery Fee for ${code} to ${shipping_egp} EGP (${sla_days})!`);
+    }
+
+    async function bulkSettleDeliveries(overrideScope) {
+      const store_id = overrideScope || document.getElementById('bulkSettleStoreSelect').value || 'all';
+      showToast(`💸 Running Bulk Cash Settlement (${store_id === 'all' ? 'All Stores' : 'Store #' + store_id})...`);
+      const res = await fetch(`${API_BASE}/settlements/settle-bulk`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ store_id })
+      });
+      const data = await res.json();
+      await refreshAll();
+      if (data.settled_count > 0) {
+        showToast(`✅ Settled ${data.settled_count} delivery(s): ${data.settlement_refs.join(', ')}!`);
+      } else {
+        showToast(`ℹ️ No unsettled DELIVERED orders found for this selection.`);
+      }
+    }
+
+    // =====================================================================
+    // LIVE CUSTOMER SUPPORT CHAT FUNCTIONS (CLIENT WIDGET + ADMIN DESK)
+    // =====================================================================
+    function toggleClientSupportChat() {
+      const drawer = document.getElementById('clientSupportDrawer');
+      drawer.classList.toggle('hidden');
+      if (!drawer.classList.contains('hidden')) {
+        renderClientSupportDrawer();
+      }
+    }
+
+    function renderClientSupportDrawer() {
+      const sel = document.getElementById('clientChatThreadSelect');
+      if (!sel) return;
+      const currentVal = sel.value || 'new';
+      const tickets = STATE.support_tickets || [];
+      sel.innerHTML = `<option value="new">➕ Start a New Support Chat</option>` +
+        tickets.map(t => `<option value="${t.id}">💬 ${t.ticket_number}: ${t.subject.slice(0, 26)} (${t.status})</option>`).join('');
+      sel.value = (currentVal !== 'new' && tickets.some(t => String(t.id) === String(currentVal))) ? currentVal : 'new';
+
+      const isNew = sel.value === 'new';
+      document.getElementById('clientNewChatForm').classList.toggle('hidden', !isNew);
+      document.getElementById('clientExistingChatBox').classList.toggle('hidden', isNew);
+
+      if (!isNew) {
+        const ticket = tickets.find(t => String(t.id) === String(sel.value));
+        const listEl = document.getElementById('clientChatMessagesList');
+        if (ticket && listEl) {
+          listEl.innerHTML = (ticket.messages || []).map(m => `
+            <div class="p-3 rounded-xl ${m.sender_role === 'ADMIN' ? 'bg-indigo-500/15 border border-indigo-500/30 ml-4' : 'bg-emerald-500/15 border border-emerald-500/30 mr-4'}">
+              <div class="flex justify-between text-[11px] font-mono ${m.sender_role === 'ADMIN' ? 'text-indigo-400' : 'text-emerald-400'}">
+                <span>${m.sender_role === 'ADMIN' ? '🎧 ' + m.sender_name : '👤 ' + m.sender_name}</span>
+                <span>${m.created_at.slice(11, 16)}</span>
+              </div>
+              <div class="mt-1 text-xs leading-relaxed">${m.message_text}</div>
+            </div>
+          `).join('');
+          listEl.scrollTop = listEl.scrollHeight;
+        }
+      }
+    }
+
+    async function clientCreateSupportTicket() {
+      const customer_name = document.getElementById('chatCustName').value || 'Ahmed Kamal';
+      const customer_phone = document.getElementById('chatCustPhone').value || '01012345678';
+      const order_number = document.getElementById('chatOrderNum').value || '';
+      const store_id = document.getElementById('chatStoreId').value || '';
+      const subject = document.getElementById('chatSubject').value || 'General Support Inquiry';
+      const message_text = document.getElementById('chatInitialMsg').value || 'Hello Support, I need assistance with my order.';
+
+      const res = await fetch(`${API_BASE}/support/tickets`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ customer_name, customer_phone, order_number, store_id, subject, message_text, channel: 'web_chat' })
+      });
+      const data = await res.json();
+      document.getElementById('chatInitialMsg').value = '';
+      await refreshAll();
+      if (data.ticket && data.ticket.id) {
+        ACTIVE_ADMIN_TICKET_ID = data.ticket.id;
+        document.getElementById('clientChatThreadSelect').value = String(data.ticket.id);
+        renderClientSupportDrawer();
+        renderAdminView();
+        showToast(`💬 Live Support Chat ${data.ticket.ticket_number} started!`);
+      }
+    }
+
+    async function clientSendSupportReply() {
+      const sel = document.getElementById('clientChatThreadSelect');
+      const tid = sel.value;
+      if (!tid || tid === 'new') return;
+      const input = document.getElementById('clientChatReplyInput');
+      const message_text = input.value.trim();
+      if (!message_text) return;
+      const ticket = (STATE.support_tickets || []).find(t => String(t.id) === String(tid));
+      input.value = '';
+      await fetch(`${API_BASE}/support/tickets/${tid}/reply`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          sender_role: 'CLIENT',
+          sender_name: ticket ? ticket.customer_name : 'Client',
+          message_text,
+          status: 'OPEN'
+        })
+      });
+      await refreshAll();
+      document.getElementById('clientChatThreadSelect').value = String(tid);
+      renderClientSupportDrawer();
+      showToast(`💬 Message sent to Facilitator Support Desk!`);
+    }
+
+    function selectAdminSupportTicket(ticketId) {
+      ACTIVE_ADMIN_TICKET_ID = ticketId;
+      renderAdminView();
+    }
+
+    function renderActiveAdminTicket() {
+      const tickets = STATE.support_tickets || [];
+      const ticket = tickets.find(t => t.id === ACTIVE_ADMIN_TICKET_ID) || tickets[0];
+      const hdr = document.getElementById('admin-active-ticket-header');
+      const msgBox = document.getElementById('admin-active-ticket-messages');
+      const resolveBtn = document.getElementById('adminResolveTicketBtn');
+      if (!ticket || !hdr || !msgBox) return;
+
+      hdr.innerHTML = `
+        <div>
+          <span class="font-mono font-bold text-rose-400">${ticket.ticket_number}</span> •
+          <strong>${ticket.customer_name}</strong> (${ticket.customer_phone})
+          ${ticket.order_number ? `• <span class="text-emerald-400 font-mono">Order #${ticket.order_number}</span>` : ''}
+          ${ticket.store_name_en ? `• <span class="text-amber-400">🏪 ${ticket.store_name_en}</span>` : ''}
+          <div class="text-xs text-slate-400 mt-0.5">${ticket.subject}</div>
+        </div>
+        <span class="px-3 py-1 rounded-full font-mono text-xs font-bold ${ticket.status === 'OPEN' ? 'bg-rose-500/15 text-rose-400' : 'bg-emerald-500/15 text-emerald-400'}">${ticket.status}</span>
+      `;
+      if (resolveBtn) {
+        resolveBtn.textContent = ticket.status === 'OPEN' ? '✓ Resolve' : '🔄 Re-open';
+      }
+
+      msgBox.innerHTML = (ticket.messages || []).map(m => `
+        <div class="p-3.5 rounded-2xl ${m.sender_role === 'ADMIN' ? 'bg-indigo-500/15 border border-indigo-500/30 ml-8' : 'bg-slate-800 border border-slate-700 mr-8'}">
+          <div class="flex justify-between text-xs font-mono ${m.sender_role === 'ADMIN' ? 'text-indigo-400' : 'text-amber-400'}">
+            <span>${m.sender_role === 'ADMIN' ? '🎧 ' + m.sender_name : '👤 ' + m.sender_name + ' (Client)'}</span>
+            <span>${m.created_at}</span>
+          </div>
+          <div class="mt-1 text-sm leading-relaxed">${m.message_text}</div>
+        </div>
+      `).join('');
+      msgBox.scrollTop = msgBox.scrollHeight;
+    }
+
+    async function adminSendSupportReply() {
+      if (!ACTIVE_ADMIN_TICKET_ID) return;
+      const input = document.getElementById('adminSupportReplyInput');
+      const message_text = input.value.trim();
+      if (!message_text) return;
+      input.value = '';
+      await fetch(`${API_BASE}/support/tickets/${ACTIVE_ADMIN_TICKET_ID}/reply`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          sender_role: 'ADMIN',
+          sender_name: 'Facilitator Support Desk',
+          message_text
+        })
+      });
+      await refreshAll();
+      showToast(`🎧 Reply sent to Client & pushed to Mobile/Web Chat!`);
+    }
+
+    async function adminToggleTicketStatus() {
+      const tickets = STATE.support_tickets || [];
+      const ticket = tickets.find(t => t.id === ACTIVE_ADMIN_TICKET_ID);
+      if (!ticket) return;
+      const newStatus = ticket.status === 'OPEN' ? 'RESOLVED' : 'OPEN';
+      await fetch(`${API_BASE}/support/tickets/${ticket.id}/status`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ status: newStatus })
+      });
+      await refreshAll();
+      showToast(`🎧 Ticket ${ticket.ticket_number} marked ${newStatus}!`);
+    }
+
+    async function adminCreateCategory() {
+      const name_en = document.getElementById('newCatNameEn').value || 'Watches & Accessories';
+      const name_ar = document.getElementById('newCatNameAr').value || 'ساعات وإكسسوارات';
+      const icon_emoji = document.getElementById('newCatEmoji').value || '⌚';
+      await fetch(`${API_BASE}/products/categories`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name_en, name_ar, icon_emoji })
+      });
+      await refreshAll();
+      showToast(`🏷️ Added Category "${name_en}"!`);
+    }
+
+    async function adminCreateStore() {
+      const name_en = document.getElementById('newStoreNameEn').value || 'Mansoura Fashion House';
+      const name_ar = document.getElementById('newStoreNameAr').value || 'بيت أزياء المنصورة';
+      const governorate = document.getElementById('newStoreGov').value || 'DAKAHLIA';
+      const pickup_address = document.getElementById('newStoreAddress').value || 'El-Gomhoria St, Mansoura';
+      const commission_pct = parseFloat(document.getElementById('newStoreComm').value || '10');
+      await fetch(`${API_BASE}/stores`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name_en, name_ar, governorate, pickup_address, commission_pct })
+      });
+      await refreshAll();
+      showToast(`🏪 Onboarded Partner Store "${name_en}"!`);
+    }
+
+    refreshAll();
+  </script>
+</body>
+</html>
