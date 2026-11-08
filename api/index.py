@@ -1,5 +1,6 @@
 import os
 import sys
+import urllib.parse
 
 # Ensure project root is on sys.path for Vercel Python serverless runtime
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,4 +22,25 @@ class handler(EcommerceRequestHandler):
       - /mock-dashboard and /mock/* -> Egyptian Integrations & Bosta 3PL Sandbox (mock_integrations_server.py)
       - /study -> Egypt E-Commerce Platform Study & 1st-Year Liability Calculator (study.html)
     """
-    pass
+
+    def _restore_original_path(self):
+        parsed = urllib.parse.urlsplit(self.path)
+        qs = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+        if "__path" in qs and qs["__path"]:
+            orig_path = qs.pop("__path")[0]
+            if not orig_path.startswith("/"):
+                orig_path = "/" + orig_path
+            remaining_query = urllib.parse.urlencode(qs, doseq=True)
+            self.path = f"{orig_path}?{remaining_query}" if remaining_query else orig_path
+
+    def do_GET(self):
+        self._restore_original_path()
+        return super().do_GET()
+
+    def do_POST(self):
+        self._restore_original_path()
+        return super().do_POST()
+
+    def do_OPTIONS(self):
+        self._restore_original_path()
+        return super().do_OPTIONS()
