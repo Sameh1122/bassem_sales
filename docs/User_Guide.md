@@ -1,12 +1,12 @@
 # User Guide & Component Testing Manual: Multi-Store Facilitator & Outsourced Delivery PoC
 
-## 1. Quick Access URLs & Running Services
+## 1. Quick Access URLs (Live on Vercel Cloud & Local Services)
 
-| Service Name | Local URL | Purpose |
-| :--- | :--- | :--- |
-| **1. Multi-Store Marketplace Facilitator PoC** | **[http://localhost:4000](http://localhost:4000)** | Main application with **5 dedicated tabs**: Client Storefront, iOS/Android App, Partner Store Portal, Outsourced Delivery Hub, and Facilitator Admin. |
-| **2. Egyptian Fintech & Outsourced 3PL Mockup Server** | **[http://localhost:4001](http://localhost:4001)** | Standalone sandbox simulating **Paymob Split**, **FawryPay**, **valU**, **WhatsApp COD OTP**, and **Bosta Store-to-Client Delivery API**. |
-| **3. Architecture & 1st-Year Liability Study** | **[http://localhost:8080](http://localhost:8080)** | Comparative study of the Top 5 platforms and 1st-Year Liability Calculator. |
+| Service Name | Live Vercel Production URL | Local URL | Purpose |
+| :--- | :--- | :--- | :--- |
+| **1. Multi-Store Marketplace Facilitator PoC** | **[https://egypt-ecommerce-poc.vercel.app](https://egypt-ecommerce-poc.vercel.app)** | **[http://localhost:4000](http://localhost:4000)** | Main application with **5 dedicated tabs**: Client Storefront, Mobile App, Partner Store Portal, Outsourced Delivery Hub, and Facilitator Control Tower. |
+| **2. Egyptian Fintech & Outsourced 3PL Mockup Server** | **[https://egypt-ecommerce-poc.vercel.app/mock-dashboard](https://egypt-ecommerce-poc.vercel.app/mock-dashboard)** | **[http://localhost:4001](http://localhost:4001)** | Sandbox simulating **Paymob Split**, **FawryPay**, **valU**, **WhatsApp COD OTP**, **Bosta Store-to-Client Delivery**, and **Cash Settlement**. |
+| **3. Architecture & 1st-Year Liability Study** | **[https://egypt-ecommerce-poc.vercel.app/study](https://egypt-ecommerce-poc.vercel.app/study)** | **[http://localhost:8080](http://localhost:8080)** | Comparative study of the Top 5 platforms and 1st-Year Liability Calculator. |
 
 ---
 
