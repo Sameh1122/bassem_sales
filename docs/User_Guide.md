@@ -10,107 +10,75 @@
 
 ---
 
-## 2. Step-by-Step Guide to the 6 Dedicated Workspaces on `http://localhost:4000`
+## 2. Interactive Guide to the 14-Step Fulfillment Lifecycle
 
-Open **[http://localhost:4000](http://localhost:4000)** in your browser and press **`Ctrl + R`** (refresh) to load the new **Eye-Friendly Light/Dark UI**.
-* **☀️ Light / 🌙 Dark Theme Switcher:** The platform defaults to a crisp, high-contrast **Light Mode** that is easy on the eyes, with a **🌙 Dark Mode / ☀️ Light Mode** button in the top-right header.
-* **🌐 Bilingual English & Arabic RTL:** Switch between English and native Arabic layout with one click on `🌐 العربية`.
+Follow this step-by-step walkthrough across the platform's tabs to verify the full fulfillment cycle:
 
-### Tab 1: `🛒 1. Client Storefront` (Spacious Catalog + 3-Step Checkout)
-1. **Filter by Product Category:** Click any category pill:
-   * `🌐 All Categories`, `📱 Electronics & Mobile`, `🧥 Egyptian Fashion & Cotton`, `☕ Home & Coffee Appliances`, `✨ Beauty & Skincare`, `👟 Sports & Footwear`.
-2. **Filter by Partner Store:** Use the **Filter by Partner Store** dropdown to view products from a specific store (*Cairo Tech Hub*, *Giza Cotton Atelier*, *Alex Glow & Home*).
-3. **Multi-Store Cart Split:** Add items from multiple partner stores; notice automatic Bosta multi-pickup dispatch, facilitator commission calculation, and net store payout preview.
-4. **Place Order:** Click **🔒 Place Order & Dispatch to Partner Store(s)** and complete the payment simulation (Paymob 3DS, Fawry Kiosk Cash, valU OTP, InstaPay, or WhatsApp COD OTP).
-5. **Direct Tracking Link:** Click **📦 Track My Orders** in the hero banner or order modal to instantly jump to your orders dashboard.
+### Steps 1–4: Client Shopping & Checkout
+1. **Step 1 (Select Location):** On **Tab 1 (`🛒 Client Storefront`)**, locate the **📍 Choose Your Shopping Location** bar.
+   * Click **Cairo (Nasr City)**: Notice the partner store dropdown immediately filters to stores operating in Cairo (*Cairo Tech Hub*), and the product catalog updates to show Cairo inventory only.
+2. **Step 2 (Add to Cart):** Add items to cart (e.g. 1x iPhone 16 Pro + 1x AirPods Pro 2).
+3. **Step 3 (Checkout):** Proceed to the 3-step checkout drawer; delivery address automatically defaults to the selected governorate.
+4. **Step 4 (Select Payment Method):** Select **Credit / Debit Card** or **Cash on Delivery (COD)**.
+   * On submit, the order is created in `order_status = 'pending-store-review'`.
+   * For card payments, money is held in pre-authorization and a **4-digit Handover PIN** is created.
 
----
+### Step 5: Partner Store Availability Review
+5. Switch to **Tab 4 (`🏪 Partner Store Portal`)**.
+   * Under the **Store Availability Review** card, locate the pending order.
+   * Inspect the items checklist: Check the in-stock item (iPhone 16 Pro) and **uncheck / de-select** the out-of-stock item (AirPods Pro 2).
+   * Click **✅ Confirm In-Stock Items & Send to Client**.
+   * The platform releases the reserved stock of the de-selected item, recalculates the order total, and moves status to `store-reviewed`.
 
-### Tab 2: `📦 2. My Orders & Tracking` (Active Shipments & Historical Closed Archive)
-1. **Click `📦 2. My Orders & Tracking` in the top navigation bar.**
-2. **High-Level KPI Summary:**
-   * **Total Client Orders:** Lifetime order count.
-   * **Active & In-Transit (Pulsing Cyan):** Orders currently undergoing store packaging or transit with Bosta.
-   * **Completed & Closed (Emerald):** Delivered, settled, or archived orders.
-   * **Total Purchase Value (EGP):** Cumulative fulfilled purchases.
-3. **Active vs. Closed Scope Filtering:**
-   * Click **🌟 All Orders**, **🚚 Active & In-Transit**, or **✅ Completed & Closed** to filter orders instantly.
-4. **Live Search Bar:**
-   * Type in the search box to filter live by **Order Number** (e.g. `EG-36711-31`), **Recipient Phone** (`010...`), or **Partner Store Name**.
-5. **5-Stage Visual Progress Stepper:**
-   * Each order card displays a visual milestone pipeline (`1. Order Placed` $\rightarrow$ `2. Payment Verified & Split` $\rightarrow$ `3. Store Packaged` $\rightarrow$ `4. Out for Delivery` $\rightarrow$ `5. Delivered & Settled`) with status indicators, percentages, and timestamps.
-6. **Partner Store Sub-Manifests & Bosta AWBs:**
-   * Inspect each fulfilling partner store branch, merchant packaging state, and click the **Bosta Waybill (`BST-xxxxxxx ↗`)** to open the 3PL sandbox tracker.
-7. **Auditable Tax Invoice Modal (`#invoiceModal`):**
-   * Click **📄 View / Print Tax Invoice** to display the official commercial invoice featuring NileConnect Tax ID (`492-817-309`), Commercial Register (`184920`), itemized store origins, VAT 14%, and a 1-click **🖨️ Print / Save PDF** button.
-8. **1-Click Support Chat & Cart Reorder:**
-   * Click **💬 Inquire with Support** to open the customer support drawer pre-populated with your order number.
-   * Click **🔁 Reorder Items** to reload all products into your shopping cart.
+### Steps 6–7: Client Confirmation & Card Money Capture
+6. Switch to **Tab 2 (`📦 My Orders & Tracking`)**.
+   * In the top order card, a cyan review banner will appear: **"Step 6 & 7: Store Verified Items • Your Confirmation Required"**.
+   * Review the revised items and updated total.
+   * Click **💳 Confirm & Proceed (Money Taken from Card)**.
+   * The system captures the funds from the client's card (`payment_status = 'paid'`) and moves the order to `ready-to-ship`.
+   * *(Alternatively, clicking "Reject Order" voids the pre-auth hold and cancels the order with 0 charge).*
 
----
+### Steps 8–12: Packaging & Proximity Courier Delivery
+7. **Step 8 (Store Packaged):** In **Tab 4** (or Tab 5), click **📦 Step 8: Mark Store Packed**. The sub-order packaging status changes to `READY_FOR_COURIER_PICKUP`.
+8. **Step 9 (Proximity Courier Search & Assign):** Switch to **Tab 5 (`🚚 Outsourced Delivery Hub`)**.
+   * The platform queries the nearby fleet for the store branch governorate.
+   * Click **🎯 Step 9: Assign Nearest Courier (Tarek Mostafa • 0.8 km)**.
+9. **Step 10 & 11 (Courier Pickup):** Click **🚚 Step 10: Tarek Mostafa Confirm Pickup**. The courier confirms pickup at the branch, and a real-time push notification is sent to the client.
+10. **Step 12 (Reach Client):** Click **📍 Step 12: Mark Courier Arrived at Client**. Status moves to `ARRIVED_AT_CLIENT`.
 
-### Tab 3: `📱 3. Mobile App` (iOS & Android Shopping & Live Push Stream)
-1. Click **📱 3. Mobile App** in the top bar.
-2. Switch between **🍎 iOS (Apple Pay)** and **🤖 Android (Google Play)**.
-3. Tap product categories, add items to cart, and tap ** Pay / Place Mobile Order**.
-4. Watch the **live push notification banner** update in real-time as stores pack your items and couriers pick them up.
-
----
-
-### Tab 4: `🏪 4. Partner Store Portal` (Dedicated Screen for Partner Stores)
-1. Click **🏪 4. Partner Store Portal** in the top bar.
-2. Switch between onboarded stores (*Cairo Tech Hub*, *Giza Cotton Atelier*, *Alex Glow & Home*).
-3. Adjust inventory (`+5 Stock` / `-1`) or publish new products under any category.
-4. In the **Incoming Sub-Orders to Pack** table, click **📦 Mark Packaged for Bosta** to ready parcels for 3PL pickup.
+### Steps 13–14: Handover Code Verification vs. COD Cash Collection
+11. **Step 13 (Handover Code / Cash):**
+    * **For Prepaid Card Orders:** Client opens **Tab 2 (`My Orders`)** and views their secret **4-digit Handover PIN** (e.g. `7985`). The client tells this code to the courier.
+    * **For Cash on Delivery (COD) Orders:** **Crucial Rule:** *In case of cash on delivery, no need for the code.* The client simply pays the cash total.
+12. **Step 14 (Handover Confirmation & Settlement):**
+    * In **Tab 5 (`Delivery Hub`)**:
+      * If **Prepaid**: Enter the 4-digit PIN into the input box and click **Verify & Deliver**. (Entering an invalid PIN such as `0000` is rejected with an alert).
+      * If **COD**: Click **💵 Step 14: Confirm Cash Received & Deliver** (no PIN required).
+    * Parcel is handed over, marked `DELIVERED`, and automated cash settlement (`STL-xxxxxx`) is executed.
 
 ---
 
-### Tab 5: `🚚 5. Outsourced Delivery Hub` (Dedicated Screen for Bosta 3PL Delivery)
-1. Click **🚚 5. Outsourced Delivery Hub** in the top bar.
-2. View direct **Store Pickup Origin $\rightarrow$ Client Drop-off Destination** manifests.
-3. Follow the **Guided Next-Step Pipeline Button**:
-   * `Step 1: Store Packed` $\rightarrow$ `Step 2: Bosta Picked Up` $\rightarrow$ `Step 3: Out for Delivery` $\rightarrow$ `Step 4: Delivered` $\rightarrow$ `💸 Step 5: Settle Cash & Commission`.
-4. Each transition triggers HMAC-signed webhooks, updates Bosta waybills, and notifies clients.
+## 3. Sanity Check Test Data from Historical Orders
+
+The following test data was recorded during the comprehensive automated test cycle on the platform:
+
+| Order Number | Status | Payment Method (Status) | Handover PIN | Courier Assigned | Settlement Ref | Total (EGP) | Customer & Location |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **EG-5877-28** | `completed-settled` | `cod` (settled) | `N/A (COD: 7699)` | Karim Adel (🛵 Motorcycle) | `STL-763997` | 1,520.00 EGP | Laila Mourad (GIZA) |
+| **EG-5456-89** | `completed-settled` | `paymob_card` (settled) | `7985` | Tarek Mostafa (🛵 Motorcycle) | `STL-781080` | 64,555.00 EGP | Tamer Hosny (CAIRO) |
+| **EG-4962-36** | `cancelled` | `fawry_ref` (expired) | `4341` | Bosta Rider | `N/A` | 72,070.00 EGP | Nourhan Adel (ALEX) |
+| **EG-4554-83** | `completed-settled` | `cod` (settled) | `N/A (COD: 4448)` | Bosta Rider | `STL-728569` | 24,070.00 EGP | Tarek Mansour (CAIRO) |
+| **EG-3782-37** | `completed-settled` | `paymob_card` (settled) | `8457` | Bosta Rider | `STL-714111` | 49,530.00 EGP | Omar El-prince (CAIRO) |
+| **EG-87269-40** | `in-transit` | `paymob_card` (paid) | `5638` | Tarek Mostafa (🛵 Motorcycle) | `N/A` | 64,555.00 EGP | Tamer Hosny (CAIRO) |
+| **EG-86801-34** | `cancelled` | `fawry_ref` (expired) | `8783` | Bosta Rider | `N/A` | 72,070.00 EGP | Nourhan Adel (ALEX) |
+| **EG-86401-98** | `completed-settled` | `cod` (settled) | `N/A (COD: 7862)` | Bosta Rider | `STL-720650` | 24,070.00 EGP | Tarek Mansour (CAIRO) |
+| **EG-85624-16** | `completed-settled` | `paymob_card` (settled) | `2590` | Bosta Rider | `STL-709248` | 49,530.00 EGP | Omar El-prince (CAIRO) |
+| **EG-64480-37** | `ready-to-ship` | `paymob_card` (paid) | `4919` | Bosta Rider | `N/A` | 64,555.00 EGP | Tamer Hosny (CAIRO) |
 
 ---
 
-### Tab 6: `⚙️ 6. Facilitator Control Tower` (360° Visibility, Commercial Policy Engine & Support Desk)
-1. Click **⚙️ 6. Facilitator Control Tower**.
-2. **8 Executive KPI Cards:** Realized vs. pending commissions, store escrow payouts, Egypt VAT ledger (14%), and webhook health.
-3. **Commercial Policy Engine:**
-   * Set Commission %, Egypt VAT %, VAT Mode (`INCLUSIVE` vs. `ADDITIVE`), Delivery Fee Override, COD Fee, and Settlement Cycle across **ALL Stores** or a **Specific Store**.
-4. **Governorate Delivery Rates & Bulk Cash Settlement:**
-   * Adjust Bosta rates per governorate and settle all eligible delivered sub-orders in 1 click.
-5. **Customer Support Live Desk:**
-   * Review incoming Client support tickets (`SUP-xxxx`), reply live to shoppers, or mark tickets resolved.
-6. **Master Tables & Webhooks Inspector:**
-   * Inspect all orders, deliveries, inventory items, and HMAC-SHA512 webhook logs.
-
----
-
-## 3. Running the Automated 11-Stage End-to-End (E2E) Test Suite
-
-Run the full E2E lifecycle test suite anytime in PowerShell:
-
-```powershell
-python "C:\Users\skamal\.gemini\antigravity\scratch\egypt-ecommerce-poc\test_poc.py"
-```
-
-### Verified E2E Lifecycle Stages (`11/11 Passing`)
-* **E2E Stage 1 (Store Adds Product):** Partner Store (`Cairo Tech Hub`) publishes a new product (`Samsung Galaxy Watch 7 Ultra`, `24,000 EGP`, `10` stock) into Category `Electronics & Mobile`.
-* **E2E Stage 2 (Client Buy & Payment):** Client buys `2x` Watch (`Store 1`) + `1x` Giza Hoodie (`Store 2`), verifies commission split (`4,014 EGP` Facilitator / `45,436 EGP` Stores), approves Paymob 3DS, and verifies permanent store stock deduction (`10 -> 8`).
-* **E2E Stage 3 (Store Fulfillment):** Both Partner Stores pack and mark their sub-orders `READY_FOR_COURIER_PICKUP`.
-* **E2E Stage 4 (Outsourced 3PL Delivery):** Bosta picks up from both store branches (`PICKED_UP_FROM_STORE` $\rightarrow$ `OUT_FOR_DELIVERY` $\rightarrow$ `DELIVERED`) and marks both sub-orders `ELIGIBLE_FOR_SETTLEMENT`.
-* **E2E Stage 5 (Cash Settlement & Commission Realization):** Executes `POST /wp-json/wc/v3/deliveries/{id}/settle`, generating HMAC-verified `STL-xxxxxx` settlement records, paying `+44,160 EGP` to Store 1 and `+1,276 EGP` to Store 2, realizing `+4,014 EGP` Facilitator Commission, and marking the order `completed-settled`.
-* **E2E Stage 6 (Full COD E2E Cycle):** Verifies WhatsApp OTP (`4455`) $\rightarrow$ Store Packaging $ightarrow$ Bosta COD Collection (`24,070 EGP`) $\rightarrow$ Bosta COD Remittance & InstaPay Store Payout (`22,080 EGP` to Store 1 + `1,920 EGP` Facilitator Fee, final stock `7`).
-* **E2E Stage 7 (Fawry 48h Expiry Protection):** Verifies 3 reserved units are automatically returned to the Partner Store's available stock (`7`) when a Fawry reference code expires.
-* **E2E Stage 8 (Webhook Security):** Verifies forged HMAC-SHA512 settlement webhooks are rejected with `HTTP 401`.
-* **E2E Stage 9 (Commercial Policy Engine — Per-Store & All-Stores):** Verifies applying custom commission (`15%`), `ADDITIVE` Egypt VAT (`+14%`), Free Delivery override (`0 EGP`), and custom COD fee (`25 EGP`) to Store `#1`, then restoring global rules across `all` stores and executing bulk settlement (`POST /wp-json/wc/v3/settlements/settle-bulk`).
-* **E2E Stage 10 (Two-Way Live Customer Support Chat):** Verifies Client opening a support ticket on the Storefront (`POST /wp-json/wc/v3/support/tickets`), Facilitator Admin replying from the Support Desk, Client responding, and Admin marking the ticket `RESOLVED`.
-* **E2E Stage 11 (Client Order Monitoring & History Archive):** Verifies `/wp-json/wc/v3/orders/track` endpoint aggregation, active vs. closed order partitioning, 5-stage milestone pipelines, Bosta waybills, single order tracking, and live query filtering.
-
----
-
-## 4. Deploying the Full Environment to Vercel
-
-The project at `C:\Users\skamal\.gemini\antigravity\scratch\egypt-ecommerce-poc` includes `vercel.json`, `api/index.py`, `requirements.txt`, and a Git repository so all 3 services (`:4000` Core Platform, `:4001` Mock Integrations Sandbox, and `:8080` Study Report) deploy under a single production URL: **`https://egypt-ecommerce-poc.vercel.app`**.
+## 4. Key Verification Takeaways
+* **Prepaid Security:** Prepaid card orders strictly mandate the 4-digit Handover PIN. Attempting to deliver with an invalid PIN triggers an immediate rejection.
+* **COD Convenience:** Cash on Delivery requires no PIN code. Physical cash handover provides proof of fulfillment and immediately unlocks cash settlement.
+* **Store De-Selection Protection:** Partner stores can safely de-select out-of-stock items; the platform adjusts order pricing and reserves before client confirmation.
+* **Proximity Courier Matching:** Dispatch selects couriers located within 0.8–1.4 km of the partner store branch, cutting pickup latency significantly.

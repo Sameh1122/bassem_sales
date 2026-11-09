@@ -291,6 +291,32 @@ def init_db():
     ord_cols = [r["name"] for r in cur.execute("PRAGMA table_info(wc_orders)").fetchall()]
     if "vat_egp" not in ord_cols:
         cur.execute("ALTER TABLE wc_orders ADD COLUMN vat_egp REAL NOT NULL DEFAULT 0.0")
+    if "delivery_pin" not in ord_cols:
+        cur.execute("ALTER TABLE wc_orders ADD COLUMN delivery_pin TEXT")
+    if "assigned_courier_name" not in ord_cols:
+        cur.execute("ALTER TABLE wc_orders ADD COLUMN assigned_courier_name TEXT")
+    if "assigned_courier_phone" not in ord_cols:
+        cur.execute("ALTER TABLE wc_orders ADD COLUMN assigned_courier_phone TEXT")
+    if "assigned_courier_vehicle" not in ord_cols:
+        cur.execute("ALTER TABLE wc_orders ADD COLUMN assigned_courier_vehicle TEXT")
+    if "store_review_status" not in ord_cols:
+        cur.execute("ALTER TABLE wc_orders ADD COLUMN store_review_status TEXT DEFAULT 'PENDING_STORE_REVIEW'")
+
+    deliv_cols = [r["name"] for r in cur.execute("PRAGMA table_info(wc_deliveries)").fetchall()]
+    if "delivery_pin" not in deliv_cols:
+        cur.execute("ALTER TABLE wc_deliveries ADD COLUMN delivery_pin TEXT")
+    if "courier_name" not in deliv_cols:
+        cur.execute("ALTER TABLE wc_deliveries ADD COLUMN courier_name TEXT")
+    if "courier_phone" not in deliv_cols:
+        cur.execute("ALTER TABLE wc_deliveries ADD COLUMN courier_phone TEXT")
+    if "courier_vehicle" not in deliv_cols:
+        cur.execute("ALTER TABLE wc_deliveries ADD COLUMN courier_vehicle TEXT")
+    if "courier_distance_km" not in deliv_cols:
+        cur.execute("ALTER TABLE wc_deliveries ADD COLUMN courier_distance_km REAL DEFAULT 1.2")
+
+    item_cols = [r["name"] for r in cur.execute("PRAGMA table_info(wc_order_items)").fetchall()]
+    if "item_status" not in item_cols:
+        cur.execute("ALTER TABLE wc_order_items ADD COLUMN item_status TEXT NOT NULL DEFAULT 'AVAILABLE'")
 
     # 0. Seed Global Platform Commercial Settings
     cur.execute("SELECT COUNT(*) AS cnt FROM wc_platform_settings")
@@ -728,6 +754,24 @@ def fetch_enriched_products(conn: sqlite3.Connection, category_id=None, store_id
     return rows
 
 
+
+COURIER_FLEET = [
+    {"id": 1, "name": "Tarek Mostafa", "phone": "01098765432", "vehicle": "🛵 Motorcycle (Honda CB)", "governorate": "CAIRO", "area": "Nasr City / Makram Ebeid", "base_distance_km": 0.8, "rating": 4.9},
+    {"id": 2, "name": "Mahmoud Hassan", "phone": "01187654321", "vehicle": "🛵 Motorcycle (Bajaj Boxer)", "governorate": "CAIRO", "area": "Heliopolis / Korba", "base_distance_km": 1.4, "rating": 4.8},
+    {"id": 3, "name": "Karim Adel", "phone": "01276543210", "vehicle": "🚗 Light Van (Suzuki Carry)", "governorate": "CAIRO", "area": "New Cairo / Tagamoa", "base_distance_km": 2.2, "rating": 4.7},
+    {"id": 4, "name": "Mostafa Ramadan", "phone": "01011223344", "vehicle": "🛵 Motorcycle (Dayun 150)", "governorate": "GIZA", "area": "Dokki / Mossadak St", "base_distance_km": 0.9, "rating": 4.9},
+    {"id": 5, "name": "Ahmed Farouk", "phone": "01122334455", "vehicle": "🛵 Motorcycle (Haojiang)", "governorate": "GIZA", "area": "Mohandessin / Gameat Dowal", "base_distance_km": 1.6, "rating": 4.8},
+    {"id": 6, "name": "Karim Salem", "phone": "01055667788", "vehicle": "🛵 Motorcycle (Yamaha)", "governorate": "ALEX", "area": "Smouha / Victor Emmanuel", "base_distance_km": 1.1, "rating": 4.9},
+    {"id": 7, "name": "Youssef Helmy", "phone": "01233445566", "vehicle": "🚗 Hatchback (Chevrolet)", "governorate": "ALEX", "area": "Sidi Gaber / Stanly", "base_distance_km": 2.0, "rating": 4.8},
+]
+
+def get_nearby_couriers(governorate: str = "CAIRO") -> list:
+    gov = (governorate or "CAIRO").upper()
+    matched = [c for c in COURIER_FLEET if c["governorate"] == gov]
+    if not matched:
+        matched = COURIER_FLEET[:3]
+    return sorted(matched, key=lambda x: x["base_distance_km"])
+
 def enrich_order_dict(o: dict, conn: sqlite3.Connection) -> dict:
     order_id = o["id"]
     items = [dict(i) for i in conn.execute("SELECT * FROM wc_order_items WHERE order_id = ?", (order_id,)).fetchall()]
@@ -747,46 +791,67 @@ def enrich_order_dict(o: dict, conn: sqlite3.Connection) -> dict:
     o["stores_summary"] = " + ".join(store_names) if store_names else "Partner Store"
 
     all_delivered = len(deliveries) > 0 and all(d.get("courier_status") == "DELIVERED" for d in deliveries)
-    any_out = any(d.get("courier_status") == "OUT_FOR_DELIVERY" for d in deliveries)
-    any_pickup = any(d.get("courier_status") in ("PICKED_UP_FROM_STORE", "OUT_FOR_DELIVERY", "DELIVERED") for d in deliveries)
+    any_arrived = any(d.get("courier_status") in ("ARRIVED_AT_CLIENT", "DELIVERED") for d in deliveries)
+    any_out = any(d.get("courier_status") in ("OUT_FOR_DELIVERY", "ARRIVED_AT_CLIENT", "DELIVERED") for d in deliveries)
+    any_pickup = any(d.get("courier_status") in ("PICKED_UP_FROM_STORE", "OUT_FOR_DELIVERY", "ARRIVED_AT_CLIENT", "DELIVERED") for d in deliveries)
+    any_assigned = any(d.get("courier_name") or d.get("courier_status") in ("COURIER_ASSIGNED", "PICKED_UP_FROM_STORE", "OUT_FOR_DELIVERY", "ARRIVED_AT_CLIENT", "DELIVERED") for d in deliveries)
     all_packed = len(deliveries) > 0 and all(d.get("packaging_status") == "READY_FOR_COURIER_PICKUP" for d in deliveries)
     any_packed = any(d.get("packaging_status") == "READY_FOR_COURIER_PICKUP" for d in deliveries)
 
+    store_reviewed = o.get("store_review_status") == "STORE_CONFIRMED" or o.get("order_status") in ("store-reviewed", "processing", "ready-to-ship", "completed", "completed-settled")
+    client_confirmed = o.get("payment_status") in ("paid", "settled", "pending_cod_collection") or o.get("order_status") in ("processing", "ready-to-ship", "completed", "completed-settled")
+
+    # Determine assigned courier info from deliveries if not directly on order
+    if not o.get("assigned_courier_name"):
+        for d in deliveries:
+            if d.get("courier_name"):
+                o["assigned_courier_name"] = d["courier_name"]
+                o["assigned_courier_phone"] = d.get("courier_phone")
+                o["assigned_courier_vehicle"] = d.get("courier_vehicle")
+                break
+
     if o["order_status"] == "cancelled":
         progress_pct = 0
-        progress_stage = "Cancelled / Stock Returned"
-        progress_stage_ar = "تم الإلغاء وإعادة المخزون للمتجر"
+        progress_stage = "Order Cancelled / Rejected by Client"
+        progress_stage_ar = "تم إلغاء الطلب وإعادة المخزون للمتجر"
         status_color = "rose"
     elif all_delivered:
         progress_pct = 100
-        progress_stage = "Delivered & Settled" if o.get("payment_status") == "settled" else "Delivered to Drop-off"
-        progress_stage_ar = "تم التوصيل والتسوية المالية" if o.get("payment_status") == "settled" else "تم الاستلام بنجاح"
+        progress_stage = "Delivered & Handover Confirmed" if o.get("payment_status") == "settled" else "Delivered to Client"
+        progress_stage_ar = "تم التسليم وتأكيد الاستلام والتسوية" if o.get("payment_status") == "settled" else "تم الاستلام بنجاح"
         status_color = "emerald"
-    elif any_out:
-        progress_pct = 80
-        progress_stage = "Out for Delivery (Bosta 3PL)"
-        progress_stage_ar = "جاري التوصيل للعميل مع المندوب"
+    elif any_arrived:
+        progress_pct = 90
+        progress_stage = "Courier Reached Client Address (Handover PIN / Cash)"
+        progress_stage_ar = "المندوب وصل لموقع العميل (كود الاستلام / تحصيل)"
+        status_color = "emerald"
+    elif any_out or any_pickup:
+        c_name = o.get("assigned_courier_name") or "Bosta Courier"
+        progress_pct = 75
+        progress_stage = f"In Transit with {c_name} (Pickup Confirmed)"
+        progress_stage_ar = f"الشحنة مع المندوب ({c_name}) جاري التوصيل"
         status_color = "purple"
-    elif any_pickup:
+    elif any_assigned or all_packed:
+        c_name = o.get("assigned_courier_name") or "Nearest Courier"
         progress_pct = 60
-        progress_stage = "In Courier Transit (Picked Up)"
-        progress_stage_ar = "تم الاستلام من المتجر وجاري النقل"
+        progress_stage = f"Pack Ready • Assigned {c_name} (En Route to Store)"
+        progress_stage_ar = f"الطرد جاهز • تم تعيين المندوب ({c_name}) للفرع"
         status_color = "indigo"
-    elif all_packed or any_packed:
-        progress_pct = 40
-        progress_stage = "Store Packaged (Courier Scheduled)"
-        progress_stage_ar = "تم تجهيز الطرد وفي انتظار المندوب"
-        status_color = "amber"
-    elif o.get("payment_status") == "paid" or o.get("order_status") in ("processing", "ready-to-ship"):
-        progress_pct = 25
-        progress_stage = "Confirmed & Dispatched to Store(s)"
-        progress_stage_ar = "تم تأكيد الطلب وإرساله للمتاجر"
+    elif o.get("order_status") == "processing" or client_confirmed:
+        progress_pct = 45
+        progress_stage = "Client Confirmed & Money Captured (Store Packing)"
+        progress_stage_ar = "تمت موافقة العميل وخصم المبلغ (جاري تجهيز الطرد)"
+        status_color = "blue"
+    elif o.get("order_status") == "store-reviewed":
+        progress_pct = 35
+        progress_stage = "Store Confirmed Availability (Awaiting Client Confirmation)"
+        progress_stage_ar = "المتجر أكد توفر المنتجات (بانتظار موافقة العميل)"
         status_color = "cyan"
     else:
         progress_pct = 15
-        progress_stage = "Order Placed (Awaiting Verification/OTP)"
-        progress_stage_ar = "تم إنشاء الطلب (بانتظار التأكيد)"
-        status_color = "blue"
+        progress_stage = "Order Placed (Awaiting Store Availability Review)"
+        progress_stage_ar = "تم إنشاء الطلب (بانتظار فحص وتأكيد المتجر للمخزون)"
+        status_color = "amber"
 
     o["progress_pct"] = progress_pct
     o["progress_stage"] = progress_stage
@@ -796,36 +861,50 @@ def enrich_order_dict(o: dict, conn: sqlite3.Connection) -> dict:
     o["timeline"] = [
         {
             "step": 1,
-            "title_en": "Order Placed",
-            "title_ar": "تم إنشاء الطلب",
+            "title_en": "1. Location Matched & Order Placed",
+            "title_ar": "اختيار الموقع وإنشاء الطلب",
             "state": "completed",
             "time": o.get("created_at")
         },
         {
             "step": 2,
-            "title_en": "Payment Verified & Split",
-            "title_ar": "تأكيد الدفع وتقسيم المبالغ",
-            "state": "completed" if o["payment_status"] in ("paid", "settled") else ("cancelled" if o["order_status"] == "cancelled" else "in-progress" if o["order_status"] != "cancelled" else "pending"),
-            "time": o.get("updated_at") if o["payment_status"] in ("paid", "settled") else None
+            "title_en": "2. Store Item Availability Review",
+            "title_ar": "فحص وتأكيد توفر المنتجات بالمتجر",
+            "state": "completed" if store_reviewed else ("cancelled" if o["order_status"] == "cancelled" else "in-progress"),
+            "time": None
         },
         {
             "step": 3,
-            "title_en": f"Store Packaging ({len(deliveries)} Sub-Orders)",
-            "title_ar": f"تغليف الطرد بالفرع ({len(deliveries)} استلام)",
+            "title_en": "3. Client Confirmation & Payment Capture",
+            "title_ar": "موافقة العميل وخصم المبلغ من البطاقة",
+            "state": "completed" if client_confirmed else ("cancelled" if o["order_status"] == "cancelled" else ("in-progress" if o.get("order_status") == "store-reviewed" else "pending")),
+            "time": o.get("updated_at") if client_confirmed else None
+        },
+        {
+            "step": 4,
+            "title_en": f"4. Store Packaging ({len(deliveries)} Origin Branches)",
+            "title_ar": f"تجهيز وتغليف الطرد بالمتجر ({len(deliveries)} فروع)",
             "state": "completed" if all_packed else ("in-progress" if any_packed else "pending"),
             "time": None
         },
         {
-            "step": 4,
-            "title_en": "Outsourced 3PL Transit (Bosta)",
-            "title_ar": "استلام ونقل الشحنة (بوسطة)",
-            "state": "completed" if all_delivered else ("in-progress" if (any_pickup or any_out) else "pending"),
+            "step": 5,
+            "title_en": "5. Proximity Courier Assigned & Pickup",
+            "title_ar": "تعيين أقرب مندوب واستلام الشحنة",
+            "state": "completed" if any_pickup else ("in-progress" if (all_packed or any_assigned) else "pending"),
             "time": None
         },
         {
-            "step": 5,
-            "title_en": "Delivered to Client",
-            "title_ar": "تم التوصيل للعميل",
+            "step": 6,
+            "title_en": "6. Courier at Client & Handover PIN/Cash",
+            "title_ar": "وصول المندوب ومطابقة الكود / التحصيل",
+            "state": "completed" if all_delivered else ("in-progress" if (any_pickup or any_arrived) else "pending"),
+            "time": None
+        },
+        {
+            "step": 7,
+            "title_en": "7. Package Delivered & Cash Settled",
+            "title_ar": "تم تسليم الشحنة والتسوية المالية للمتجر",
             "state": "completed" if all_delivered else "pending",
             "time": None
         }
@@ -998,6 +1077,13 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
             self._send_json(rows)
             return
 
+        if path_only == "/wp-json/wc/v3/couriers/nearby":
+            gov = qs_params.get("governorate", ["CAIRO"])[0]
+            couriers = get_nearby_couriers(gov)
+            conn.close()
+            self._send_json({"success": True, "governorate": gov, "couriers": couriers})
+            return
+
         if path_only == "/wp-json/wc/v3/governorates":
             rows = [dict(r) for r in conn.execute("SELECT * FROM wc_governorates").fetchall()]
             conn.close()
@@ -1099,6 +1185,7 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
                 "deliveries": deliveries,
                 "settlements": settlements,
                 "orders": orders,
+                "courier_fleet": COURIER_FLEET,
                 "support_tickets": support_tickets,
                 "webhooks_log": webhooks,
                 "push_notifications": pushes
@@ -1551,6 +1638,10 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
             order_number = f"EG-{int(datetime.now().timestamp() * 1000) % 100000}-{random.randint(10, 99)}"
             ts = now_iso()
 
+            delivery_pin = f"{random.randint(1000, 9999)}"
+            initial_order_status = "pending-store-review"
+            initial_pay_status = "pre_authorized" if payment_method in ("paymob_card", "paymob_wallet") else "pending"
+
             cur.execute("""
                 INSERT INTO wc_orders (
                     order_number, channel, customer_name, customer_phone, customer_email,
@@ -1558,15 +1649,16 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
                     payment_status, order_status, subtotal_egp, discount_egp,
                     vat_egp, shipping_egp, cod_fee_egp, total_egp,
                     platform_commission_egp, net_stores_payout_egp,
-                    coupon_code, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    coupon_code, delivery_pin, store_review_status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_STORE_REVIEW', ?, ?)
             """, (
                 order_number, channel, customer_name, customer_phone, customer_email,
                 gov_code, area_street, payment_method, payment_title,
+                initial_pay_status, initial_order_status,
                 calc["subtotal_egp"], calc["discount_egp"], calc.get("vat_egp", 0.0), calc["shipping_egp"],
                 calc["cod_fee_egp"], calc["total_egp"],
                 calc["platform_commission_egp"], calc["net_stores_payout_egp"],
-                calc["coupon_applied"], ts, ts
+                calc["coupon_applied"], delivery_pin, ts, ts
             ))
             order_id = cur.lastrowid
 
@@ -1620,15 +1712,15 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
                         customer_name, customer_phone, dropoff_governorate, dropoff_address,
                         items_summary, store_subtotal_egp, platform_commission_egp, net_store_payout_egp,
                         cod_to_collect_egp, packaging_status, courier_provider, courier_status,
-                        created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'AWAITING_STORE_PACKAGING', 'Bosta 3PL', 'AWAITING_PAYMENT', ?, ?)
+                        delivery_pin, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'AWAITING_STORE_AVAILABILITY', 'Bosta 3PL', 'AWAITING_STORE_REVIEW', ?, ?, ?)
                 """, (
                     order_id, order_number, sid, grp["store_name"], grp["store_phone"],
                     grp["pickup_gov"], grp["pickup_address"],
                     customer_name, customer_phone, gov_code, area_street,
                     ", ".join(grp["items_list"]),
                     grp["store_subtotal"], grp["commission_egp"], grp["net_payout_egp"],
-                    cod_for_this_shipment, ts, ts
+                    cod_for_this_shipment, delivery_pin, ts, ts
                 ))
                 store_splits_meta.append({
                     "store_id": sid,
@@ -1657,8 +1749,8 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
                 intention = resp.get("intention", {})
                 gateway_ref = intention.get("intention_id", f"pi_local_{order_id}")
                 gateway_meta = intention
-                payment_status = "awaiting-3ds-or-wallet"
-                order_status = "pending-payment"
+                payment_status = "pre_authorized"
+                order_status = "pending-store-review"
 
             elif payment_method == "fawry_ref":
                 resp = call_mock_server("/mock/fawry/v2/charge", {
@@ -1669,7 +1761,7 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
                 gateway_ref = fawry.get("fawry_ref", "9123456789")
                 gateway_meta = fawry
                 payment_status = "on-hold-fawry"
-                order_status = "on-hold"
+                order_status = "pending-store-review"
                 send_push_notification(
                     order_id, channel,
                     f"Fawry Code: {gateway_ref} 🧾",
@@ -1687,8 +1779,8 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
                 valu = resp.get("valu", {})
                 gateway_ref = valu.get("valu_id", f"VALU-{order_id}")
                 gateway_meta = valu
-                payment_status = "awaiting-valu-otp"
-                order_status = "pending-payment"
+                payment_status = "pre_authorized"
+                order_status = "pending-store-review"
 
             elif payment_method == "instapay_qr":
                 gateway_ref = f"IPA-{int(datetime.now().timestamp()) % 100000}"
@@ -1701,7 +1793,7 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
                     "status": "AWAITING_ADMIN_VERIFICATION"
                 }
                 payment_status = "awaiting-instapay"
-                order_status = "on-hold"
+                order_status = "pending-store-review"
 
             elif payment_method == "cod":
                 resp = call_mock_server("/mock/whatsapp/v1/send-otp", {
@@ -1713,8 +1805,8 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
                 wa = resp.get("whatsapp", {})
                 gateway_ref = f"WA-OTP-{wa.get('otp_code', '4455')}"
                 gateway_meta = wa
-                payment_status = "awaiting-cod-otp"
-                order_status = "on-hold"
+                payment_status = "pending"
+                order_status = "pending-store-review"
 
             conn = get_db()
             conn.execute("""
@@ -1731,6 +1823,388 @@ class EcommerceRequestHandler(BaseHTTPRequestHandler):
             conn.close()
 
             self._send_json({"success": True, "order": created_order}, 201)
+            return
+
+        
+        # =====================================================================
+        # 14-STEP E-COMMERCE JOURNEY SPECIALIZED ENDPOINTS
+        # =====================================================================
+
+        # STEP 5: Partner Store Reviews Availability & De-selects Unavailable Items
+        if self.path.startswith("/wp-json/wc/v3/orders/") and self.path.endswith("/store-review"):
+            parts = self.path.split("/")
+            order_id = int(parts[5])
+            items_review = body.get("items", []) # list of {"product_id": id, "available": True/False}
+            store_id = body.get("store_id")
+
+            conn = get_db()
+            order_row = conn.execute("SELECT * FROM wc_orders WHERE id = ?", (order_id,)).fetchone()
+            if not order_row:
+                conn.close()
+                self._send_json({"error": "Order not found"}, 404)
+                return
+
+            order = dict(order_row)
+            order_items = [dict(i) for i in conn.execute("SELECT * FROM wc_order_items WHERE order_id = ?", (order_id,)).fetchall()]
+
+            # Update availability per item
+            for rev in items_review:
+                pid = int(rev.get("product_id", 0))
+                is_avail = bool(rev.get("available", True))
+                matching_item = next((it for it in order_items if it["product_id"] == pid), None)
+                if matching_item:
+                    new_item_status = "AVAILABLE" if is_avail else "OUT_OF_STOCK"
+                    conn.execute("UPDATE wc_order_items SET item_status = ? WHERE order_id = ? AND product_id = ?",
+                                 (new_item_status, order_id, pid))
+                    if not is_avail:
+                        # Return reserved stock to store
+                        conn.execute("UPDATE wc_products SET reserved_quantity = MAX(0, reserved_quantity - ?) WHERE id = ?",
+                                     (matching_item["quantity"], pid))
+
+            conn.commit()
+
+            # Recalculate totals based on available items only
+            updated_items = [dict(i) for i in conn.execute("SELECT * FROM wc_order_items WHERE order_id = ?", (order_id,)).fetchall()]
+            active_items = [it for it in updated_items if it.get("item_status") != "OUT_OF_STOCK"]
+
+            new_subtotal = round(sum(it["line_total_egp"] for it in active_items), 2)
+            new_commission = round(sum(it["platform_commission_egp"] for it in active_items), 2)
+            new_stores_payout = round(sum(it["net_store_payout_egp"] for it in active_items), 2)
+            vat_egp = round(new_subtotal * (14.0 / 114.0), 2) if new_subtotal > 0 else 0.0
+            new_total = round(new_subtotal + order["shipping_egp"] + (order["cod_fee_egp"] if order["payment_method"] == "cod" else 0.0), 2) if new_subtotal > 0 else 0.0
+
+            conn.execute("""
+                UPDATE wc_orders
+                SET order_status = 'store-reviewed',
+                    store_review_status = 'STORE_CONFIRMED',
+                    subtotal_egp = ?,
+                    vat_egp = ?,
+                    total_egp = ?,
+                    platform_commission_egp = ?,
+                    net_stores_payout_egp = ?,
+                    updated_at = ?
+                WHERE id = ?
+            """, (new_subtotal, vat_egp, new_total, new_commission, new_stores_payout, now_iso(), order_id))
+
+            # Update deliveries store_subtotal and cod_to_collect if COD
+            if order["payment_method"] == "cod":
+                conn.execute("UPDATE wc_deliveries SET cod_to_collect_egp = ? WHERE order_id = ?", (new_total, order_id))
+
+            conn.commit()
+            enriched = enrich_order_dict(dict(conn.execute("SELECT * FROM wc_orders WHERE id = ?", (order_id,)).fetchone()), conn)
+            conn.close()
+
+            removed_count = len(updated_items) - len(active_items)
+            removed_msg = f" ({removed_count} item(s) out of stock removed)" if removed_count > 0 else ""
+            send_push_notification(
+                order_id, order["channel"],
+                f"Store Verified Availability for Order #{order['order_number']} 📋",
+                f"Items confirmed available{removed_msg}. Updated Total: {new_total} EGP. Please review and confirm in My Orders.",
+                f"قام المتجر بتأكيد توفر المنتجات{removed_msg}. الإجمالي الجديد {new_total} ج.م. يرجى تأكيد الطلب للمتابعة."
+            )
+            self._send_json({"success": True, "action": "store_review_completed", "order": enriched})
+            return
+
+        # STEP 6 & 7: Client Confirms (Money Taken from Card) or Rejects (Order Rejected)
+        if self.path.startswith("/wp-json/wc/v3/orders/") and self.path.endswith("/client-confirm"):
+            parts = self.path.split("/")
+            order_id = int(parts[5])
+            action = str(body.get("action", "CONFIRM")).upper() # CONFIRM or REJECT
+
+            conn = get_db()
+            order_row = conn.execute("SELECT * FROM wc_orders WHERE id = ?", (order_id,)).fetchone()
+            if not order_row:
+                conn.close()
+                self._send_json({"error": "Order not found"}, 404)
+                return
+
+            order = dict(order_row)
+            ts = now_iso()
+
+            if action == "REJECT":
+                # Step 6: Order rejected -> cancel order, release remaining reserved stock
+                conn.execute("""
+                    UPDATE wc_orders
+                    SET order_status = 'cancelled',
+                        store_review_status = 'REJECTED_BY_CLIENT',
+                        payment_status = 'voided',
+                        updated_at = ?
+                    WHERE id = ?
+                """, (ts, order_id))
+
+                # Release remaining reserved stock
+                active_items = conn.execute("SELECT product_id, quantity FROM wc_order_items WHERE order_id = ? AND item_status = 'AVAILABLE'", (order_id,)).fetchall()
+                for it in active_items:
+                    conn.execute("UPDATE wc_products SET reserved_quantity = MAX(0, reserved_quantity - ?) WHERE id = ?", (it["quantity"], it["product_id"]))
+
+                conn.execute("UPDATE wc_deliveries SET courier_status = 'CANCELLED_BY_CLIENT', updated_at = ? WHERE order_id = ?", (ts, order_id))
+                conn.commit()
+                enriched = enrich_order_dict(dict(conn.execute("SELECT * FROM wc_orders WHERE id = ?", (order_id,)).fetchone()), conn)
+                conn.close()
+
+                send_push_notification(
+                    order_id, order["channel"],
+                    f"Order #{order['order_number']} Rejected & Cancelled ❌",
+                    "You rejected the updated order. No money was taken from your card, and store stock has been released.",
+                    f"تم رفض الطلب #{order['order_number']} وإلغاؤه. لم يتم خصم أي مبالغ من بطاقتك."
+                )
+                self._send_json({"success": True, "action": "order_rejected", "order": enriched})
+                return
+
+            # STEP 7: Client Confirms -> Money is taken from client card (Captured)!
+            new_pay_status = "paid" if order["payment_method"] in ("paymob_card", "paymob_wallet", "apple_pay", "card_meeza", "valu_bnpl", "instapay_qr") else "pending_cod_collection"
+            conn.execute("""
+                UPDATE wc_orders
+                SET order_status = 'processing',
+                    store_review_status = 'CLIENT_CONFIRMED',
+                    payment_status = ?,
+                    updated_at = ?
+                WHERE id = ?
+            """, (new_pay_status, ts, order_id))
+
+            conn.execute("""
+                UPDATE wc_deliveries
+                SET packaging_status = 'AWAITING_STORE_PACKAGING',
+                    courier_status = 'STORE_PACKING_IN_PROGRESS',
+                    updated_at = ?
+                WHERE order_id = ?
+            """, (ts, order_id))
+            conn.commit()
+
+            # Finalize stock deduction for confirmed items
+            finalize_stock_deduction(order_id)
+            auto_dispatch_bosta_awb(order_id)
+
+            enriched = enrich_order_dict(dict(conn.execute("SELECT * FROM wc_orders WHERE id = ?", (order_id,)).fetchone()), conn)
+            conn.close()
+
+            pay_note = f"Money taken from your card ({order['total_egp']} EGP captured)" if new_pay_status == "paid" else f"COD Order Confirmed ({order['total_egp']} EGP to pay on delivery)"
+            send_push_notification(
+                order_id, order["channel"],
+                f"Order #{order['order_number']} Confirmed & Paid! 💳",
+                f"{pay_note}. Partner store is now packing your order.",
+                f"تم تأكيد الطلب بنجاح! {pay_note}. جاري تجهيز الشحنة بالمتجر."
+            )
+            self._send_json({"success": True, "action": "order_confirmed_and_paid", "order": enriched})
+            return
+
+        # STEP 9: Search for Nearest Delivery Courier & Assign
+        if self.path.startswith("/wp-json/wc/v3/deliveries/") and self.path.endswith("/assign-courier"):
+            parts = self.path.split("/")
+            delivery_id = int(parts[5])
+            courier_name = body.get("courier_name", "Tarek Mostafa")
+            courier_phone = body.get("courier_phone", "01098765432")
+            courier_vehicle = body.get("courier_vehicle", "🛵 Motorcycle (Honda CB)")
+            courier_distance = float(body.get("courier_distance_km", 0.8))
+            ts = now_iso()
+
+            conn = get_db()
+            deliv_row = conn.execute("SELECT * FROM wc_deliveries WHERE id = ?", (delivery_id,)).fetchone()
+            if not deliv_row:
+                conn.close()
+                self._send_json({"error": "Delivery record not found"}, 404)
+                return
+
+            deliv = dict(deliv_row)
+            conn.execute("""
+                UPDATE wc_deliveries
+                SET courier_name = ?, courier_phone = ?, courier_vehicle = ?, courier_distance_km = ?,
+                    courier_status = 'COURIER_ASSIGNED', updated_at = ?
+                WHERE id = ?
+            """, (courier_name, courier_phone, courier_vehicle, courier_distance, ts, delivery_id))
+
+            conn.execute("""
+                UPDATE wc_orders
+                SET assigned_courier_name = ?, assigned_courier_phone = ?, assigned_courier_vehicle = ?, updated_at = ?
+                WHERE id = ?
+            """, (courier_name, courier_phone, courier_vehicle, ts, deliv["order_id"]))
+            conn.commit()
+
+            updated_deliv = dict(conn.execute("SELECT * FROM wc_deliveries WHERE id = ?", (delivery_id,)).fetchone())
+            conn.close()
+
+            send_push_notification(
+                deliv["order_id"], "Client & Partner Store",
+                f"Nearest Courier Assigned! 🛵",
+                f"Courier {courier_name} ({courier_vehicle}, {courier_distance} km away) is heading to {deliv['store_name']} to pick up your parcel.",
+                f"تم تعيين أقرب مندوب ({courier_name}) يبعد {courier_distance} كم ومتجه للمتجر لاستلام الطرد."
+            )
+            self._send_json({"success": True, "delivery": updated_deliv})
+            return
+
+        # STEP 10 & 11: Delivery Guy Confirms Pickup & Client Gets Pickup Notification
+        if self.path.startswith("/wp-json/wc/v3/deliveries/") and self.path.endswith("/courier-pickup"):
+            parts = self.path.split("/")
+            delivery_id = int(parts[5])
+            ts = now_iso()
+
+            conn = get_db()
+            deliv_row = conn.execute("SELECT * FROM wc_deliveries WHERE id = ?", (delivery_id,)).fetchone()
+            if not deliv_row:
+                conn.close()
+                self._send_json({"error": "Delivery record not found"}, 404)
+                return
+
+            deliv = dict(deliv_row)
+            c_name = deliv.get("courier_name") or "Bosta Courier"
+            c_phone = deliv.get("courier_phone") or "01098765432"
+
+            conn.execute("""
+                UPDATE wc_deliveries
+                SET courier_status = 'PICKED_UP_FROM_STORE', updated_at = ?
+                WHERE id = ?
+            """, (ts, delivery_id))
+
+            conn.execute("""
+                UPDATE wc_orders
+                SET order_status = 'in-transit', updated_at = ?
+                WHERE id = ?
+            """, (ts, deliv["order_id"]))
+            conn.commit()
+
+            updated_deliv = dict(conn.execute("SELECT * FROM wc_deliveries WHERE id = ?", (delivery_id,)).fetchone())
+            conn.close()
+
+            # STEP 11: Client gets notification of pickup
+            send_push_notification(
+                deliv["order_id"], "Client Storefront & Mobile App",
+                f"Package Picked Up from {deliv['store_name']} 🚚",
+                f"Courier {c_name} (📞 {c_phone}) picked up your package and is on the way to your delivery address!",
+                f"قام المندوب ({c_name}) باستلام طردك من فرع ({deliv['store_name']}) وهو الآن في الطريق إليك."
+            )
+            self._send_json({"success": True, "action": "courier_picked_up", "delivery": updated_deliv})
+            return
+
+        # STEP 12: Delivery Guy Reaches Client Address
+        if self.path.startswith("/wp-json/wc/v3/deliveries/") and self.path.endswith("/courier-arrived"):
+            parts = self.path.split("/")
+            delivery_id = int(parts[5])
+            ts = now_iso()
+
+            conn = get_db()
+            deliv_row = conn.execute("SELECT * FROM wc_deliveries WHERE id = ?", (delivery_id,)).fetchone()
+            if not deliv_row:
+                conn.close()
+                self._send_json({"error": "Delivery record not found"}, 404)
+                return
+
+            deliv = dict(deliv_row)
+            c_name = deliv.get("courier_name") or "Bosta Courier"
+
+            conn.execute("""
+                UPDATE wc_deliveries
+                SET courier_status = 'ARRIVED_AT_CLIENT', updated_at = ?
+                WHERE id = ?
+            """, (ts, delivery_id))
+            conn.commit()
+
+            updated_deliv = dict(conn.execute("SELECT * FROM wc_deliveries WHERE id = ?", (delivery_id,)).fetchone())
+            conn.close()
+
+            send_push_notification(
+                deliv["order_id"], "Client Storefront & Mobile App",
+                f"Courier Has Arrived! 📍",
+                f"Courier {c_name} is outside your address. Please meet the courier with your Handover Code or COD payment.",
+                f"وصل المندوب ({c_name}) إلى موقعك. يرجى مقابلة المندوب وإعطاؤه كود الاستلام أو دفع قيمة الشحنة."
+            )
+            self._send_json({"success": True, "action": "courier_arrived", "delivery": updated_deliv})
+            return
+
+        # STEP 13 & 14: Handover Code Verification & Package Handover (or COD without code)
+        if self.path.startswith("/wp-json/wc/v3/deliveries/") and self.path.endswith("/verify-handover"):
+            parts = self.path.split("/")
+            delivery_id = int(parts[5])
+            entered_pin = str(body.get("pin", "")).strip()
+            ts = now_iso()
+
+            conn = get_db()
+            deliv_row = conn.execute("SELECT * FROM wc_deliveries WHERE id = ?", (delivery_id,)).fetchone()
+            if not deliv_row:
+                conn.close()
+                self._send_json({"error": "Delivery record not found"}, 404)
+                return
+
+            deliv = dict(deliv_row)
+            order_row = conn.execute("SELECT * FROM wc_orders WHERE id = ?", (deliv["order_id"],)).fetchone()
+            order = dict(order_row) if order_row else {}
+
+            is_cod = order.get("payment_method") == "cod"
+
+            # "In case of cash on delivery, no need for the code."
+            if not is_cod:
+                expected_pin = str(deliv.get("delivery_pin") or order.get("delivery_pin") or "").strip()
+                if entered_pin != expected_pin:
+                    conn.close()
+                    self._send_json({
+                        "error": f"Invalid Handover Code '{entered_pin}'. Please ask the client for the 4-digit PIN in their app.",
+                        "expected_pin_hint": expected_pin[:2] + "**"
+                    }, 400)
+                    return
+
+            # Code verified or COD cash collected! Mark DELIVERED
+            cod_collected = deliv["cod_to_collect_egp"] if is_cod else 0.0
+            conn.execute("""
+                UPDATE wc_deliveries
+                SET courier_status = 'DELIVERED',
+                    settlement_status = 'ELIGIBLE_FOR_SETTLEMENT',
+                    cod_to_collect_egp = ?,
+                    updated_at = ?
+                WHERE id = ?
+            """, (cod_collected, ts, delivery_id))
+            conn.commit()
+
+            # Check if all deliveries for this order are DELIVERED
+            other_delivs = conn.execute("SELECT courier_status FROM wc_deliveries WHERE order_id = ?", (deliv["order_id"],)).fetchall()
+            all_done = all(r["courier_status"] == "DELIVERED" for r in other_delivs)
+
+            if all_done:
+                new_ord_status = "completed"
+                new_pay_status = "paid" if not is_cod else "cod_collected_by_courier"
+                conn.execute("""
+                    UPDATE wc_orders
+                    SET order_status = ?, payment_status = ?, updated_at = ?
+                    WHERE id = ?
+                """, (new_ord_status, new_pay_status, ts, deliv["order_id"]))
+                conn.commit()
+
+            conn.close()
+
+            # Trigger automated Cash Settlement Payout via mock server
+            settle_resp = call_mock_server("/mock/settlement/v1/payout", {
+                "order_id": deliv["order_id"],
+                "order_number": deliv["order_number"],
+                "delivery_id": deliv["id"],
+                "store_id": deliv["store_id"],
+                "store_name": deliv["store_name"],
+                "payment_method": order.get("payment_method", "paymob_card"),
+                "bosta_awb": deliv.get("bosta_awb", ""),
+                "gross_amount_egp": deliv["store_subtotal_egp"],
+                "platform_commission_egp": deliv["platform_commission_egp"],
+                "net_store_payout_egp": deliv["net_store_payout_egp"],
+                "cod_collected_egp": cod_collected
+            })
+
+            conn = get_db()
+            final_deliv = dict(conn.execute("SELECT * FROM wc_deliveries WHERE id = ?", (delivery_id,)).fetchone())
+            final_order = enrich_order_dict(dict(conn.execute("SELECT * FROM wc_orders WHERE id = ?", (deliv["order_id"],)).fetchone()), conn)
+            settlement_row = conn.execute("SELECT * FROM wc_settlements WHERE delivery_id = ?", (delivery_id,)).fetchone()
+            conn.close()
+
+            success_msg = f"Handover Code {entered_pin} Verified! Package handed over to client." if not is_cod else f"COD Cash ({cod_collected} EGP) Collected! Package handed over to client."
+            send_push_notification(
+                deliv["order_id"], "Client & Store & Delivery",
+                f"Delivery Successfully Completed! ✅",
+                f"{success_msg} Payout settled to {deliv['store_name']}.",
+                f"تم تسليم الطرد بنجاح! {success_msg} وتمت التسوية المالية للمتجر."
+            )
+            self._send_json({
+                "success": True,
+                "action": "delivery_handover_completed",
+                "verified_pin": entered_pin if not is_cod else "COD_NO_PIN_REQUIRED",
+                "delivery": final_deliv,
+                "order": final_order,
+                "settlement": dict(settlement_row) if settlement_row else settle_resp.get("settlement", {})
+            })
             return
 
         # 8. Admin Approves InstaPay Transfer Receipt

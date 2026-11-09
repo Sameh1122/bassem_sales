@@ -372,7 +372,7 @@ def run_e2e_tests():
     assert code == 200 and isinstance(active_orders, list)
     for ao in active_orders:
         assert ao["is_closed"] is False, f"Expected active order, got is_closed=True for {ao['order_number']}"
-        assert "timeline" in ao and len(ao["timeline"]) == 5, "Missing 5-step milestone timeline"
+        assert "timeline" in ao and len(ao["timeline"]) == 7, "Missing 7-step milestone timeline"
         assert "progress_pct" in ao and 0 <= ao["progress_pct"] <= 100
         assert "deliveries" in ao
 
@@ -381,7 +381,7 @@ def run_e2e_tests():
     assert code == 200 and isinstance(closed_orders, list)
     for co in closed_orders:
         assert co["is_closed"] is True, f"Expected closed order, got is_closed=False for {co['order_number']}"
-        assert "timeline" in co and len(co["timeline"]) == 5
+        assert "timeline" in co and len(co["timeline"]) == 7
         assert co.get("payment_status") == "settled" or co.get("order_status") in ("completed", "completed-settled", "cancelled", "refunded")
 
     # 4. Test Single Order Tracking by Order Number
@@ -390,7 +390,7 @@ def run_e2e_tests():
     assert code == 200 and single_order_resp["success"]
     so = single_order_resp["order"]
     assert so["order_number"] == target_order_num
-    assert len(so["timeline"]) == 5
+    assert len(so["timeline"]) == 7
     assert len(so["deliveries"]) == 2  # Multi-store order has 2 Bosta delivery manifests
     assert so["stores_count"] == 2
 
@@ -400,10 +400,151 @@ def run_e2e_tests():
     assert search_resp["total_count"] >= 1
     assert any(o["order_number"] == target_order_num for o in search_resp["orders"])
 
-    print(f"[PASS] E2E Stage 11 (Client Order Monitoring & History Archive): Verified /orders/track ({track_resp['total_count']} orders: {track_resp['active_count']} active, {track_resp['closed_count']} closed), 5-step visual timelines, Bosta AWBs & single order tracking for #{target_order_num}")
+    print(f"[PASS] E2E Stage 11 (Client Order Monitoring & History Archive): Verified /orders/track ({track_resp['total_count']} orders: {track_resp['active_count']} active, {track_resp['closed_count']} closed), 7-step visual timelines, Bosta AWBs & single order tracking for #{target_order_num}")
 
+    # =========================================================================
+    # STAGE 12: FULL 14-STEP REVISED JOURNEY: PREPAID (PIN) & COD (NO PIN)
+    # =========================================================================
+    # STEP 1: Select location (Cairo)
+    client_loc = "CAIRO"
+    code, nearby_couriers = http_req(f"{CORE_URL}/couriers/nearby?governorate={client_loc}", "GET")
+    assert code == 200 and len(nearby_couriers["couriers"]) >= 1
+    nearest_c = nearby_couriers["couriers"][0]
+
+    # STEP 2: Add to cart from available stores in Cairo (Store 1: Cairo Tech Hub)
+    # Adding 1x iPhone 16 Pro (product 1, 64,500 EGP) and 1x AirPods Pro 2 (product 2, 12,900 EGP)
+    prepaid_cart = [
+        {"product_id": 1, "quantity": 1},
+        {"product_id": 2, "quantity": 1}
+    ]
+
+    # STEP 3 & 4: Checkout & Select Payment Method (Card) -> Order created in pending-store-review
+    code, p_order_res = http_req(f"{CORE_URL}/orders", "POST", {
+        "channel": "web_storefront",
+        "items": prepaid_cart,
+        "governorate": client_loc,
+        "payment_method": "paymob_card",
+        "customer_name": "Tamer Hosny",
+        "customer_phone": "01011223344",
+        "area_street": "Makram Ebeid, Nasr City, Cairo"
+    })
+    assert code == 201 and p_order_res["success"]
+    p_order = p_order_res["order"]
+    p_order_id = p_order["id"]
+    p_order_no = p_order["order_number"]
+    p_pin = p_order["delivery_pin"]
+    assert len(p_pin) == 4, f"Expected 4-digit PIN, got {p_pin}"
+    assert p_order["order_status"] == "pending-store-review"
+    assert p_order["payment_status"] == "pre_authorized"
+
+    # STEP 5: Store confirms availability: iPhone in stock, AirPods de-selected (out of stock)
+    code, rev_res = http_req(f"{CORE_URL}/orders/{p_order_id}/store-review", "POST", {
+        "store_id": 1,
+        "items": [
+            {"product_id": 1, "available": True},
+            {"product_id": 2, "available": False}
+        ]
+    })
+    assert code == 200 and rev_res["success"]
+    assert rev_res["order"]["order_status"] == "store-reviewed"
+    assert rev_res["order"]["store_review_status"] == "STORE_CONFIRMED"
+    rev_total = rev_res["order"]["total_egp"]
+
+    # STEP 6 & 7: Client confirms updated order -> Money taken from card (Payment Captured)
+    code, conf_res = http_req(f"{CORE_URL}/orders/{p_order_id}/client-confirm", "POST", {
+        "action": "CONFIRM"
+    })
+    assert code == 200 and conf_res["success"]
+    assert conf_res["order"]["order_status"] == "ready-to-ship"
+    assert conf_res["order"]["payment_status"] == "paid"
+
+    # STEP 8: Store gets the pack ready (Marked READY_FOR_COURIER_PICKUP)
+    p_deliv_id = conf_res["order"]["deliveries"][0]["id"]
+    code, mark_res = http_req(f"{CORE_URL}/deliveries/{p_deliv_id}/store-ready", "POST", {})
+    assert code == 200 and mark_res["success"]
+
+    # STEP 9: Nearest delivery courier search and assignment
+    code, assign_res = http_req(f"{CORE_URL}/deliveries/{p_deliv_id}/assign-courier", "POST", {
+        "courier_name": nearest_c["name"],
+        "courier_phone": nearest_c["phone"],
+        "courier_vehicle": nearest_c["vehicle"],
+        "courier_distance_km": nearest_c["base_distance_km"]
+    })
+    assert code == 200 and assign_res["success"]
+    assert assign_res["delivery"]["courier_status"] == "COURIER_ASSIGNED"
+
+    # STEP 10 & 11: Courier confirms pickup -> Client notified
+    code, pick_res = http_req(f"{CORE_URL}/deliveries/{p_deliv_id}/courier-pickup", "POST", {})
+    assert code == 200 and pick_res["success"]
+    assert pick_res["delivery"]["courier_status"] == "PICKED_UP_FROM_STORE"
+
+    # STEP 12: Courier arrives at client
+    code, arr_res = http_req(f"{CORE_URL}/deliveries/{p_deliv_id}/courier-arrived", "POST", {})
+    assert code == 200 and arr_res["success"]
+    assert arr_res["delivery"]["courier_status"] == "ARRIVED_AT_CLIENT"
+
+    # STEP 13 & 14: Handover verification with PIN
+    # Test invalid PIN rejection
+    bad_code, bad_pin_res = http_req(f"{CORE_URL}/deliveries/{p_deliv_id}/verify-handover", "POST", {"pin": "0000"})
+    assert bad_code == 400 and "Invalid Handover Code" in bad_pin_res["error"]
+
+    # Test valid PIN confirmation
+    code, good_pin_res = http_req(f"{CORE_URL}/deliveries/{p_deliv_id}/verify-handover", "POST", {"pin": p_pin})
+    assert code == 200 and good_pin_res["success"]
+    assert good_pin_res["delivery"]["courier_status"] == "DELIVERED"
+    assert good_pin_res["delivery"]["settlement_status"] == "SETTLED_TO_STORE"
+    p_settle_ref = good_pin_res["settlement"]["settlement_ref"]
+
+    print(f"[PASS] E2E Stage 12 Part A (Prepaid with PIN): Order #{p_order_no} -> Store Review (1 In-Stock, 1 Out-of-Stock) -> Client Confirmed ({rev_total:,.2f} EGP Captured) -> Courier {nearest_c['name']} Picked Up -> Arrived -> Handover PIN {p_pin} Verified -> Delivered & Settled ({p_settle_ref})")
+
+    # STEP 12 Part B: CASH ON DELIVERY (COD) - NO PIN REQUIRED
+    code, cod_order_res = http_req(f"{CORE_URL}/orders", "POST", {
+        "channel": "mobile_app",
+        "items": [{"product_id": 3, "quantity": 1}],
+        "governorate": "GIZA",
+        "payment_method": "cod",
+        "customer_name": "Laila Mourad",
+        "customer_phone": "01099887766",
+        "area_street": "Dokki, Giza"
+    })
+    assert code == 201 and cod_order_res["success"]
+    cod_order = cod_order_res["order"]
+    cod_order_id = cod_order["id"]
+    cod_order_no = cod_order["order_number"]
+    cod_deliv_id = cod_order["deliveries"][0]["id"]
+
+    # Store Review & Confirm
+    http_req(f"{CORE_URL}/orders/{cod_order_id}/store-review", "POST", {
+        "store_id": 2, "items": [{"product_id": 3, "available": True}]
+    })
+    http_req(f"{CORE_URL}/orders/{cod_order_id}/client-confirm", "POST", {"action": "CONFIRM"})
+    http_req(f"{CORE_URL}/deliveries/{cod_deliv_id}/store-ready", "POST", {})
+    http_req(f"{CORE_URL}/deliveries/{cod_deliv_id}/assign-courier", "POST", {
+        "courier_name": "Karim Adel", "courier_phone": "01234567890", "courier_vehicle": "Motorcycle", "courier_distance_km": 1.2
+    })
+    http_req(f"{CORE_URL}/deliveries/{cod_deliv_id}/courier-pickup", "POST", {})
+    http_req(f"{CORE_URL}/deliveries/{cod_deliv_id}/courier-arrived", "POST", {})
+
+    # Handover verification for COD: NO PIN REQUIRED!
+    code, cod_handover_res = http_req(f"{CORE_URL}/deliveries/{cod_deliv_id}/verify-handover", "POST", {"pin": ""})
+    assert code == 200 and cod_handover_res["success"]
+    assert cod_handover_res["delivery"]["courier_status"] == "DELIVERED"
+    assert cod_handover_res["delivery"]["settlement_status"] == "SETTLED_TO_STORE"
+    cod_settle_ref = cod_handover_res["settlement"]["settlement_ref"]
+
+    print(f"[PASS] E2E Stage 12 Part B (Cash on Delivery - NO PIN): Order #{cod_order_no} -> Full Handover completed with NO PIN required -> Cash Collected -> Delivered & Settled ({cod_settle_ref})")
+
+    # Fetch Sanity Check Summary from Historical Orders
+    code, summary_resp = http_req(f"{CORE_URL}/orders/track", "GET")
+    assert code == 200
+    print("\n" + "=" * 88)
+    print("SANITY CHECK VERIFICATION DATA FROM HISTORICAL ORDERS:")
     print("=" * 88)
-    print("ALL 11 END-TO-END (E2E) STAGES PASSED 100%!")
+    for o in summary_resp["orders"][:6]:
+        deliv = o["deliveries"][0] if o.get("deliveries") else {}
+        print(f"• Order #{o['order_number']} | Status: {o['order_status']} | Payment: {o['payment_method']} ({o['payment_status']}) | PIN: {o.get('delivery_pin') or 'N/A (COD)'} | Courier: {o.get('assigned_courier_name') or deliv.get('courier_name') or 'N/A'} | Settled Ref: {deliv.get('settlement_ref') or 'N/A'}")
+    print("=" * 88)
+    print("ALL 12 END-TO-END (E2E) STAGES PASSED 100%!")
     print("=" * 88)
 
 

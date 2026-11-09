@@ -350,6 +350,36 @@
         </div>
       </div>
 
+      <!-- STEP 1 OF 14: SELECT LOCATION (THE STORES IN HIS LOCATION ONLY WILL APPEAR) -->
+      <div class="glass p-5 border-l-4 border-l-cyan-500 flex flex-wrap items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="step-badge bg-cyan-500/15 text-cyan-400">STEP 1 OF 14 • SELECT LOCATION</span>
+            <span class="text-xs text-slate-400 font-medium">Hyperlocal Delivery from Local Store Branches</span>
+          </div>
+          <h3 class="text-lg font-extrabold text-slate-100">
+            📍 Choose Your Shopping Location (Stores in Your Location Only Will Appear)
+          </h3>
+          <p class="text-xs text-slate-400">
+            Select your city to filter available partner stores and products that can be delivered to your address.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2" id="clientLocationPills">
+          <button onclick="setClientShoppingLocation('all')" id="loc-btn-all" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white btn-solid-white shadow-sm transition flex items-center gap-1.5">
+            <span>🌐</span> <span>All Egypt (3 Stores)</span>
+          </button>
+          <button onclick="setClientShoppingLocation('CAIRO')" id="loc-btn-CAIRO" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5">
+            <span>📍</span> <span>Cairo (Nasr City)</span>
+          </button>
+          <button onclick="setClientShoppingLocation('GIZA')" id="loc-btn-GIZA" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5">
+            <span>📍</span> <span>Giza (Dokki)</span>
+          </button>
+          <button onclick="setClientShoppingLocation('ALEX')" id="loc-btn-ALEX" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5">
+            <span>📍</span> <span>Alexandria (Smouha)</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Category Pills & Store Filter Bar -->
       <div class="glass p-5 flex flex-wrap items-center justify-between gap-4">
         <div class="space-y-2 flex-1">
@@ -686,6 +716,9 @@
 
       <!-- Store Financial KPIs -->
       <div id="store-portal-kpis" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+      <!-- STEP 5: STORE CONFIRM AVAILABILITY AND DE-SELECT NON-AVAILABLE ITEMS -->
+      <div id="store-availability-review-container" class="space-y-3 mb-6"></div>
 
       <!-- Priority 1: Incoming Sub-Orders for Packaging (Moved up so Store sees orders immediately!) -->
       <div class="glass p-6 space-y-4 border-t-4 border-t-emerald-600">
@@ -1580,12 +1613,50 @@
       bar.innerHTML = allBtn + catBtns;
     }
 
+    let CLIENT_SHOPPING_LOCATION = 'all';
+
+    function setClientShoppingLocation(loc) {
+      CLIENT_SHOPPING_LOCATION = loc;
+      ['all', 'CAIRO', 'GIZA', 'ALEX'].forEach(k => {
+        const btn = document.getElementById('loc-btn-' + k);
+        if (btn) {
+          if (k === loc) {
+            btn.className = 'px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white btn-solid-white shadow-sm transition flex items-center gap-1.5';
+          } else {
+            btn.className = 'px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5';
+          }
+        }
+      });
+
+      // Filter store dropdown to stores in this location
+      const storeFilter = document.getElementById('storeFilterSelect');
+      if (storeFilter) {
+        const validStores = (loc === 'all') 
+          ? STATE.stores 
+          : STATE.stores.filter(s => s.governorate === loc);
+        storeFilter.innerHTML = `<option value="all">Stores in ${loc === 'all' ? 'All Egypt' : loc} (${validStores.length} Stores)</option>` +
+          validStores.map(s => `<option value="${s.id}">🏪 ${s.name_en} (${s.governorate})</option>`).join('');
+        storeFilter.value = 'all';
+      }
+
+      // Pre-fill checkout governorate
+      const govSel = document.getElementById('govSelect');
+      if (govSel && loc !== 'all') {
+        govSel.value = loc;
+      }
+
+      renderProducts();
+      recalcCart();
+      showToast(`📍 Location set to ${loc === 'all' ? 'All Egypt' : loc}! Stores in your location only will appear.`);
+    }
+
     function getFilteredProducts() {
       const storeFilter = document.getElementById('storeFilterSelect').value;
       return STATE.products.filter(p => {
+        const matchLoc = CLIENT_SHOPPING_LOCATION === 'all' || p.store_governorate === CLIENT_SHOPPING_LOCATION;
         const matchCat = SELECTED_CATEGORY_ID === 'all' || String(p.category_id) === String(SELECTED_CATEGORY_ID);
         const matchStore = storeFilter === 'all' || String(p.store_id) === String(storeFilter);
-        return matchCat && matchStore;
+        return matchLoc && matchCat && matchStore;
       });
     }
 
@@ -1949,6 +2020,66 @@
       const store = STATE.stores.find(s => s.id === storeId) || STATE.stores[0];
       if (!store) return;
 
+      // Render Step 5: Incoming Orders Awaiting Store Availability Review
+      const revContainer = document.getElementById('store-availability-review-container');
+      if (revContainer) {
+        const pendingReviewOrders = (STATE.orders || []).filter(o => 
+          o.order_status === 'pending-store-review' && 
+          (o.items || []).some(it => it.store_id === store.id)
+        );
+
+        if (pendingReviewOrders.length === 0) {
+          revContainer.innerHTML = '';
+        } else {
+          revContainer.innerHTML = `
+            <div class="glass p-5 rounded-2xl border-l-4 border-l-amber-500 space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="step-badge bg-amber-500/15 text-amber-400">STEP 5 OF 14 • STORE AVAILABILITY REVIEW</span>
+                  <h4 class="text-base font-extrabold text-slate-100 mt-1">Incoming Orders: Confirm In-Stock Items & De-Select Unavailable</h4>
+                </div>
+                <span class="text-xs font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300">${pendingReviewOrders.length} Order(s) Need Review</span>
+              </div>
+              <div class="space-y-3">
+                ${pendingReviewOrders.map(o => {
+                  const storeItems = (o.items || []).filter(it => it.store_id === store.id);
+                  return `
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                        <div class="flex items-center gap-2">
+                          <span class="font-mono font-black text-amber-400">#${o.order_number}</span>
+                          <span class="text-xs text-slate-400">👤 ${o.customer_name} • 📞 ${o.customer_phone} (${o.governorate})</span>
+                        </div>
+                        <div class="text-xs font-mono text-emerald-400 font-bold">Total: ${formatEGP(o.total_egp)}</div>
+                      </div>
+                      <div class="space-y-2 text-xs">
+                        <div class="font-bold text-slate-300">Items to Confirm in Stock (Uncheck to De-Select):</div>
+                        <div class="grid sm:grid-cols-2 gap-2" id="store-items-review-${o.id}">
+                          ${storeItems.map(it => `
+                            <label class="p-2.5 rounded-lg bg-slate-800/80 border border-slate-700 flex items-center justify-between cursor-pointer hover:border-slate-500">
+                              <div class="flex items-center gap-2">
+                                <input type="checkbox" id="chk-item-${o.id}-${it.product_id}" checked class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 bg-slate-900 border-slate-700" />
+                                <span class="font-bold text-slate-200">${it.name_en}</span>
+                              </div>
+                              <span class="font-mono text-emerald-400">${it.quantity}x • ${formatEGP(it.line_total_egp)}</span>
+                            </label>
+                          `).join('')}
+                        </div>
+                      </div>
+                      <div class="flex gap-2 pt-1">
+                        <button onclick="submitStoreAvailabilityReview(${o.id}, ${store.id})" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white transition shadow-sm flex items-center gap-1.5">
+                          <span>✅</span> <span>Confirm In-Stock Items & Send to Client</span>
+                        </button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        }
+      }
+
       // Render Visual Store Selector Cards
       const cardsEl = document.getElementById('store-selector-cards');
       if (cardsEl) {
@@ -2102,36 +2233,94 @@
     // TAB 4: OUTSOURCED DELIVERY HUB RENDERER (GUIDED NEXT-STEP PIPELINE)
     // =====================================================================
     function buildCourierActionHtml(d) {
-      if (!d.bosta_awb) {
-        return `<span class="text-xs text-slate-400">⏳ Complete Client Payment / OTP first</span>`;
+      if (d.courier_status === 'DELIVERED' || d.settlement_status === 'SETTLED_TO_STORE') {
+        return `<span class="px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-400 font-mono text-xs font-bold">✓ Delivered & Settled (${d.settlement_ref || 'STL'})</span>`;
       }
-      // Highlight the recommended NEXT step as a prominent button, with secondary options in a clean row
-      let primaryBtn = '';
+
+      const isCod = Number(d.cod_to_collect_egp || 0) > 0;
+      let actionBlock = '';
+
+      // STEP 8: Store not packed yet
       if (d.packaging_status !== 'READY_FOR_COURIER_PICKUP') {
-        primaryBtn = `<button onclick="markStoreReady(${d.id})" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white btn-solid-white font-extrabold text-xs shadow-sm">📦 Step 1: Mark Store Packed</button>`;
-      } else if (d.courier_status === 'PICKUP_SCHEDULED') {
-        primaryBtn = `<button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'PICKED_UP_FROM_STORE'})" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white btn-solid-white font-extrabold text-xs shadow-sm">🚚 Step 2: Bosta Picked Up from Store</button>`;
-      } else if (d.courier_status === 'PICKED_UP_FROM_STORE') {
-        primaryBtn = `<button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'OUT_FOR_DELIVERY'})" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white btn-solid-white font-extrabold text-xs shadow-sm">🛵 Step 3: Out for Delivery</button>`;
-      } else if (d.courier_status === 'OUT_FOR_DELIVERY') {
-        primaryBtn = `<button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'DELIVERED'})" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white font-extrabold text-xs shadow-sm">✅ Step 4: Mark Delivered to Client</button>`;
-      } else if (d.courier_status === 'DELIVERED' && d.settlement_status !== 'SETTLED_TO_STORE') {
-        primaryBtn = `<button onclick="settleDeliveryCash(${d.id})" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white font-extrabold text-xs shadow-sm">💸 Step 5: Settle Cash & Commission</button>`;
-      } else if (d.settlement_status === 'SETTLED_TO_STORE') {
-        return `<span class="px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-400 font-mono text-xs font-bold">✓ Completed & Settled (${d.settlement_ref})</span>`;
+        return `
+          <div class="space-y-1">
+            <button onclick="markStoreReady(${d.id})" class="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white btn-solid-white font-bold text-xs shadow-sm">
+              📦 Step 8: Mark Store Packed
+            </button>
+            <div class="text-[11px] text-slate-400">Waiting for store packaging</div>
+          </div>
+        `;
       }
 
-      // Also provide quick jump buttons underneath for fast testing
-      const quickLinks = d.courier_status !== 'DELIVERED' ? `
-        <div class="flex flex-wrap gap-1 mt-1.5">
-          <button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'PICKED_UP_FROM_STORE'})" class="px-2 py-0.5 rounded bg-slate-800 text-[11px] hover:bg-slate-700">Pickup</button>
-          <button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'OUT_FOR_DELIVERY'})" class="px-2 py-0.5 rounded bg-slate-800 text-[11px] hover:bg-slate-700">Out</button>
-          <button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'DELIVERED'})" class="px-2 py-0.5 rounded bg-slate-800 text-[11px] hover:bg-slate-700">Deliver</button>
-          <button onclick="triggerMockAction('/bosta/simulate-status', {awb:'${d.bosta_awb}', status:'NDR_UNREACHABLE'})" class="px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 text-[11px]">NDR</button>
-        </div>
-      ` : '';
+      // STEP 9: Search for nearest delivery courier by location to store
+      if (!d.courier_name || d.courier_status === 'SEARCHING_COURIER' || d.courier_status === 'AWAITING_PAYMENT' || d.courier_status === 'PICKUP_SCHEDULED') {
+        const fleet = (STATE.courier_fleet || []).filter(c => c.governorate === d.pickup_governorate);
+        const best = fleet[0] || { name: 'Tarek Mostafa', phone: '01098765432', vehicle: '🛵 Motorcycle', base_distance_km: 0.8 };
+        return `
+          <div class="space-y-1.5">
+            <button onclick="assignNearestCourier(${d.id}, '${best.name}', '${best.phone}', '${best.vehicle}', ${best.base_distance_km})" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white btn-solid-white font-bold text-xs shadow-sm flex items-center gap-1.5">
+              <span>🎯</span> <span>Step 9: Assign Nearest Courier (${best.name} • ${best.base_distance_km} km)</span>
+            </button>
+            <div class="text-[10px] text-slate-400">Proximity search: ${best.vehicle} near ${d.pickup_address}</div>
+          </div>
+        `;
+      }
 
-      return `<div>${primaryBtn}${quickLinks}</div>`;
+      // STEP 10: Courier confirms pick up from store branch
+      if (d.courier_status === 'COURIER_ASSIGNED') {
+        return `
+          <div class="space-y-1.5">
+            <button onclick="courierConfirmPickup(${d.id})" class="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white btn-solid-white font-bold text-xs shadow-sm flex items-center gap-1.5">
+              <span>🚚</span> <span>Step 10: ${d.courier_name} Confirm Pickup</span>
+            </button>
+            <div class="text-[10px] text-indigo-400">Courier assigned: ${d.courier_phone}</div>
+          </div>
+        `;
+      }
+
+      // STEP 12: Reach the client
+      if (d.courier_status === 'PICKED_UP_FROM_STORE' || d.courier_status === 'OUT_FOR_DELIVERY') {
+        return `
+          <div class="space-y-1.5">
+            <button onclick="courierMarkArrived(${d.id})" class="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white btn-solid-white font-bold text-xs shadow-sm flex items-center gap-1.5">
+              <span>📍</span> <span>Step 12: Mark Courier Arrived at Client</span>
+            </button>
+            <div class="text-[10px] text-purple-300">In transit to ${d.dropoff_address}</div>
+          </div>
+        `;
+      }
+
+      // STEP 13 & 14: Reach the client -> Verify code (Prepaid) OR Collect cash without code (COD)
+      if (d.courier_status === 'ARRIVED_AT_CLIENT') {
+        if (isCod) {
+          // COD: No code needed!
+          return `
+            <div class="p-2.5 rounded-xl bg-amber-950/70 border border-amber-500/50 space-y-2">
+              <div class="text-[11px] font-bold text-amber-300">💵 Cash on Delivery (No PIN Needed)</div>
+              <div class="text-xs font-mono text-emerald-400 font-bold">Collect: ${formatEGP(d.cod_to_collect_egp)}</div>
+              <button onclick="courierVerifyHandover(${d.id}, true)" class="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white font-bold text-xs shadow-sm">
+                💵 Step 14: Confirm Cash Received & Deliver
+              </button>
+            </div>
+          `;
+        } else {
+          // Prepaid: Client tells him code in application
+          return `
+            <div class="p-2.5 rounded-xl bg-indigo-950/70 border border-indigo-500/50 space-y-2">
+              <div class="text-[11px] font-bold text-indigo-300">🔐 Step 13 & 14: Enter Handover PIN from Client</div>
+              <div class="flex gap-1.5">
+                <input id="handover-pin-input-${d.id}" type="text" maxlength="4" placeholder="4-Digit PIN" class="w-24 px-2 py-1.5 text-center font-mono font-bold text-xs rounded-lg bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-indigo-500" />
+                <button onclick="courierVerifyHandover(${d.id}, false)" class="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white btn-solid-white font-bold text-xs">
+                  Verify & Deliver
+                </button>
+              </div>
+              <div class="text-[10px] text-slate-400">Client has PIN in My Orders app screen</div>
+            </div>
+          `;
+        }
+      }
+
+      return `<span class="text-xs text-slate-400">${d.courier_status}</span>`;
     }
 
     function renderDeliveryHub() {
@@ -2725,7 +2914,143 @@
     refreshAll();
 
     // =====================================================================
-    // CLIENT MY ORDERS, REAL-TIME 3PL TRACKING & AUDITABLE INVOICE ENGINE
+
+    // =====================================================================
+    // 14-STEP E-COMMERCE JOURNEY INTERACTIVE HANDLERS
+    // =====================================================================
+
+    // STEP 5: Store confirms in-stock items & de-selects non-available items
+    async function submitStoreAvailabilityReview(orderId, storeId) {
+      const container = document.getElementById(`store-items-review-${orderId}`);
+      if (!container) return;
+
+      const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+      const itemsPayload = [];
+      checkboxes.forEach(chk => {
+        const pid = parseInt(chk.id.split('-').pop(), 10);
+        itemsPayload.push({
+          product_id: pid,
+          available: chk.checked
+        });
+      });
+
+      const res = await fetch(`${API_BASE}/orders/${orderId}/store-review`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ store_id: storeId, items: itemsPayload })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to submit store review');
+        return;
+      }
+      await refreshAll();
+      showToast('✅ Store confirmed available items! Order updated & sent to client for confirmation.');
+    }
+
+    // STEP 6 & 7: Client confirms order (money taken from card) or rejects order
+    async function clientConfirmOrder(orderId, action) {
+      const res = await fetch(`${API_BASE}/orders/${orderId}/client-confirm`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ action: action })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Action failed');
+        return;
+      }
+      await refreshAll();
+      if (action === 'CONFIRM') {
+        showToast('💳 Order confirmed! Money taken from your card. Partner store is preparing parcel.');
+      } else {
+        showToast('❌ Order rejected and cancelled. No money was taken from your card.');
+      }
+    }
+
+    // STEP 9: Assign nearest delivery courier by location to store
+    async function assignNearestCourier(deliveryId, cName, cPhone, cVehicle, cDist) {
+      const res = await fetch(`${API_BASE}/deliveries/${deliveryId}/assign-courier`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          courier_name: cName,
+          courier_phone: cPhone,
+          courier_vehicle: cVehicle,
+          courier_distance_km: cDist
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to assign courier');
+        return;
+      }
+      await refreshAll();
+      showToast(`🛵 Assigned nearest courier ${cName} (${cDist} km from store)!`);
+    }
+
+    // STEP 10: Courier confirms pick up from store branch
+    async function courierConfirmPickup(deliveryId) {
+      const res = await fetch(`${API_BASE}/deliveries/${deliveryId}/courier-pickup`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to confirm pickup');
+        return;
+      }
+      await refreshAll();
+      showToast('🚚 Courier confirmed pickup from store branch! Client notified.');
+    }
+
+    // STEP 12: Courier reaches client address
+    async function courierMarkArrived(deliveryId) {
+      const res = await fetch(`${API_BASE}/deliveries/${deliveryId}/courier-arrived`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to mark arrival');
+        return;
+      }
+      await refreshAll();
+      showToast('📍 Courier arrived at client location! Awaiting Handover Code / Cash.');
+    }
+
+    // STEP 13 & 14: Handover Code Verification & Package Handover (or COD without code)
+    async function courierVerifyHandover(deliveryId, isCod) {
+      let pin = '';
+      if (!isCod) {
+        const input = document.getElementById(`handover-pin-input-${deliveryId}`);
+        pin = input ? (input.value || '').trim() : '';
+        if (!pin || pin.length !== 4) {
+          alert('Please enter the 4-digit Handover PIN given by the client.');
+          return;
+        }
+      }
+
+      const res = await fetch(`${API_BASE}/deliveries/${deliveryId}/verify-handover`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ pin: pin })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Handover verification failed');
+        return;
+      }
+      await refreshAll();
+      showToast(isCod 
+        ? '💵 COD Cash collected! Package handed over & order settled.' 
+        : `🔐 Handover PIN ${pin} verified! Package handed over & order settled.`
+      );
+    }
+
+        // CLIENT MY ORDERS, REAL-TIME 3PL TRACKING & AUDITABLE INVOICE ENGINE
     // =====================================================================
     let CLIENT_ORDERS_SCOPE = 'all'; // 'all', 'active', 'closed'
     let CLIENT_ORDERS_SEARCH = '';
@@ -2972,6 +3297,64 @@
 
         return `
           <div class="glass rounded-2xl p-5 border border-slate-800 space-y-5 transition hover:border-slate-700 shadow-md">
+
+            <!-- STEP 6 & 7: CLIENT REVIEW & CONFIRMATION (MONEY TAKEN FROM CARD) OR REJECT -->
+            ${(order.order_status === 'store-reviewed' || (order.order_status === 'pending-store-review' && order.store_review_status === 'STORE_CONFIRMED')) ? `
+              <div class="p-4 rounded-xl bg-cyan-950/70 border-2 border-cyan-500/60 space-y-3 shadow-lg">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-lg">🔔</span>
+                    <span class="text-xs font-black uppercase tracking-wider text-cyan-300">Step 6 & 7: Store Verified Items • Your Confirmation Required</span>
+                  </div>
+                  <div class="text-xs font-mono font-black text-emerald-400">Total: ${formatEGP(order.total_egp)}</div>
+                </div>
+                <p class="text-xs text-slate-200 leading-relaxed">
+                  The partner store has verified stock availability and de-selected any unavailable items. 
+                  Click <strong>Confirm & Proceed</strong> to authorize payment (money will be taken from your card) and dispatch to packaging, or <strong>Reject</strong> to cancel without charge.
+                </p>
+                <div class="flex flex-wrap gap-2 pt-1">
+                  <button onclick="clientConfirmOrder(${order.id}, 'CONFIRM')" class="flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white btn-solid-white shadow-md flex items-center justify-center gap-1.5">
+                    <span>💳</span> <span>Confirm & Proceed (Money Taken from Card)</span>
+                  </button>
+                  <button onclick="clientConfirmOrder(${order.id}, 'REJECT')" class="py-2.5 px-4 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white btn-solid-white shadow-sm flex items-center gap-1.5">
+                    <span>❌</span> <span>Reject Order</span>
+                  </button>
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- STEP 13: DELIVERY HANDOVER PIN (PREPAID) OR COD NO-PIN NOTICE -->
+            ${!isClosed && order.order_status !== 'pending-store-review' && order.order_status !== 'store-reviewed' ? `
+              ${order.payment_method !== 'cod' ? `
+                <div class="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3">
+                  <div class="space-y-0.5">
+                    <div class="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <span>🔐</span> <span>Step 13: Delivery Handover PIN</span>
+                    </div>
+                    <div class="text-xs text-slate-300">
+                      Share this 4-digit code with courier <strong>${order.assigned_courier_name || 'Bosta Rider'}</strong> upon package arrival:
+                    </div>
+                  </div>
+                  <div class="text-2xl font-black font-mono tracking-widest text-emerald-300 bg-slate-900 px-5 py-1.5 rounded-xl border border-emerald-500/50 shadow-inner">
+                    ${order.delivery_pin || '----'}
+                  </div>
+                </div>
+              ` : `
+                <div class="p-3.5 rounded-xl bg-amber-950/60 border border-amber-500/40 flex flex-wrap items-center justify-between gap-3">
+                  <div class="space-y-0.5">
+                    <div class="text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <span>💵</span> <span>Step 13: Cash on Delivery (No PIN Code Needed)</span>
+                    </div>
+                    <div class="text-xs text-slate-300">
+                      Pay cash upon delivery to courier <strong>${order.assigned_courier_name || 'Bosta Rider'}</strong> (In case of COD, no code is required).
+                    </div>
+                  </div>
+                  <div class="text-base font-black font-mono text-amber-300 bg-slate-900 px-4 py-1.5 rounded-xl border border-amber-500/50">
+                    Pay ${formatEGP(order.total_egp)}
+                  </div>
+                </div>
+              `}
+            ` : ''}
 
             <!-- Order Header Bar -->
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3.5">

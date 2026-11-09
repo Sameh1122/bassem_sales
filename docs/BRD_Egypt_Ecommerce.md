@@ -6,8 +6,9 @@ This Business Requirements Document (BRD) defines the functional, financial, and
 ### Core Business Model Pillars
 1. **Zero Platform Inventory Risk:** The platform does **not** own warehouses or hold stock. Instead, **Partner Stores (Merchants)** onboard onto the platform, list their products under standardized **Product Categories**, and manage their own live store inventory.
 2. **Client-to-Store Connection & Commission Split:** When a Client places an order (even across multiple Partner Stores in a single cart), the platform calculates the **Platform Facilitator Commission (`8%–12%`)** and the **Net Partner Store Payout (`EGP`)**, processing payments via **Paymob Split / Cards / Meeza / Wallets**, **valU BNPL**, **Fawry 48h Reference Codes**, **InstaPay**, or **Cash on Delivery (COD)**.
-3. **100% Outsourced Last-Mile Delivery (Store $\rightarrow$ Client):** Delivery is outsourced to Egyptian 3PL couriers (**Bosta / Mylerz**). Each order automatically splits into **Per-Store Delivery Manifests (`wc_deliveries`)**, instructing the courier to pick up directly from the **Partner Store's branch address** and deliver to the **Client's drop-off address**.
-4. **Client Order Monitoring & Historical Closed Archive:** The platform provides clients with full self-service visibility over active in-transit shipments and historical closed orders, 5-stage milestone pipelines, Bosta waybill numbers, printable tax invoices, and 1-click support desk chat.
+3. **14-Step Hyperlocal Fulfillment Lifecycle:** Features a structured 14-step workflow covering location-based store filtering, two-phase card payment (pre-authorization -> store stock review -> client confirmation/rejection -> capture), proximity courier dispatch from local fleets, and secure package handover via **4-digit Handover PIN** for prepaid orders (*In case of Cash on Delivery, no PIN code is needed*).
+4. **100% Outsourced Last-Mile Delivery (Store $\rightarrow$ Client):** Delivery is outsourced to Egyptian 3PL couriers (**Bosta / Mylerz** and local proximity courier fleets). Each order automatically splits into **Per-Store Delivery Manifests (`wc_deliveries`)**, instructing the courier to pick up directly from the **Partner Store's branch address** and deliver to the **Client's drop-off address**.
+5. **Client Order Monitoring & Historical Closed Archive:** The platform provides clients with full self-service visibility over active in-transit shipments and historical closed orders, 7-stage visual milestone pipelines, courier vehicle details, Bosta waybill numbers, printable tax invoices, and 1-click support desk chat.
 
 ---
 
@@ -15,104 +16,172 @@ This Business Requirements Document (BRD) defines the functional, financial, and
 
 | Actor | Role & Responsibilities | Dedicated PoC Screen / Interface |
 | :--- | :--- | :--- |
-| **1. Client (Shopper / Consumer)** | Filters products by **Product Category** and **Partner Store**, places multi-store orders, pays via Egyptian payment rails, monitors active shipments and historical closed orders, prints official tax invoices, and initiates **Live Customer Support Chats (`💬 Chat with Support`)**. | **Tab 1:** `🛒 Client Storefront`<br>**Tab 2:** `📦 My Orders & Tracking (Active & Closed Archive)`<br>**Tab 3:** `📱 iOS & Android Mobile App` |
-| **2. Partner Store (Merchant / Vendor)** | Manages its own store stock by Category, views incoming store sub-orders, clicks **"Mark Packaged for Bosta Pickup"**, and tracks its **Net Store Payout (EGP)**. | **Tab 4:** `🏪 Partner Store Portal` |
-| **3. Outsourced Delivery Coordinator (Bosta / Mylerz 3PL)** | Views **Store Pickup Origin $\rightarrow$ Client Drop-off Destination** manifests, picks up packaged orders from Partner Stores, delivers to Clients, and collects COD cash. | **Tab 5:** `🚚 Outsourced Delivery Hub` |
+| **1. Client (Shopper / Consumer)** | Filters stores by **Shopping Location (Governorate)**, browses by **Product Category**, places multi-store orders, reviews order modifications (accepts/rejects updated item totals), provides **4-digit Handover PIN** to courier upon arrival (or pays COD cash with no PIN needed), monitors active shipments and historical closed archive, prints official tax invoices, and initiates **Live Customer Support Chats (`💬 Chat with Support`)**. | **Tab 1:** `🛒 Client Storefront`<br>**Tab 2:** `📦 My Orders & Tracking (Active & Closed Archive)`<br>**Tab 3:** `📱 iOS & Android Mobile App` |
+| **2. Partner Store (Merchant / Vendor)** | Manages store stock by Category, receives incoming orders for stock verification, confirms available items and de-selects non-available items, marks verified packages **"Ready for Courier Pickup"**, and tracks **Net Store Payout (EGP)**. | **Tab 4:** `🏪 Partner Store Portal` |
+| **3. Outsourced Delivery Coordinator & Couriers (Bosta / Proximity Fleet)** | Dispatches proximity couriers based on store branch location (`CAIRO`, `GIZA`, `ALEX`), confirms branch pickup, marks arrival at client address, validates **4-digit Handover PIN** for prepaid orders (or collects cash for COD without PIN), and marks packages **DELIVERED**. | **Tab 5:** `🚚 Outsourced Delivery Hub` |
 | **4. Marketplace Facilitator Admin (You)** | Has **360° visibility into everything** (All Stores, All Inventory, All Orders, All 3PL Deliveries, All Cash Settlements, All Webhooks), operates the **🎧 Live Customer Support Desk**, and controls **Commercial Rules (Delivery Fee, Egypt VAT %, Commission %, COD Fee, Cash Settlement Cycle)** across **ALL Partner Stores** or a **Specific Partner Store**. | **Tab 6:** `⚙️ Facilitator Control Tower & Webhooks` |
 
 ---
 
-## 3. Functional Business Requirements (FR)
+## 3. The 14-Step Hyperlocal Fulfillment Lifecycle
 
-### 3.1 Product Categories & Store-Owned Catalog
-* **FR-01 (Product Categories Taxonomy):** All products must be organized under bilingual **Product Categories** (`Electronics & Mobile`, `Egyptian Fashion & Cotton`, `Home & Coffee Appliances`, `Beauty & Skincare`, `Sports & Footwear`), with category filter bars on both Web and iOS/Android apps.
-* **FR-02 (Partner Store Attribution & Stock Ownership):** Every product card must clearly display its **Category Badge**, **Fulfilling Partner Store Name & Governorate Origin** (e.g., *Cairo Tech Hub — Cairo*), and real-time **Store Available Stock**.
-* **FR-03 (Store Inventory Self-Service):** Partner Stores must be able to adjust their stock levels (`+` / `-`) and publish new products under any Category directly from the **Partner Store Portal**.
+The complete e-commerce cycle is governed by a strict 14-step state machine ensuring operational accuracy and financial security:
 
-### 3.2 Multi-Store Cart, Commission Split & Egyptian Payments
-* **FR-04 (Multi-Store Cart & Split Calculation):** When a Client adds products from $N$ different Partner Stores into one cart:
-  * Each line item calculates `Platform Commission = Line Total × Store Commission %` and `Net Store Payout = Line Total - Platform Commission`.
-  * Outsourced delivery fee calculates the base Governorate SLA rate (`55–95 EGP`) plus `+25 EGP` per additional store pickup origin.
-* **FR-05 (Immediate Partner Store Stock Reservation):** Creating an order immediately reserves the requested units in the respective Partner Store's inventory (`reserved_quantity`).
-* **FR-06 (Automatic Stock Return on Fawry Expiry / Decline):** If a 48h **Fawry Reference Code** expires (`FAWRY.EXPIRED`) or a **Paymob** payment is declined, the reserved units are automatically returned to the Partner Store's `available_stock`.
+```
+[1. Select Location] -> [2. Add to Cart] -> [3. Checkout] -> [4. Select Payment (Pre-Auth / Hold)]
+         |
+         v
+[5. Store Review: Confirm Available / De-Select Unavailable]
+         |
+         +----------------------------------+
+         |                                  |
+   (If Confirmed)                     (If Rejected)
+         |                                  |
+         v                                  v
+[6. Client Confirms]              [6. Client Rejects]
+         |                                  |
+[7. Money Taken from Card]        [Order Cancelled & Stock Released]
+         |
+         v
+[8. Store Packs Order (READY_FOR_COURIER_PICKUP)]
+         |
+         v
+[9. Proximity Search & Assign Nearest Courier to Store]
+         |
+         v
+[10. Courier Confirms Branch Pickup]
+         |
+         v
+[11. Client Receives Pickup Notification]
+         |
+         v
+[12. Courier Reaches Client Address]
+         |
+         +----------------------------------+
+         |                                  |
+   (Prepaid Card)                         (COD)
+         |                                  |
+         v                                  v
+[13. Client Shares 4-Digit PIN]   [13. No PIN Code Needed]
+         |                                  |
+[14. Courier Verifies PIN]        [14. Courier Collects Cash]
+         |                                  |
+         +----------------------------------+
+         |
+         v
+[Package Handed Over -> DELIVERED -> Automated Cash Settlement (STL-xxxxxx)]
+```
 
-### 3.3 Outsourced Delivery Hub (Store Pickup $\rightarrow$ Client Drop-off)
-* **FR-07 (Per-Store Delivery Manifest Splitting):** A single Client order containing items from 2 Partner Stores automatically generates **2 separate Outsourced Delivery Manifests (`wc_deliveries`)**, each with its own **Store Pickup Address**, **Client Drop-off Address**, and **Bosta Airway Bill (`BST-xxxxxxx`)**.
-* **FR-08 (Store Packaging Handshake):** Partner Stores mark their sub-order `READY_FOR_COURIER_PICKUP` in the **Partner Store Portal**, notifying the **Outsourced Delivery Hub** and triggering a push notification.
+### Detailed Step-by-Step Specifications
 
-### 3.4 Facilitator 360° Control Tower, Commercial Policy Engine & Customer Support Desk
-* **FR-09 (Per-Store & All-Stores Commercial Policy Engine):** The Facilitator Admin must be able to configure **Commission %**, **Egypt VAT % (`14%`)**, **VAT Calculation Mode (`INCLUSIVE` vs. `ADDITIVE`)**, **Store Delivery Fee Override (`EGP` or `0 EGP` Free Shipping)**, **Extra Multi-Store Pickup Fee (`EGP`)**, **COD Collection Fee (`EGP`)**, and **Cash Settlement Cycle (`T+1`, `INSTANT`, `WEEKLY`)** across **ALL Partner Stores (`target_scope: "all"`)** or for a **Specific Partner Store (`target_scope: store_id`)**, plus bulk-settle all delivered sub-orders in one click.
-* **FR-10 (Two-Way Live Customer Support Chat & 360° Visibility):** The Client Storefront must provide a **"💬 Chat with Support"** drawer for shoppers to open support tickets (`SUP-xxxx`) and exchange live messages with the **Facilitator Admin Customer Support Desk**, while giving the Facilitator Admin full 360° visibility and override controls across all stores, inventory, deliveries, settlements, orders, and webhooks.
-
-### 3.5 Client Order Monitoring, Historical Closed Archive & Tax Invoicing
-* **FR-11 (Client Order Tracking & Milestone Pipeline):** Clients must be able to view their complete order history partitioned into **Active & In-Transit** (orders undergoing store packaging, courier pickup, or last-mile delivery) and **Completed & Closed** (delivered, cash-settled, or cancelled orders).
-* **FR-12 (5-Stage Visual Stepper):** Each order card must display a real-time 5-stage progress stepper (`1. Order Placed` $\rightarrow$ `2. Payment Verified & Split` $\rightarrow$ `3. Store Packaged` $\rightarrow$ `4. Out for Delivery (Bosta 3PL)` $\rightarrow$ `5. Delivered & Settled`) with bilingual English/Arabic labels and completion timestamps.
-* **FR-13 (Per-Store Manifest & Bosta AWB Transparency):** Orders fulfilled by multiple partner stores must display itemized sub-manifests, store origin governorates, packaging status, and direct clickable Bosta waybills (`courier_tracking_id`).
-* **FR-14 (Auditable & Printable Egyptian Commercial Tax Invoice):** Clients must be able to view and print official tax invoices (`INV-ORD-xxxx`) complying with **Egyptian E-Commerce Law No. 151/2020** and **VAT Law No. 67/2016**, detailing NileConnect Tax Reg No (`492-817-309`), Commercial Register (`184920`), itemized partner store breakdown, VAT amounts, and delivery charges.
-* **FR-15 (Integrated Support Drawer & Cart Reorder):** Clients must be able to open a pre-filled support ticket referencing their specific order number with one click, or re-populate their cart with all order items to reorder seamlessly.
+1. **Step 1 — Select Location:** Shopper selects their shopping location/governorate (`Cairo`, `Giza`, `Alexandria`, or `All Egypt`). Only partner store branches physically operating in the selected location are displayed in the store selector and catalog.
+2. **Step 2 — Add to Cart:** Shopper adds available items to cart from the filtered partner stores. Multi-store cart items calculate per-store sub-manifests and delivery fees.
+3. **Step 3 — Checkout:** Shopper enters delivery address and contact details within the selected governorate.
+4. **Step 4 — Select Payment Method & Pre-Authorization:**
+   * **Prepaid Card / Paymob:** Order is created in `order_status = 'pending-store-review'`, payment is placed in **Pre-Authorization / Hold** (`payment_status = 'pre_authorized'`), and a secure **4-digit Handover PIN** is generated.
+   * **Cash on Delivery (COD):** Order is created in `order_status = 'pending-store-review'` with `payment_status = 'pending'`.
+5. **Step 5 — Store Availability Review & De-Selection:** Partner store receives the order in the **Partner Store Portal**. The merchant reviews stock:
+   * Merchant confirms items that are in stock.
+   * Merchant **de-selects non-available items** (marked `OUT_OF_STOCK`).
+   * Reserved units for de-selected items are immediately returned to available stock.
+   * Order subtotal, VAT, delivery fee, commission, and client total are dynamically recalculated.
+   * Order moves to `order_status = 'store-reviewed'`.
+6. **Step 6 — Client Review & Decision:** Client receives notification of the verified order and reviews the updated items and revised total in **My Orders**:
+   * **Action A (Confirm):** Client approves the updated order to proceed to packaging.
+   * **Action B (Reject):** Client rejects the order; the pre-authorization hold is voided with zero charge, all reserved stock is released back to the store, and order is marked `cancelled`.
+7. **Step 7 — Payment Capture:** Upon Client confirmation:
+   * For Prepaid Cards, the money is officially captured from the client's card (`payment_status = 'paid'`).
+   * Order transitions to `order_status = 'ready-to-ship'`.
+8. **Step 8 — Store Packaging:** Partner store packs the confirmed items and marks the sub-order `READY_FOR_COURIER_PICKUP`.
+9. **Step 9 — Proximity Courier Dispatch:** Platform executes a proximity search against the registered courier fleet based on the partner store's pickup branch governorate, selecting and assigning the nearest available courier (e.g., Tarek Mostafa, 0.8 km from Cairo branch). Delivery status moves to `COURIER_ASSIGNED`.
+10. **Step 10 — Courier Branch Pickup:** Courier arrives at the partner store branch and clicks **Confirm Pickup**.
+11. **Step 11 — Client Pickup Notification:** System dispatches real-time notification to the client confirming that their order has been picked up from the store and is en route. Delivery moves to `PICKED_UP_FROM_STORE`.
+12. **Step 12 — Courier Reaches Client:** Courier arrives at the client's drop-off address and marks arrival (`ARRIVED_AT_CLIENT`).
+13. **Step 13 — Handover Code Exchange / COD Handling:**
+   * **Prepaid Card Flow:** Client accesses the **My Orders** screen, views their secret **4-digit Handover PIN**, and provides it verbally or visually to the courier.
+   * **Cash on Delivery (COD) Flow:** **Crucial Rule:** *In case of cash on delivery, no need for the code.* The courier collects the physical cash amount (`cod_to_collect_egp`).
+14. **Step 14 — Handover Verification & Settlement:**
+   * **Prepaid Verification:** Courier enters the 4-digit PIN in the Delivery Hub. If correct, handover is confirmed. If incorrect, system rejects handover with HTTP 400.
+   * **COD Verification:** Courier confirms receipt of cash with zero PIN required.
+   * **Finalization:** Parcel is handed over, delivery marked `DELIVERED`, order marked `completed-settled`, and automated cash settlement (`STL-xxxxxx`) is executed.
 
 ---
 
 ## 4. Main Business Flowcharts
 
-### Flow 1: End-to-End Multi-Store Marketplace & Outsourced Delivery Lifecycle
+### Sequence Diagram: The 14-Step E-Commerce Lifecycle
 
 ```mermaid
-flowchart TD
-    Client["Client Browses by Product Category on Web or iOS/Android App"] --> Cart["Adds Items from 1 or Multiple Partner Stores to Cart"]
-    Cart --> SplitCalc["Engine Calculates Client Total, Facilitator Commission % & Net Store Payouts"]
-    SplitCalc --> Reserve["Reserve Stock in Each Partner Store's Inventory & Split into Per-Store Sub-Orders"]
+sequenceDiagram
+    autonumber
+    actor Client
+    participant Storefront as Client Storefront
+    participant Core as Facilitator Engine
+    actor Store as Partner Store
+    actor Courier as Delivery Courier
 
-    Reserve --> PayChoice{"Client Selects Egyptian Payment Method"}
-    PayChoice -->|"Paymob Split (Card/Meeza/Apple Pay/Wallet)"| Paymob["Paymob 3DS / Native SDK Approved (HMAC Webhook)"]
-    PayChoice -->|"valU BNPL (6/12/24m)"| ValU["valU OTP Approved"]
-    PayChoice -->|"Fawry Kiosk Code (48h Hold)"| Fawry{"Paid at Kiosk Within 48h?"}
-    PayChoice -->|"InstaPay QR / IPA"| Insta["Facilitator Admin Approves Receipt"]
-    PayChoice -->|"Cash on Delivery (COD)"| WA["Client Confirms WhatsApp OTP (4455)"]
+    Client->>Storefront: 1. Select Location (Cairo/Giza/Alex)
+    Storefront->>Client: Display filtered local stores & products
+    Client->>Storefront: 2. Add in-stock items to cart
+    Client->>Storefront: 3. Proceed to checkout
+    Client->>Core: 4. Select Payment (Pre-Auth Card / COD)
+    Core-->>Client: Generate 4-Digit Handover PIN & Order in pending-store-review
 
-    Fawry -->|"Expired (48h TTL)"| Release["Cancel Order & Return Reserved Stock to Partner Store(s)"]
-    Fawry -->|"Paid Cash at Kiosk"| Dispatch
+    Store->>Core: 5. Store Review: Confirm available & de-select unavailable
+    Core->>Core: Recalculate total & release stock of unavailable items
+    Core-->>Client: Push Notification: Order reviewed by store
 
-    Paymob --> Dispatch["Auto-Generate Per-Store Bosta AWBs (Pickup: Store Branch -> Dropoff: Client)"]
-    ValU --> Dispatch
-    Insta --> Dispatch
-    WA --> Dispatch
+    alt Client Rejects Order
+        Client->>Core: 6b. Reject Order
+        Core->>Core: Void pre-auth & cancel order
+    else Client Confirms Order
+        Client->>Core: 6a. Confirm Order
+        Core->>Core: 7. Capture money from client card (paid)
+    end
 
-    Dispatch --> StorePack["Partner Store Packs Items in Store Portal -> Marks READY_FOR_COURIER_PICKUP"]
-    StorePack --> CourierPickup["Outsourced Bosta Courier Picks Up Parcel from Partner Store Branch"]
-    CourierPickup --> Deliver["Courier Delivers to Client & Collects COD (if applicable)"]
-    Deliver --> Settle["Facilitator Keeps Commission (8-12%) & Settles Net Payout to Partner Store"]
-    Settle --> Archive["Order Transitions to Closed Archive & Client Prints Tax Invoice"]
+    Store->>Core: 8. Mark Packaged (READY_FOR_COURIER_PICKUP)
+    Core->>Courier: 9. Proximity search: Assign nearest courier by store location
+    Courier->>Core: 10. Courier confirms pickup at store branch
+    Core-->>Client: 11. Push notification: Order picked up and en route
+    Courier->>Core: 12. Courier reaches client address (ARRIVED_AT_CLIENT)
+
+    alt Prepaid Card Order (Requires Handover Code)
+        Client->>Courier: 13a. Tell courier 4-digit PIN from app
+        Courier->>Core: 14a. Verify 4-digit PIN
+    else Cash on Delivery Order (NO CODE NEEDED)
+        Client->>Courier: 13b. Pay cash amount (NO PIN NEEDED)
+        Courier->>Core: 14b. Confirm cash collected (pin: "")
+    end
+
+    Core->>Core: Mark DELIVERED & trigger automated settlement (STL-xxxxxx)
 ```
 
 ---
 
-### Flow 2: Financial & Commission Split Matrix
+## 5. Financial & Commission Split Matrix
 
-| Order Component | Who Pays / Collects | Who Receives It | Example (10,000 EGP Item @ 10% Store Commission + 55 EGP Cairo Bosta) |
+| Order Component | Who Pays / Collects | Who Receives It | Example (10,000 EGP Item @ 10% Store Commission + 55 EGP Cairo Delivery) |
 | :--- | :--- | :--- | :--- |
 | **Product Price Subtotal** | Paid by **Client** | Split between **Partner Store** & **Facilitator** | `10,000 EGP` |
 | **Facilitator Commission (`8%–12%`)** | Deducted from Subtotal | **Marketplace Facilitator (You)** | `1,000 EGP` *(Your Net Revenue)* |
 | **Net Partner Store Payout** | Settled via Paymob Split / Bank | **Partner Store (Vendor)** | `9,000 EGP` *(Paid to Store)* |
-| **Outsourced Delivery Fee** | Paid by **Client** | **3PL Courier (Bosta / Mylerz)** | `55 EGP` *(Covers Store-to-Client Pickup & Delivery)* |
+| **Outsourced Delivery Fee** | Paid by **Client** | **3PL Courier (Bosta / Courier Fleet)** | `55 EGP` *(Covers Store-to-Client Delivery)* |
 
-### Flow 3: End-to-End Cash Settlement & Commission Realization (`STL-xxxxxx`)
-1. **Eligibility Trigger (`ELIGIBLE_FOR_SETTLEMENT`):** A Partner Store sub-order becomes eligible for Cash Settlement only after the outsourced Bosta courier confirms `DELIVERED` to the Client.
-2. **Prepaid Rail Settlement (`Paymob Split / Fawry / valU / InstaPay`):** Upon `POST /wp-json/wc/v3/deliveries/{id}/settle`, the escrow split releases `net_store_payout_egp` to the Partner Store's sub-merchant account and realizes `platform_commission_egp` into the Facilitator's revenue ledger (`STL-xxxxxx`).
-3. **COD Rail Settlement (`Bosta COD Remittance -> InstaPay Corporate Payout`):** Bosta remits the collected `cod_to_collect_egp` cash; the Facilitator deducts its `platform_commission_egp` (`8%–12%`) and transfers `net_store_payout_egp` to the Partner Store via InstaPay Corporate / Bank Payout (`STL-xxxxxx`).
+---
+
+## 6. End-to-End Cash Settlement & Commission Realization (`STL-xxxxxx`)
+1. **Eligibility Trigger (`ELIGIBLE_FOR_SETTLEMENT`):** A Partner Store sub-order becomes eligible for Cash Settlement only after the courier completes Step 14 (`DELIVERED`).
+2. **Prepaid Rail Settlement (`Paymob Split / Fawry / valU / InstaPay`):** Upon `POST /wp-json/wc/v3/deliveries/{id}/verify-handover`, the escrow split releases `net_store_payout_egp` to the Partner Store's account and realizes `platform_commission_egp` into the Facilitator's revenue ledger (`STL-xxxxxx`).
+3. **COD Rail Settlement (`Courier COD Remittance -> InstaPay Payout`):** The courier collects `cod_to_collect_egp` cash; the Facilitator deducts its `platform_commission_egp` (`8%–12%`) and transfers `net_store_payout_egp` to the Partner Store via InstaPay Corporate / Bank Payout (`STL-xxxxxx`).
 4. **Master Order Closure (`completed-settled`):** Once all Partner Store sub-deliveries for an order reach `SETTLED_TO_STORE`, the parent order automatically transitions to `order_status = 'completed-settled'` and `payment_status = 'settled'`.
 5. **Historical Archive Partitioning:** Closed orders are preserved in the Client Order History archive with auditable financial summaries, delivery waybill history, and printable invoices.
 
 ---
 
-## 5. Non-Functional & Interactive UX Requirements
+## 7. Non-Functional & Interactive UX Requirements
 * **Eye-Friendly Adaptive Light/Dark Theme (`Plus Jakarta Sans` + `Cairo`):** Defaults to a high-contrast, low-glare **Light Theme** (`#f4f7fb` canvas with pure `#ffffff` cards, generous padding, and `14px` readable typography) with a 1-click **🌙 Dark / ☀️ Light Mode Toggle** in the top header.
-* **Focused Sub-Workspaces & Guided Step Pipelines (Zero Visual Clutter):**
-  * **Tab 1 (Client Storefront):** Fast category browsing, multi-store cart calculations, and 1-click shortcut to track active orders.
-  * **Tab 2 (My Orders & Tracking):** Dedicated shopper self-service hub with active vs. closed tabs, live search input, 5-stage visual stepper, and printable tax invoice modal.
-  * **Tab 3 (Mobile App Simulator):** iOS & Android mobile shopping experience with live Firebase push feed.
-  * **Tab 4 (Partner Store Portal):** Features 1-click **Visual Partner Store Cards** and prioritizes **Incoming Sub-Orders to Pack** at the top of the screen.
-  * **Tab 5 (Outsourced Delivery Hub):** Highlights the **Recommended Next Courier Step** (`Step 1: Store Packed` $\rightarrow$ `Step 2: Bosta Picked Up` $\rightarrow$ `Step 3: Out for Delivery` $\rightarrow$ `Step 4: Delivered` $\rightarrow$ `Step 5: Settle Cash`) as a single primary action button.
-  * **Tab 6 (Facilitator Control Tower):** Organizes the 360° Admin Console into **5 focused sub-tabs** (`1. Commercial Rules & Fees`, `2. Customer Support Chat Desk`, `3. Orders, Deliveries & Settlements`, `4. Inventory, Stores & Categories`, `5. Webhooks Inspector`, plus `Show All`) to eliminate scroll fatigue.
-* **Event-Driven UI State Updates (No Destructive Polling):** All 6 workspaces update only upon user actions with instant visual Toast feedback (`showToast`), preserving open dropdowns and form inputs.
-* **Dual-Stack (`IPv4 + IPv6`) Local & Vercel Cloud Parity:** Both the Core Engine (`:4000`) and Integrations Mock Server (`:4001`) run unchanged locally over dual-stack sockets AND deploy as a unified Vercel Python Serverless bundle (`vercel.json` + `api/index.py`) where `/`, `/wp-json/wc/v3/*`, `/mock-dashboard`, `/mock/*`, and `/study` preserve the exact same multi-tier REST + HMAC-SHA512 webhook architecture via an in-memory HTTP bridge (`invoke_handler_in_memory`) and ephemeral HPOS SQLite storage in `/tmp/ecommerce_hpos.db`.
+* **Hyperlocal Location Selector (`Client Location Bar`):** Prominently docked above category filters on the Client Storefront, enabling one-click switching between Cairo, Giza, Alexandria, and All Egypt.
+* **Store Availability Review Panel:** Clear interactive checklist in Partner Store Portal allowing merchants to toggle item availability before packing.
+* **Client Confirmation Banner:** High-visibility approval drawer in My Orders for clients to confirm modified orders or reject them with zero penalty.
+* **PIN Handover vs. COD Notice Card:** Distinct security card in My Orders displaying the 4-digit PIN for card payments, or an explicit green notification that COD requires NO PIN.
+* **Dual-Stack Local & Vercel Cloud Parity:** Fully deployable to Vercel Serverless while maintaining 100% architectural parity with the local environment.
