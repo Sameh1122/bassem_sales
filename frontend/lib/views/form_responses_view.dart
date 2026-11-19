@@ -13,6 +13,7 @@ class FormResponsesViewScreen extends StatefulWidget {
 class FormResponsesViewScreenState extends State<FormResponsesViewScreen> {
   List<Map<String, dynamic>> _responses = [];
   bool _isLoading = true;
+  String? _exportingResponseId;
   String _selectedStatus = 'All';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -25,6 +26,34 @@ class FormResponsesViewScreenState extends State<FormResponsesViewScreen> {
 
   void reload() {
     _loadResponses();
+  }
+
+  Future<void> _exportAuditPdf(dynamic responseId, String chillerCode, String submittedAt) async {
+    if (responseId == null) return;
+    final idStr = responseId.toString();
+    if (_exportingResponseId == idStr) return;
+    setState(() => _exportingResponseId = idStr);
+    try {
+      final html = await ApiService.fetchAuditReportHtml(responseId);
+      final safeCode = (chillerCode.isNotEmpty ? chillerCode : idStr).replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final safeDate = submittedAt.length >= 10 ? submittedAt.substring(0, 10) : 'report';
+      downloadBlob('Audit_${safeCode}_$safeDate.html', html, mimeType: 'text/html;charset=utf-8;');
+      if (mounted) {
+        AppToast.show(context, type: AppToastType.success, message: 'Visual Audit PDF exported.');
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(
+          context,
+          type: AppToastType.error,
+          message: 'PDF export failed.',
+          actionLabel: 'Retry',
+          onAction: () => _exportAuditPdf(responseId, chillerCode, submittedAt),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportingResponseId = null);
+    }
   }
 
   Future<void> _loadResponses() async {
@@ -156,7 +185,7 @@ class FormResponsesViewScreenState extends State<FormResponsesViewScreen> {
     final String submittedAt = r['submitted_at'] != null ? r['submitted_at'].toString().split('T').first : '';
     final String adminFeedback = r['admin_feedback'] ?? '';
     final Map<String, dynamic> answers = Map<String, dynamic>.from(r['answers'] ?? {});
-    final List<String> attachments = List<String>.from(r['attachments'] ?? []);
+    final List<dynamic> attachments = r['attachments'] is List ? List<dynamic>.from(r['attachments'] as List) : const [];
 
     showDialog(
       context: context,
@@ -302,6 +331,20 @@ class FormResponsesViewScreenState extends State<FormResponsesViewScreen> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Close', style: TextStyle(color: Colors.white60)),
+          ),
+          OutlinedButton.icon(
+            onPressed: _exportingResponseId == responseId.toString()
+                ? null
+                : () => _exportAuditPdf(responseId, chillerCode, submittedAt),
+            icon: _exportingResponseId == responseId.toString()
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.picture_as_pdf_outlined, size: 16),
+            label: Text(_exportingResponseId == responseId.toString() ? 'Generating PDF...' : 'Export Visual Audit PDF'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTokens.of(context).accentPrimary,
+              side: BorderSide(color: AppTokens.of(context).accentPrimary.withValues(alpha: 0.6)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.of(context).radiusSm)),
+            ),
           ),
           if (status != 'reopened')
             OutlinedButton.icon(
@@ -533,7 +576,7 @@ class FormResponsesViewScreenState extends State<FormResponsesViewScreen> {
                             final agentName = r['agent_name'] ?? 'N/A';
                             final status = r['status'] ?? 'submitted';
                             final submittedAt = r['submitted_at'] != null ? r['submitted_at'].toString().split('T').first : '';
-                            final attachments = List<String>.from(r['attachments'] ?? []);
+                            final attachments = r['attachments'] is List ? List<dynamic>.from(r['attachments'] as List) : const [];
 
                             return InkWell(
                               onTap: () => _showResponseDetailsModal(r),
@@ -616,6 +659,16 @@ class FormResponsesViewScreenState extends State<FormResponsesViewScreen> {
                                     const SizedBox(width: 16),
                                     Row(
                                       children: [
+                                        IconButton(
+                                          icon: _exportingResponseId == id.toString()
+                                              ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTokens.of(context).accentPrimary))
+                                              : Icon(Icons.picture_as_pdf_outlined, color: AppTokens.of(context).accentPrimary),
+                                          tooltip: 'Export Visual Audit PDF',
+                                          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                                          onPressed: _exportingResponseId == id.toString()
+                                              ? null
+                                              : () => _exportAuditPdf(id, chillerCode, submittedAt),
+                                        ),
                                         if (status != 'accepted')
                                           IconButton(
                                             icon: const Icon(Icons.check_circle, color: Color(0xFF10B981)),

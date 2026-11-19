@@ -53,3 +53,87 @@ Preserved `owner@sales.com`, `admin@sales.com`, `omnia@sales.com`, and `mina@sal
 - `node scripts/test_qa_remediation.js` against `http://localhost:5000`: **34 Passed, 0 Failed**.
 - Isolated ephemeral-port server tests (`BLOB_READ_WRITE_TOKEN` unset) across all 5 roles (`owner`, `admin`, `supervisor`, `agent`, `technician`): **PASSED** (`GET /api/stats/dashboard` 200 with role scoping; `PATCH /api/chillers/:id/condition` 403 for `agent`, 400 for invalid condition, 200 for `technician` and `owner`).
 - Dart static checks (relative imports, `AppTokens` member names, lexer-verified balanced delimiters) on `api_service.dart`, `dashboard_widgets.dart`, `dashboard_view.dart`, `main.dart`: **PASSED**. (Note: Flutter SDK is not installed in PATH on this machine, so `flutter build web` was not run.)
+
+---
+
+## Sprints 10 & 11 (`P9`) — Enterprise ERP/DMS Webhooks, Executive ROI Console, PostgreSQL/PostGIS Readiness & Security Advisory Fix (`2026-11-19`)
+
+### Sprint 10 (`P9a` — Enterprise ERP/DMS Webhooks & Executive ROI Console)
+1. **`api/services/storage.js`:** Added `webhooks` and `erp_sync_logs` defaults in `loadDbStore()` and `ensureSyncStoreFields()` for local JSON and cloud blob persistence.
+2. **`api/routes/integrations.js` & `api/index.js`:**
+   - `GET /api/integrations/webhooks` & `POST /api/integrations/webhooks` (`requireAdmin`): validates `http:`/`https:` URL and allowed `events`, masks `signingSecret` (`signingSecretMasked: 'whsec_****<last4>'`) on both read and create.
+   - `POST /api/integrations/erp-sync` (`requireAdmin`): records incremental/full sync runs in `dbStore.erp_sync_logs` with `chillersSynced`, `ticketsSynced`, and `invoicesSynced` counts.
+   - `GET /api/integrations/roi` (`requireRoles('owner', 'admin', 'regional_manager')`): computes `revenuePerActiveChiller`, `maintenanceDrag`, `relocationUpliftPotential`, and `netAssetRoiPct`, plus `lastErpSync` and `webhooksCount`.
+   - Mounted `/integrations` router in `api/index.js`.
+3. **Frontend (`frontend/lib/services/api_service.dart`, `frontend/lib/views/dashboard_view.dart`):**
+   - Added `fetchRoiMetrics()`, `triggerErpSync()`, `fetchWebhooks()`, and `createWebhook()` in `ApiService`.
+   - Added **Executive ROI & ERP Sync** card (`_buildExecutiveRoiAndErpCard`) in `DashboardViewScreen` for `owner` / `admin` / `regional_manager` with live `Run ERP Sync` trigger.
+
+### Sprint 11 (`P9b` — PostgreSQL/PostGIS Readiness `ADR-002` & Security Advisory Fix)
+1. **`scripts/migrate_to_postgres.sql`:** Created complete `ADR-002` PostgreSQL + PostGIS DDL (`CREATE EXTENSION IF NOT EXISTS postgis;`, `tenants`, `users`, `agents`, `batches`, `chillers` with `GEOGRAPHY(POINT, 4326)` + GIST index, `assignments`, `forms`, `form_responses`, `tickets`, `webhooks`, `erp_sync_logs`, and `tenant_id` Row-Level Security policies).
+2. **`api/services/dbAdapter.js` & `api/routes/admin.js`:** Created `getDbAdapterStatus()` reporting `engine: process.env.DATABASE_URL ? 'postgres-ready' : 'json-blob'` and `postgisSchemaPath`, exposed safely as `dbAdapter` in `GET /api/admin/diagnostics`.
+3. **`api/utils/security.js`:** Updated `resolveJwtSecret()` to log a clear startup `console.warn` if a production `JWT_SECRET` is provided with `< 32` characters.
+
+### Verification Results
+- `node -c` on all new/modified `.js` files (`storage.js`, `dbAdapter.js`, `integrations.js`, `admin.js`, `security.js`, `index.js`): **PASSED**.
+- `node scripts/test_qa_remediation.js` against `http://localhost:5000`: **34 Passed, 0 Failed**.
+- Isolated ephemeral server (`PORT=0`): **PASSED** (`resolveJwtSecret` short production secret warning, `GET/POST /api/integrations/webhooks` `403` agent / `400` invalid URL / `201` & `200` admin with masked secret, `POST /api/integrations/erp-sync`, `GET /api/integrations/roi` `403` agent & technician / `200` owner, `GET /api/admin/diagnostics` `dbAdapter` present).
+- Dart static verification on `api_service.dart` and `dashboard_view.dart`: **PASSED** (balanced delimiters `0/0/0`, valid relative imports, valid `AppTokens` members).
+
+
+---
+
+## Sprints 6 & 7 (`P7` — Automated Service Operations, Gamification & Bulk Territory Rebalance) (`2026-11-19`)
+
+### Sprint 6 (`P7a` — Maintenance & Scrap SLA Ticketing)
+- **`api/services/storage.js`:** Added `tickets` default array and persistence in `loadDbStore()` and `ensureSyncStoreFields()`.
+- **`api/routes/tickets.js`:** Created SLA ticketing router with:
+  - `GET /api/tickets` (`requireAuth`, role-scoped: global for `owner`/`admin`/`regional_manager`, branch/supervised for `supervisor`, maintenance queue for `technician`, territory-scoped for `agent`).
+  - `POST /api/tickets` (`requireRoles('owner', 'admin', 'regional_manager', 'supervisor', 'technician')`) with SLA priority (`critical` 24h for `Scrap`, `high` 72h for `Requires Maintenance`).
+  - `PATCH /api/tickets/:id` (`requireRoles('owner', 'admin', 'regional_manager', 'supervisor', 'technician')`) updating `status` (`open`, `in_progress`, `resolved`), `assignedTo`, and `resolutionNote`.
+  - Exported `autoCreateTicketForChiller()` helper.
+- **`api/routes/chillers.js`:** Wired `PATCH /api/chillers/:id/condition` to auto-create an `open` SLA ticket when transitioning to `Requires Maintenance` or `Scrap` (if no open/in-progress ticket already exists for that chiller).
+- **`api/index.js`:** Mounted `ticketsRoutes` and added `'tickets'` audit log category.
+- **`frontend/lib/services/api_service.dart`:** Added `fetchTickets()`, `createTicket()`, and `updateTicket()`.
+- **`frontend/lib/views/dashboard_view.dart`:** Added `_buildSlaTicketsCard()` with SLA priority/status pills and quick `Start` / `Resolve` actions in Technician and Supervisor workspaces.
+
+### Sprint 7 (`P7b` — Gamification, "Perfect Chiller" Scorecards & Bulk Territory Rebalance)
+- **`api/routes/chillers.js`:** Added `GET /api/stats/gamification` (`requireAuth`, role-scoped) returning `perfectChillersCount`, `totalEvaluated`, `perfectRate`, and `leaderboard[]` (`agentId`, `name`, `area`, `points`, `streakDays`, `perfectCount`, `visitedCount`, `assignedCount`).
+- **`api/routes/agents.js`:** Added `POST /api/assignments/bulk` (`requireRoles('owner', 'admin', 'regional_manager', 'supervisor')`, enforcing `supervisedAgentIds` and branch scope for `supervisor`) accepting `{ agentId, items: [{ chillerCode, customerName }] }` and persisting all assignments atomically.
+- **`frontend/lib/services/api_service.dart`:** Added `fetchGamification()` and `bulkAssign()`.
+- **`frontend/lib/views/dashboard_view.dart` & `frontend/lib/views/assign_locations_view.dart`:** Added **"Perfect Chiller & Rep Leaderboard"** card (`_buildGamificationCard()`) in Executive & Supervisor workspaces, **Bulk Assign Unassigned** action in Supervisor Hub (`_showBulkAssignUnassignedDialog()`), and **Bulk Assign Unassigned** / `ApiService.bulkAssign()` integration in `AssignLocationsViewScreen`.
+
+### Verification Results
+- `node -c` on `api/index.js`, `api/services/storage.js`, `api/routes/tickets.js`, `api/routes/chillers.js`, `api/routes/agents.js`: **PASSED** (exit code 0).
+- `node scripts/test_qa_remediation.js` against `http://localhost:5000`: **34 Passed, 0 Failed**.
+- Isolated ephemeral server (`PORT=0`, cloud storage disabled): **PASSED** (`POST /api/tickets` `403` for `agent` & `201` for `technician` with `critical`/24h SLA, `PATCH /api/tickets/:id` `200`, `PATCH /api/chillers/:id/condition` auto-ticket + duplicate prevention, `GET /api/tickets` `200`, `GET /api/stats/gamification` `200`, `POST /api/assignments/bulk` `403` out-of-team supervisor & `200` valid).
+- Dart static checks (balanced `()`, `{}`, `[]` delimiters and valid `AppTokens` members) on `api_service.dart`, `dashboard_view.dart`, `assign_locations_view.dart`: **PASSED** (3/3).
+
+
+---
+
+## Sprints 8 & 9 (`P8` — AI Retail Execution Intelligence, Predictive Relocation & Data Completeness Center) (`2026-11-19`)
+
+### Sprint 8 (`P8a` — AI Chiller Purity, OOS & Predictive Relocation Engine)
+1. **`api/routes/insights.js` & `api/index.js`:**
+   - Implemented `GET /api/insights/anomalies` (`requireAuth`, role-scoped via `filterRowsByTerritory`) returning `summary` (`relocationCandidatesCount`, `revenueDropCount`, `purityOosCount`, `estimatedMonthlyUplift`), `relocationCandidates[]` (operational chillers with `< 50%` efficiency or low YTD, top 20 sorted by uplift potential), `revenueDrops[]` (`>= 25%` MoM invoice decline), and `purityOosFlags[]` (audits/chillers with competitor/OOS/POSM risk indicators).
+   - Implemented `POST /api/insights/analyze-audit` (`requireAuth`) via `scoreAuditPayload(answers, attachments, chillerCode)` returning `purityScore` (`0..100`), `oosRisk` (`low|medium|high`), `posmCompliant` (`bool`), and `recommendations[]`.
+   - Mounted `insightsRoutes` in `api/index.js`.
+2. **`frontend/lib/services/api_service.dart` & `frontend/lib/views/dashboard_view.dart`:**
+   - Added `fetchInsightsAnomalies()` and `analyzeAudit()` to `ApiService`.
+   - Added **AI Insights & Relocation Watchlist** card (`_buildAiInsightsCard`) to `DashboardViewScreen` (Owner / Regional Manager / Admin / Supervisor) with segmented tabs (`Relocate`, `Rev Drop`, `Purity/OOS`) and 1-tap `360°` drill-down.
+
+### Sprint 9 (`P8b` — Data Completeness Center & Sub-District Rollups)
+1. **`api/routes/chillers.js`:**
+   - Added `dataCompleteness` (`missingGpsCount`, `unspecifiedConditionCount`, `unknownEfficiencyCount`, `completenessScorePct`) and `districtRollups[]` (grouped by district/area/city inside active branch/scope) to `GET /api/stats/dashboard`.
+   - Added `?incomplete=gps|condition|efficiency|any` filter support to `GET /api/chillers`.
+2. **`frontend/lib/services/api_service.dart`, `frontend/lib/views/dashboard_view.dart` & `frontend/lib/views/data_table_view.dart`:**
+   - Updated `ApiService.fetchChillers()` to support `incomplete` query parameter.
+   - Added **Data Completeness** card (`_buildDataCompletenessCard`) and **Sub-District Rollups** card (`_buildDistrictRollupsCard`) to `DashboardViewScreen` (Owner / Regional Manager / Admin / Supervisor).
+   - Added `Incomplete Only` `FilterChip` to `DataTableViewScreen` toolbar wired to `incomplete: 'any'`.
+
+### Verification Results
+- `node -c` on `api/routes/insights.js`, `api/routes/chillers.js`, and `api/index.js`: **PASSED** (exit code 0).
+- `node scripts/test_qa_remediation.js` against `http://localhost:5000`: **34 Passed, 0 Failed**.
+- Isolated ephemeral server (`PORT=0`, `BLOB_READ_WRITE_TOKEN=""`) verification across Sprint 8 & 9 endpoints (`GET /api/insights/anomalies` for admin & territory-scoped agent, `POST /api/insights/analyze-audit`, `GET /api/stats/dashboard` `dataCompleteness` & `districtRollups`, `GET /api/chillers?incomplete=gps`): **19 Passed, 0 Failed**.
+- Static checks on modified `.dart` files (`api_service.dart`, `dashboard_view.dart`, `data_table_view.dart`): balanced delimiters on `api_service.dart` & `dashboard_view.dart` (`FilterChip` block verified in `data_table_view.dart`), valid `AppTokens` members (`0` invalid references). (Flutter SDK is not installed locally, so `flutter build web` must run in CI.)

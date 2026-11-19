@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/location_service.dart';
 import '../services/url_launcher.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/geofence_pill.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/dashboard_widgets.dart';
 import 'customer_360_drawer.dart';
@@ -50,11 +52,37 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
   int _insightsTab = 0; // 0 = Relocation, 1 = Revenue Drop, 2 = Purity/OOS
   String _agentFilter = 'All'; // All, Re-opened, Maintenance, Unvisited
   String _techFilter = 'All'; // All, Scrap, Requires Maintenance
+  double? _liveLat;
+  double? _liveLng;
 
   @override
   void initState() {
     super.initState();
     _loadDashboard();
+    _acquireLiveGps();
+  }
+
+  Future<void> _acquireLiveGps() async {
+    if (!ApiService.isAgent && !ApiService.isTechnician) return;
+    try {
+      final loc = await getCurrentUserLocation();
+      if (mounted) {
+        setState(() {
+          _liveLat = loc.latitude;
+          _liveLng = loc.longitude;
+        });
+      }
+    } catch (_) {}
+  }
+
+  double? _distanceToChiller(Map<String, dynamic> c) {
+    if (_liveLat == null || _liveLng == null) return null;
+    final rawLat = c['latitude'];
+    final rawLng = c['longitude'];
+    final cLat = rawLat is num ? rawLat.toDouble() : double.tryParse(rawLat?.toString() ?? '');
+    final cLng = rawLng is num ? rawLng.toDouble() : double.tryParse(rawLng?.toString() ?? '');
+    if (cLat == null || cLng == null || (cLat == 0 && cLng == 0)) return null;
+    return GeofenceCheckInPill.calculateDistanceMeters(_liveLat!, _liveLng!, cLat, cLng);
   }
 
   Future<void> reload({bool showSpinner = false}) async {
@@ -1954,6 +1982,10 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
                                 style: t.cardTitle,
                               ),
                             ),
+                            if (_distanceToChiller(item) != null) ...[
+                              GeofenceCheckInPill(distanceMeters: _distanceToChiller(item)),
+                              const SizedBox(width: 6),
+                            ],
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(

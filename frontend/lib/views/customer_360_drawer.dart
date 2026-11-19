@@ -2,7 +2,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
+import '../services/storage.dart';
 import '../services/url_launcher.dart';
+import '../theme/app_tokens.dart';
+import '../widgets/app_feedback.dart';
 import 'form_filler_dialog.dart';
 import '../widgets/audit_photo_gallery.dart';
 
@@ -126,6 +129,35 @@ class _Customer360ContentState extends State<_Customer360Content> {
   String? _error;
   Map<String, dynamic>? _data360;
   bool _showAllAudits = false;
+  String? _exportingAuditId;
+
+  Future<void> _exportAuditPdf(dynamic responseId, String chillerCode, String submittedAt) async {
+    if (responseId == null) return;
+    final idStr = responseId.toString();
+    if (_exportingAuditId == idStr) return;
+    setState(() => _exportingAuditId = idStr);
+    try {
+      final html = await ApiService.fetchAuditReportHtml(responseId);
+      final safeCode = (chillerCode.isNotEmpty ? chillerCode : idStr).replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final safeDate = submittedAt.length >= 10 ? submittedAt.substring(0, 10) : 'report';
+      downloadBlob('Audit_${safeCode}_$safeDate.html', html, mimeType: 'text/html;charset=utf-8;');
+      if (mounted) {
+        AppToast.show(context, type: AppToastType.success, message: 'Visual Audit PDF exported.');
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(
+          context,
+          type: AppToastType.error,
+          message: 'PDF export failed.',
+          actionLabel: 'Retry',
+          onAction: () => _exportAuditPdf(responseId, chillerCode, submittedAt),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportingAuditId = null);
+    }
+  }
   final Set<String> _expandedAuditDates = {};
 
   @override
@@ -871,9 +903,11 @@ class _Customer360ContentState extends State<_Customer360Content> {
     final String submittedAt = (audit['submittedAt'] ?? '').toString();
     final String shortDate = submittedAt.length >= 10 ? submittedAt.substring(0, 10) : submittedAt;
     final String feedback = (audit['adminFeedback'] ?? '').toString();
-    final List<String> attachments = (audit['attachments'] is List)
-        ? (audit['attachments'] as List).map((e) => e.toString()).where((u) => u.isNotEmpty).toList()
-        : <String>[];
+    final List<dynamic> attachments = (audit['attachments'] is List)
+        ? List<dynamic>.from(audit['attachments'] as List)
+        : const <dynamic>[];
+    final auditId = audit['id'];
+    final chillerCodeStr = (widget.chiller['chillerCode'] ?? widget.chiller['chiller_code'] ?? '').toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -901,6 +935,17 @@ class _Customer360ContentState extends State<_Customer360Content> {
                 ),
               ),
               _buildBadge(st.toUpperCase(), dotColor),
+              if (auditId != null)
+                IconButton(
+                  icon: _exportingAuditId == auditId.toString()
+                      ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppTokens.of(context).accentPrimary))
+                      : Icon(Icons.picture_as_pdf_outlined, size: 18, color: AppTokens.of(context).accentPrimary),
+                  tooltip: 'Export Visual Audit PDF',
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                  onPressed: _exportingAuditId == auditId.toString()
+                      ? null
+                      : () => _exportAuditPdf(auditId, chillerCodeStr, submittedAt),
+                ),
             ],
           ),
           if ((audit['agentName'] ?? '').toString().isNotEmpty) ...[
@@ -911,13 +956,15 @@ class _Customer360ContentState extends State<_Customer360Content> {
             const SizedBox(height: 8),
             AuditPhotoGallery(
               columns: 3,
-              photos: attachments.map((url) => AuditPhotoItem(
-                url: url,
-                timestamp: submittedAt,
-                agentName: audit['agentName']?.toString(),
-                chillerCode: (widget.chiller['chillerCode'] ?? widget.chiller['chiller_code'])?.toString(),
-                latitude: (audit['agentLat'] as num?)?.toDouble(),
-                longitude: (audit['agentLng'] as num?)?.toDouble(),
+              photos: attachments.map((att) => AuditPhotoItem.fromAttachment(
+                att,
+                fallbackTimestamp: submittedAt,
+                fallbackAgentName: audit['agentName']?.toString(),
+                fallbackChillerCode: (widget.chiller['chillerCode'] ?? widget.chiller['chiller_code'])?.toString(),
+                fallbackLat: (audit['checkInLat'] ?? audit['check_in_lat'] ?? audit['agentLat']) is num ? ((audit['checkInLat'] ?? audit['check_in_lat'] ?? audit['agentLat']) as num).toDouble() : null,
+                fallbackLng: (audit['checkInLng'] ?? audit['check_in_lng'] ?? audit['agentLng']) is num ? ((audit['checkInLng'] ?? audit['check_in_lng'] ?? audit['agentLng']) as num).toDouble() : null,
+                checkInDistanceM: (audit['checkInDistanceM'] ?? audit['check_in_distance_m']) is num ? ((audit['checkInDistanceM'] ?? audit['check_in_distance_m']) as num).toInt() : null,
+                geofenceVerified: (audit['geofenceVerified'] ?? audit['geofence_verified']) is bool ? (audit['geofenceVerified'] ?? audit['geofence_verified']) as bool : null,
               )).toList(),
             ),
           ],
@@ -980,11 +1027,37 @@ class _Customer360ContentState extends State<_Customer360Content> {
                 _buildBadge('${history.length}', const Color(0xFF06B6D4)),
               ],
             ),
-            if (entries.length > 5)
-              TextButton(
-                onPressed: () => setState(() => _showAllAudits = !_showAllAudits),
-                child: Text(_showAllAudits ? 'Show less' : 'Show all (${history.length})', style: const TextStyle(color: Colors.cyanAccent, fontSize: 11)),
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (history.isNotEmpty && (history.first is Map) && (history.first as Map)['id'] != null)
+                  OutlinedButton.icon(
+                    onPressed: _exportingAuditId == (history.first as Map)['id'].toString()
+                        ? null
+                        : () {
+                            final latest = history.first as Map;
+                            final code = (widget.chiller['chillerCode'] ?? widget.chiller['chiller_code'] ?? '').toString();
+                            _exportAuditPdf(latest['id'], code, (latest['submittedAt'] ?? '').toString());
+                          },
+                    icon: _exportingAuditId == (history.first as Map)['id'].toString()
+                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.picture_as_pdf_outlined, size: 15),
+                    label: Text(_exportingAuditId == (history.first as Map)['id'].toString() ? 'Generating PDF...' : 'Export Visual Audit PDF', style: const TextStyle(fontSize: 11)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTokens.of(context).accentPrimary,
+                      side: BorderSide(color: AppTokens.of(context).accentPrimary.withValues(alpha: 0.6)),
+                      minimumSize: const Size(0, 36),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      tapTargetSize: MaterialTapTargetSize.padded,
+                    ),
+                  ),
+                if (entries.length > 5)
+                  TextButton(
+                    onPressed: () => setState(() => _showAllAudits = !_showAllAudits),
+                    child: Text(_showAllAudits ? 'Show less' : 'Show all (${history.length})', style: const TextStyle(color: Colors.cyanAccent, fontSize: 11)),
+                  ),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 8),

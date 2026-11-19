@@ -5,7 +5,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
+import '../services/location_service.dart';
+import '../services/offline_sync_service.dart';
 import '../widgets/app_feedback.dart';
+import '../widgets/geofence_pill.dart';
 
 class FormFillerDialog extends StatefulWidget {
   final Map<String, dynamic> chiller;
@@ -34,12 +37,43 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
   final Map<String, dynamic> _answers = {};
   final Map<String, TextEditingController> _textControllers = {};
   final List<String> _attachmentUrls = [];
+  final Map<String, Map<String, dynamic>> _attachmentMeta = {};
   bool _isUploadingAttachment = false;
+  double? _checkInLat;
+  double? _checkInLng;
+  double? _distanceMeters;
+  bool _isLocatingGps = true;
 
   @override
   void initState() {
     super.initState();
     _loadAvailableForms();
+    _acquireGps();
+  }
+
+  Future<void> _acquireGps() async {
+    if (mounted) setState(() => _isLocatingGps = true);
+    try {
+      final loc = await getCurrentUserLocation();
+      final rawLat = widget.chiller['latitude'];
+      final rawLng = widget.chiller['longitude'];
+      final cLat = rawLat is num ? rawLat.toDouble() : double.tryParse(rawLat?.toString() ?? '');
+      final cLng = rawLng is num ? rawLng.toDouble() : double.tryParse(rawLng?.toString() ?? '');
+      double? dist;
+      if (cLat != null && cLng != null && !(cLat == 0 && cLng == 0)) {
+        dist = GeofenceCheckInPill.calculateDistanceMeters(loc.latitude, loc.longitude, cLat, cLng);
+      }
+      if (mounted) {
+        setState(() {
+          _checkInLat = loc.latitude;
+          _checkInLng = loc.longitude;
+          _distanceMeters = dist;
+          _isLocatingGps = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLocatingGps = false);
+    }
   }
 
   @override
@@ -166,8 +200,21 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
       );
 
       if (mounted) {
+        final chillerCode = (widget.chiller['chillerCode'] ?? '').toString();
+        final agentName = (ApiService.currentUser?['name'] ?? ApiService.currentUser?['username'] ?? 'Field Rep').toString();
         setState(() {
           _attachmentUrls.add(url);
+          _attachmentMeta[url] = {
+            'url': url,
+            'filename': file.name,
+            'watermark': {
+              'capturedAt': DateTime.now().toUtc().toIso8601String(),
+              if (_checkInLat != null) 'lat': _checkInLat,
+              if (_checkInLng != null) 'lng': _checkInLng,
+              'agentName': agentName,
+              if (chillerCode.isNotEmpty) 'chillerCode': chillerCode,
+            },
+          };
           _isUploadingAttachment = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -252,14 +299,18 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
       final customerName = (widget.chiller['customerName'] ?? '').toString();
       final formId = _selectedForm!['id'] is int ? _selectedForm!['id'] as int : (int.tryParse(_selectedForm!['id'].toString()) ?? 0);
 
+      final structuredAttachments = _attachmentUrls.map((u) => _attachmentMeta[u] ?? u).toList();
       await ApiService.submitFormResponse(
         formId: formId,
         chillerCode: chillerCode,
         customerName: customerName,
         answers: finalAnswers,
-        attachments: _attachmentUrls,
+        attachments: structuredAttachments,
+        checkInLat: _checkInLat,
+        checkInLng: _checkInLng,
       );
 
+      OfflineSyncService.instance.setOnline(true);
       if (mounted) {
         setState(() => _isSubmitting = false);
         Navigator.of(context).pop();
@@ -267,7 +318,32 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
         AppToast.show(context, type: AppToastType.success, message: 'Visit form submitted successfully! Status updated on map.');
       }
     } catch (e) {
-      if (mounted) {
+      final errStr = e.toString().toLowerCase();
+      final isNetworkErr = errStr.contains('socket') || errStr.contains('clientexception') || errStr.contains('failed host') || errStr.contains('xmlhttprequest') || errStr.contains('network') || errStr.contains('failed to fetch') || !OfflineSyncService.instance.isOnline;
+      if (isNetworkErr) {
+        final chillerCode = (widget.chiller['chillerCode'] ?? '').toString();
+        final customerName = (widget.chiller['customerName'] ?? '').toString();
+        final formId = _selectedForm!['id'] is int ? _selectedForm!['id'] as int : (int.tryParse(_selectedForm!['id'].toString()) ?? 0);
+        final structuredAttachments = _attachmentUrls.map((u) => _attachmentMeta[u] ?? u).toList();
+        await OfflineSyncService.instance.enqueueFormResponse(
+          formId: formId,
+          chillerCode: chillerCode,
+          customerName: customerName,
+          answers: finalAnswers,
+          attachments: structuredAttachments,
+          checkInLat: _checkInLat,
+          checkInLng: _checkInLng,
+          checkInDistanceM: _distanceMeters?.round(),
+          geofenceVerified: _distanceMeters != null ? _distanceMeters! <= 100 : null,
+        );
+        OfflineSyncService.instance.setOnline(false);
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+          Navigator.of(context).pop();
+          widget.onSubmitted();
+          AppToast.show(context, type: AppToastType.warning, message: 'Offline ? Visit saved to outbox queue for sync.');
+        }
+      } else if (mounted) {
         setState(() => _isSubmitting = false);
         AppToast.show(context, type: AppToastType.error, message: 'Submission failed: $e', actionLabel: 'Retry', onAction: _submitForm);
       }
@@ -332,6 +408,15 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GeofenceCheckInPill(
+                            distanceMeters: _distanceMeters,
+                            isLocating: _isLocatingGps,
+                            onRetry: _acquireGps,
+                            showNonBlockingNote: true,
+                          ),
+                        ),
                         // Re-opened Alert Banner
                         if (isReopened && adminFeedback != null && adminFeedback.toString().isNotEmpty) ...[
                           Container(
