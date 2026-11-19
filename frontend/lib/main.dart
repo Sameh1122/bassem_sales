@@ -5,6 +5,7 @@ import 'services/storage.dart';
 import 'theme/app_tokens.dart';
 import 'widgets/app_feedback.dart';
 import 'views/login_view.dart';
+import 'views/dashboard_view.dart';
 import 'views/map_view.dart';
 import 'views/upload_view.dart';
 import 'views/assign_locations_view.dart';
@@ -97,6 +98,7 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   bool _agentRouteTabSelected = false;
+  final GlobalKey<DashboardViewScreenState> _dashboardKey = GlobalKey<DashboardViewScreenState>();
   final GlobalKey<MapViewScreenState> _mapKey = GlobalKey<MapViewScreenState>();
   final GlobalKey<AssignLocationsViewScreenState> _assignKey = GlobalKey<AssignLocationsViewScreenState>();
   final GlobalKey<AgentsViewScreenState> _agentsKey = GlobalKey<AgentsViewScreenState>();
@@ -121,9 +123,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   void _onUploadSuccess() {
     setState(() {
-      _currentIndex = 0;
+      _currentIndex = 1;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dashboardKey.currentState?.reload();
       _mapKey.currentState?.reload(forceRecenter: true, forceApi: true);
       _tableKey.currentState?.reload(forceApi: true);
     });
@@ -144,84 +147,181 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
     final currentUser = ApiService.currentUser ?? {};
     final bool isOwner = ApiService.isOwner;
+    final bool isRegionalManager = ApiService.isRegionalManager;
     final bool isAdmin = ApiService.isAdmin;
-    final String roleName = isOwner ? 'System Owner' : (isAdmin ? 'Admin' : 'Sales Agent');
+    final bool isSupervisor = ApiService.isSupervisor;
+    final bool isTechnician = ApiService.isTechnician;
+    final String roleName = isOwner
+        ? 'System Owner'
+        : (isRegionalManager
+            ? 'Regional Manager'
+            : (isAdmin
+                ? 'Admin'
+                : (isSupervisor ? 'Supervisor' : (isTechnician ? 'Technician' : 'Sales Agent'))));
     final String displayName = (currentUser['name'] ?? currentUser['email'] ?? currentUser['username'] ?? 'User').toString();
     final String? agentArea = currentUser['agentArea']?.toString();
 
-    // Screens configured by permission: 8 tabs for Owner, 7 tabs for Admin, 1 tab for Sales Agent
-    final List<Widget> screens = isAdmin
-        ? [
-            MapViewScreen(key: _mapKey),
-            UploadViewScreen(onUploadSuccess: _onUploadSuccess),
-            AssignLocationsViewScreen(key: _assignKey),
-            AgentsViewScreen(key: _agentsKey),
-            DataTableViewScreen(key: _tableKey),
-            FormsManagerViewScreen(key: _formsKey),
-            FormResponsesViewScreen(key: _responsesKey),
-            if (isOwner) SystemLogsViewScreen(key: _logsKey),
-          ]
-        : [
-            MapViewScreen(key: _mapKey),
-            DataTableViewScreen(key: _tableKey),
-          ];
+    final dashboardWidget = DashboardViewScreen(
+      key: _dashboardKey,
+      onOpenMap: ({String? branchFilter, bool routeMode = false}) {
+        _onSelectDestination(1);
+        if (routeMode) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _mapKey.currentState?.openRoutePlanner();
+          });
+        }
+      },
+      onOpenTable: () => _onSelectDestination(isAdmin ? 5 : (isSupervisor ? 4 : 2)),
+      onOpenUpload: isAdmin ? () => _onSelectDestination(2) : null,
+      onOpenAssign: isAdmin ? () => _onSelectDestination(3) : (isSupervisor ? () => _onSelectDestination(2) : null),
+      onOpenResponses: isAdmin ? () => _onSelectDestination(7) : (isSupervisor ? () => _onSelectDestination(3) : null),
+    );
 
-    final List<NavigationRailDestination> destinations = isAdmin
-        ? [
-            const NavigationRailDestination(
-              icon: Icon(Icons.map_outlined),
-              selectedIcon: Icon(Icons.map),
-              label: Text('Map View'),
-            ),
-            const NavigationRailDestination(
-              icon: Icon(Icons.upload_file_outlined),
-              selectedIcon: Icon(Icons.upload_file),
-              label: Text('Upload & Validate'),
-            ),
-            const NavigationRailDestination(
-              icon: Icon(Icons.assignment_ind_outlined),
-              selectedIcon: Icon(Icons.assignment_ind),
-              label: Text('Assign Locations'),
-            ),
-            const NavigationRailDestination(
-              icon: Icon(Icons.badge_outlined),
-              selectedIcon: Icon(Icons.badge),
-              label: Text('Sales Agents'),
-            ),
-            const NavigationRailDestination(
-              icon: Icon(Icons.table_chart_outlined),
-              selectedIcon: Icon(Icons.table_chart),
-              label: Text('Data Table'),
-            ),
-            const NavigationRailDestination(
-              icon: Icon(Icons.dynamic_form_outlined),
-              selectedIcon: Icon(Icons.dynamic_form),
-              label: Text('Forms Manager'),
-            ),
-            const NavigationRailDestination(
-              icon: Icon(Icons.rate_review_outlined),
-              selectedIcon: Icon(Icons.rate_review),
-              label: Text('Visit Responses'),
-            ),
-            if (isOwner)
-              const NavigationRailDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long),
-                label: Text('System Logs'),
-              ),
-          ]
-        : const [
-            NavigationRailDestination(
-              icon: Icon(Icons.map_outlined),
-              selectedIcon: Icon(Icons.map),
-              label: Text('My Map'),
-            ),
-            NavigationRailDestination(
-              icon: Icon(Icons.list_alt_outlined),
-              selectedIcon: Icon(Icons.list_alt),
-              label: Text('My List'),
-            ),
-          ];
+    late final List<Widget> screens;
+    late final List<NavigationRailDestination> destinations;
+
+    if (isAdmin) {
+      screens = [
+        dashboardWidget,
+        MapViewScreen(key: _mapKey),
+        UploadViewScreen(onUploadSuccess: _onUploadSuccess),
+        AssignLocationsViewScreen(key: _assignKey),
+        AgentsViewScreen(key: _agentsKey),
+        DataTableViewScreen(key: _tableKey),
+        FormsManagerViewScreen(key: _formsKey),
+        FormResponsesViewScreen(key: _responsesKey),
+        if (isOwner) SystemLogsViewScreen(key: _logsKey),
+      ];
+      destinations = [
+        const NavigationRailDestination(
+          icon: Icon(Icons.dashboard_outlined),
+          selectedIcon: Icon(Icons.dashboard_rounded),
+          label: Text('Home'),
+        ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.map_outlined),
+          selectedIcon: Icon(Icons.map),
+          label: Text('Map View'),
+        ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.upload_file_outlined),
+          selectedIcon: Icon(Icons.upload_file),
+          label: Text('Upload & Validate'),
+        ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.assignment_ind_outlined),
+          selectedIcon: Icon(Icons.assignment_ind),
+          label: Text('Assign Locations'),
+        ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.badge_outlined),
+          selectedIcon: Icon(Icons.badge),
+          label: Text('Sales Agents'),
+        ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.table_chart_outlined),
+          selectedIcon: Icon(Icons.table_chart),
+          label: Text('Data Table'),
+        ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.dynamic_form_outlined),
+          selectedIcon: Icon(Icons.dynamic_form),
+          label: Text('Forms Manager'),
+        ),
+        const NavigationRailDestination(
+          icon: Icon(Icons.rate_review_outlined),
+          selectedIcon: Icon(Icons.rate_review),
+          label: Text('Visit Responses'),
+        ),
+        if (isOwner)
+          const NavigationRailDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long),
+            label: Text('System Logs'),
+          ),
+      ];
+    } else if (isSupervisor) {
+      screens = [
+        dashboardWidget,
+        MapViewScreen(key: _mapKey),
+        AssignLocationsViewScreen(key: _assignKey),
+        FormResponsesViewScreen(key: _responsesKey),
+        DataTableViewScreen(key: _tableKey),
+      ];
+      destinations = const [
+        NavigationRailDestination(
+          icon: Icon(Icons.dashboard_outlined),
+          selectedIcon: Icon(Icons.dashboard_rounded),
+          label: Text('Home'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.map_outlined),
+          selectedIcon: Icon(Icons.map),
+          label: Text('Map'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.assignment_ind_outlined),
+          selectedIcon: Icon(Icons.assignment_ind),
+          label: Text('Assign'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.rate_review_outlined),
+          selectedIcon: Icon(Icons.rate_review),
+          label: Text('Responses'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.table_chart_outlined),
+          selectedIcon: Icon(Icons.table_chart),
+          label: Text('Table'),
+        ),
+      ];
+    } else if (isTechnician) {
+      screens = [
+        dashboardWidget,
+        MapViewScreen(key: _mapKey),
+        DataTableViewScreen(key: _tableKey),
+      ];
+      destinations = const [
+        NavigationRailDestination(
+          icon: Icon(Icons.dashboard_outlined),
+          selectedIcon: Icon(Icons.dashboard_rounded),
+          label: Text('Home'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.map_outlined),
+          selectedIcon: Icon(Icons.map),
+          label: Text('Work Map'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.build_circle_outlined),
+          selectedIcon: Icon(Icons.build_circle),
+          label: Text('Repair Log'),
+        ),
+      ];
+    } else {
+      screens = [
+        dashboardWidget,
+        MapViewScreen(key: _mapKey),
+        DataTableViewScreen(key: _tableKey),
+      ];
+      destinations = const [
+        NavigationRailDestination(
+          icon: Icon(Icons.dashboard_outlined),
+          selectedIcon: Icon(Icons.dashboard_rounded),
+          label: Text('Home'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.map_outlined),
+          selectedIcon: Icon(Icons.map),
+          label: Text('My Map'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.list_alt_outlined),
+          selectedIcon: Icon(Icons.list_alt),
+          label: Text('My List'),
+        ),
+      ];
+    }
 
     // Clamp current index if user switched roles
     final safeIndex = _currentIndex.clamp(0, screens.length - 1);
@@ -414,7 +514,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 NavigationRail(
                   backgroundColor: t.surfaceElevated,
                   selectedIndex: safeIndex,
-                  onDestinationSelected: (index) => _onSelectDestination(index, isAdmin),
+                  onDestinationSelected: (index) => _onSelectDestination(index),
                   extended: isDesktop,
                   minExtendedWidth: 220,
                   selectedIconTheme: IconThemeData(color: t.accentPrimary),
@@ -604,37 +704,87 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     confirmCtrl.dispose();
   }
 
-  void _onSelectDestination(int index, bool isAdmin) {
+  void _onSelectDestination(int index) {
     setState(() {
       _currentIndex = index;
       _agentRouteTabSelected = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (index == 0) {
-        _mapKey.currentState?.reload();
-      } else if (!isAdmin && index == 1) {
-        _tableKey.currentState?.reload();
-      } else if (isAdmin) {
-        if (index == 2) {
-          _assignKey.currentState?.reload();
-        } else if (index == 3) {
-          _agentsKey.currentState?.reload();
-        } else if (index == 4) {
-          _tableKey.currentState?.reload(forceApi: true);
-        } else if (index == 5) {
-          _formsKey.currentState?.reload();
-        } else if (index == 6) {
-          _responsesKey.currentState?.reload();
-        } else if (index == 7 && ApiService.isOwner) {
-          _logsKey.currentState?.reload();
-        }
+        _dashboardKey.currentState?.reload();
+        return;
+      }
+      if (ApiService.isAdmin) {
+        if (index == 1) _mapKey.currentState?.reload();
+        else if (index == 3) _assignKey.currentState?.reload();
+        else if (index == 4) _agentsKey.currentState?.reload();
+        else if (index == 5) _tableKey.currentState?.reload(forceApi: true);
+        else if (index == 6) _formsKey.currentState?.reload();
+        else if (index == 7) _responsesKey.currentState?.reload();
+        else if (index == 8 && ApiService.isOwner) _logsKey.currentState?.reload();
+      } else if (ApiService.isSupervisor) {
+        if (index == 1) _mapKey.currentState?.reload();
+        else if (index == 2) _assignKey.currentState?.reload();
+        else if (index == 3) _responsesKey.currentState?.reload();
+        else if (index == 4) _tableKey.currentState?.reload(forceApi: true);
+      } else {
+        if (index == 1) _mapKey.currentState?.reload();
+        else if (index == 2) _tableKey.currentState?.reload();
       }
     });
   }
 
   Widget _buildMobileBottomBar(BuildContext context, int safeIndex, bool isAdmin, bool isOwner, AppTokens t) {
+    if (ApiService.isSupervisor) {
+      return Container(
+        decoration: BoxDecoration(
+          color: t.surfaceElevated,
+          border: Border(top: BorderSide(color: t.borderSubtle, width: t.borderWidth)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: NavigationBar(
+            height: 64,
+            backgroundColor: t.surfaceElevated,
+            selectedIndex: safeIndex.clamp(0, 4),
+            onDestinationSelected: _onSelectDestination,
+            destinations: const [
+              NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard_rounded), label: 'Home'),
+              NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: 'Map'),
+              NavigationDestination(icon: Icon(Icons.assignment_ind_outlined), selectedIcon: Icon(Icons.assignment_ind), label: 'Assign'),
+              NavigationDestination(icon: Icon(Icons.rate_review_outlined), selectedIcon: Icon(Icons.rate_review), label: 'Responses'),
+              NavigationDestination(icon: Icon(Icons.table_chart_outlined), selectedIcon: Icon(Icons.table_chart), label: 'Table'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (ApiService.isTechnician) {
+      return Container(
+        decoration: BoxDecoration(
+          color: t.surfaceElevated,
+          border: Border(top: BorderSide(color: t.borderSubtle, width: t.borderWidth)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: NavigationBar(
+            height: 64,
+            backgroundColor: t.surfaceElevated,
+            selectedIndex: safeIndex.clamp(0, 2),
+            onDestinationSelected: _onSelectDestination,
+            destinations: const [
+              NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard_rounded), label: 'Home'),
+              NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: 'Work Map'),
+              NavigationDestination(icon: Icon(Icons.build_circle_outlined), selectedIcon: Icon(Icons.build_circle), label: 'Repair Log'),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (!isAdmin) {
-      final int agentBarIndex = _agentRouteTabSelected ? 2 : safeIndex.clamp(0, 1);
+      final int agentBarIndex = _agentRouteTabSelected ? 3 : safeIndex.clamp(0, 2);
       return Container(
         decoration: BoxDecoration(
           color: t.surfaceElevated,
@@ -647,13 +797,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             backgroundColor: t.surfaceElevated,
             selectedIndex: agentBarIndex,
             onDestinationSelected: (barIdx) {
-              if (barIdx == 0) {
-                _onSelectDestination(0, false);
-              } else if (barIdx == 1) {
-                _onSelectDestination(1, false);
-              } else if (barIdx == 2) {
+              if (barIdx <= 2) {
+                _onSelectDestination(barIdx);
+              } else if (barIdx == 3) {
                 setState(() {
-                  _currentIndex = 0;
+                  _currentIndex = 1;
                   _agentRouteTabSelected = true;
                 });
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -662,21 +810,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               }
             },
             destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.map_outlined),
-                selectedIcon: Icon(Icons.map),
-                label: 'My Map',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.list_alt_outlined),
-                selectedIcon: Icon(Icons.list_alt),
-                label: 'My List',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.route_outlined),
-                selectedIcon: Icon(Icons.route_rounded),
-                label: 'Route',
-              ),
+              NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard_rounded), label: 'Home'),
+              NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: 'My Map'),
+              NavigationDestination(icon: Icon(Icons.list_alt_outlined), selectedIcon: Icon(Icons.list_alt), label: 'My List'),
+              NavigationDestination(icon: Icon(Icons.route_outlined), selectedIcon: Icon(Icons.route_rounded), label: 'Route'),
             ],
           ),
         ),
@@ -688,13 +825,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       case 0:
         adminBarIndex = 0;
         break;
-      case 4:
+      case 1:
         adminBarIndex = 1;
         break;
-      case 2:
+      case 5:
         adminBarIndex = 2;
         break;
-      case 6:
+      case 7:
         adminBarIndex = 3;
         break;
       default:
@@ -715,16 +852,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           onDestinationSelected: (barIdx) {
             switch (barIdx) {
               case 0:
-                _onSelectDestination(0, true);
+                _onSelectDestination(0);
                 break;
               case 1:
-                _onSelectDestination(4, true);
+                _onSelectDestination(1);
                 break;
               case 2:
-                _onSelectDestination(2, true);
+                _onSelectDestination(5);
                 break;
               case 3:
-                _onSelectDestination(6, true);
+                _onSelectDestination(7);
                 break;
               case 4:
                 _showAdminMoreSheet(context, safeIndex, isOwner);
@@ -732,31 +869,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             }
           },
           destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.map_outlined),
-              selectedIcon: Icon(Icons.map),
-              label: 'Map',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.table_chart_outlined),
-              selectedIcon: Icon(Icons.table_chart),
-              label: 'Table',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.assignment_ind_outlined),
-              selectedIcon: Icon(Icons.assignment_ind),
-              label: 'Assign',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.rate_review_outlined),
-              selectedIcon: Icon(Icons.rate_review),
-              label: 'Responses',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.grid_view_outlined),
-              selectedIcon: Icon(Icons.grid_view_rounded),
-              label: 'More',
-            ),
+            NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard_rounded), label: 'Home'),
+            NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: 'Map'),
+            NavigationDestination(icon: Icon(Icons.table_chart_outlined), selectedIcon: Icon(Icons.table_chart), label: 'Table'),
+            NavigationDestination(icon: Icon(Icons.rate_review_outlined), selectedIcon: Icon(Icons.rate_review), label: 'Responses'),
+            NavigationDestination(icon: Icon(Icons.grid_view_outlined), selectedIcon: Icon(Icons.grid_view_rounded), label: 'More'),
           ],
         ),
       ),
@@ -766,10 +883,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void _showAdminMoreSheet(BuildContext context, int safeIndex, bool isOwner) {
     final t = AppTokens.of(context);
     final items = <({int index, IconData icon, String label})>[
-      (index: 1, icon: Icons.upload_file_outlined, label: 'Upload & Validate'),
-      (index: 3, icon: Icons.badge_outlined, label: 'Sales Agents'),
-      (index: 5, icon: Icons.dynamic_form_outlined, label: 'Forms Manager'),
-      if (isOwner) (index: 7, icon: Icons.receipt_long_outlined, label: 'System Logs'),
+      (index: 2, icon: Icons.upload_file_outlined, label: 'Upload & Validate'),
+      (index: 3, icon: Icons.assignment_ind_outlined, label: 'Assign Locations'),
+      (index: 4, icon: Icons.badge_outlined, label: 'Sales Agents'),
+      (index: 6, icon: Icons.dynamic_form_outlined, label: 'Forms Manager'),
+      if (isOwner) (index: 8, icon: Icons.receipt_long_outlined, label: 'System Logs'),
     ];
 
     showModalBottomSheet<void>(
@@ -813,7 +931,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       borderRadius: BorderRadius.circular(t.radiusMd),
                       onTap: () {
                         Navigator.of(sheetCtx).pop();
-                        _onSelectDestination(item.index, true);
+                        _onSelectDestination(item.index);
                       },
                       child: Container(
                         padding: EdgeInsets.symmetric(horizontal: t.spaceMd, vertical: t.spaceSm),

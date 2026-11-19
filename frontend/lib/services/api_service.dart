@@ -21,8 +21,11 @@ class ApiService {
 
   static bool get isLoggedIn => _token != null && _token!.isNotEmpty && _currentUser != null;
   static bool get isOwner => _currentUser != null && _currentUser!['role'] == 'owner';
-  static bool get isAdmin => _currentUser != null && (_currentUser!['role'] == 'admin' || _currentUser!['role'] == 'owner');
+  static bool get isRegionalManager => _currentUser != null && _currentUser!['role'] == 'regional_manager';
+  static bool get isAdmin => _currentUser != null && (_currentUser!['role'] == 'admin' || _currentUser!['role'] == 'owner' || _currentUser!['role'] == 'regional_manager');
+  static bool get isSupervisor => _currentUser != null && _currentUser!['role'] == 'supervisor';
   static bool get isAgent => _currentUser != null && _currentUser!['role'] == 'agent';
+  static bool get isTechnician => _currentUser != null && _currentUser!['role'] == 'technician';
   static Map<String, dynamic>? get currentUser => _currentUser;
   static String? get token => _token;
 
@@ -855,6 +858,52 @@ class ApiService {
       return Map<String, dynamic>.from(decoded);
     }
     throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to generate daily route');
+  }
+
+  // ==========================================
+  // Role-Tailored Dashboard & Condition Update
+  // ==========================================
+
+  static Future<Map<String, dynamic>> fetchDashboardStats({String? branch, int? batchId}) async {
+    final params = <String, String>{};
+    if (branch != null && branch.isNotEmpty && branch != 'All') {
+      params['branch'] = branch;
+    }
+    if (batchId != null) {
+      params['batchId'] = batchId.toString();
+    }
+    final uri = params.isEmpty
+        ? Uri.parse('$baseUrl/stats/dashboard')
+        : Uri.parse('$baseUrl/stats/dashboard').replace(queryParameters: params);
+    final response = await http.get(uri, headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to load dashboard stats (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> updateChillerCondition(
+    dynamic idOrCode,
+    String condition, {
+    String? notes,
+  }) async {
+    final encodedId = Uri.encodeComponent(idOrCode.toString());
+    final body = <String, dynamic>{'condition': condition};
+    if (notes != null && notes.trim().isNotEmpty) {
+      body['notes'] = notes.trim();
+    }
+    final response = await http.patch(
+      Uri.parse('$baseUrl/chillers/$encodedId/condition'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      _cachedChillers = null;
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to update chiller condition (${response.statusCode})');
   }
 }
 

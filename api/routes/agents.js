@@ -1,16 +1,22 @@
 import express from 'express';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, requireRoles } from '../middleware/auth.js';
 import { validateComplexPassword, hashPassword } from '../utils/security.js';
 import { dbStore, saveDbStore } from '../services/storage.js';
+import { getSupervisedAgentIdSet } from '../services/chillerHelpers.js';
 
 const router = express.Router();
 
 // GET all sales agents
 router.get('/agents', requireAuth, (req, res) => {
   let sourceAgents = dbStore.agents || [];
-  // Restrict agents to only see their own profile to prevent PII exposure of other sales reps
+  // Restrict agents to only see their own profile; supervisors see supervised agents
   if (req.user && req.user.role === 'agent') {
     sourceAgents = sourceAgents.filter(a => a.id === req.user.agentId);
+  } else if (req.user && req.user.role === 'supervisor') {
+    const supervisedSet = getSupervisedAgentIdSet(req.user);
+    sourceAgents = supervisedSet.size > 0 ? sourceAgents.filter(a => supervisedSet.has(a.id)) : [];
+  } else if (req.user && req.user.role === 'technician') {
+    sourceAgents = [];
   }
 
   const agents = sourceAgents.map(a => {
@@ -170,14 +176,25 @@ router.get('/assignments', requireAuth, (req, res) => {
   let assignments = dbStore.assignments || [];
   if (req.user && req.user.role === 'agent') {
     assignments = assignments.filter(as => as.agent_id === req.user.agentId);
+  } else if (req.user && req.user.role === 'supervisor') {
+    const supervisedSet = getSupervisedAgentIdSet(req.user);
+    assignments = supervisedSet.size > 0 ? assignments.filter(as => supervisedSet.has(as.agent_id)) : [];
+  } else if (req.user && req.user.role === 'technician') {
+    assignments = [];
   }
   res.json({ success: true, count: assignments.length, assignments });
 });
 
-// POST assign location(s) / customer(s) to an agent (Admin only)
-router.post('/assignments', requireAdmin, (req, res) => {
+// POST assign location(s) / customer(s) to an agent (Admin/Owner/Regional Manager/Supervisor)
+router.post('/assignments', requireRoles('owner', 'admin', 'regional_manager', 'supervisor'), (req, res) => {
   const { agent_id, chiller_codes, customer_names } = req.body;
   const agentId = parseInt(agent_id);
+  if (req.user.role === 'supervisor') {
+    const supervisedSet = getSupervisedAgentIdSet(req.user);
+    if (!supervisedSet.has(agentId)) {
+      return res.status(403).json({ success: false, error: 'Access denied: Agent is outside your supervised team' });
+    }
+  }
   const agent = (dbStore.agents || []).find(a => a.id === agentId);
 
   if (!agent) {

@@ -162,3 +162,66 @@ Copy this block for each new story:
   3. **WCAG AA Accessibility & Touch Targets:** All mobile `IconButton`s, map pins, and filter chips enforce `44x44` minimum tap targets (`MaterialTapTargetSize.padded`); custom `InkWell`/`GestureDetector` controls include `Semantics(button: true, label: ...)`; keyboard `Tab` focus rings and `Esc` dismissal for drawers/modals are supported.
   4. **Arabic RTL Layout Readiness:** `MaterialApp.supportedLocales` includes `Locale('en')` and `Locale('ar')` with `flutter_localizations` and an `EN` / `عربي` toggle in the `AppBar` / `More` sheet. Directional layout properties migrate to `EdgeInsetsDirectional`, `AlignmentDirectional`, and `BorderDirectional`, while Chiller Codes, GPS coordinates, and numeric KPIs remain wrapped in `TextDirection.ltr`.
 
+---
+
+## Sprint 3 Stories (Sales Hierarchy RBAC, Analytics Dashboard & Role-Tailored Workflows)
+
+### `[STORY-010]` Sales Hierarchy RBAC & Permissions (`owner`, `admin`/`regional_manager`, `supervisor`, `agent`, `technician`)
+- **Sprint:** Sprint 3
+- **Linked PO Goal:** Sales Hierarchy RBAC & Permissions
+- **UI/UX Spec:** `agents_view.dart` (Role & Branch/Team assignment), `main.dart` (Role-scoped navigation & role badge), `api/middleware/auth.js`, `api/routes/agents.js`
+- **As a** System Owner or Operations Admin, **I want** a 5-tier Sales Hierarchy RBAC model (`owner`, `admin`/`regional_manager`, `supervisor`, `agent`, `technician`) with branch/team scoping and role management in the Admin/Agents UI, **so that** supervisors can manage their branch/team, technicians can focus on maintenance chillers, and existing `owner`/`admin`/`agent` accounts continue working without breaking changes.
+- **Acceptance Criteria:**
+  1. **Backward-Compatible Role Normalization & Hierarchy:**
+     - Supported roles: `owner` (highest), `admin` / `regional_manager` (equivalent operational admin tier; `regional_manager` treated as `admin` or optionally branch-scoped when `branch`/`area` is assigned), `supervisor` (team/branch lead), `agent` (field sales rep), and `technician` (field maintenance specialist).
+     - Existing `owner`, `admin`, and `agent` accounts, tokens, and `requireAuth` / `requireAdmin` / `requireOwner` checks remain 100% backward-compatible.
+     - New/updated auth middleware helpers (e.g., `requireRole(...roles)` / `requireSupervisorOrAbove`) enforce role-based access cleanly and return `401` (unauthenticated) or `403` (insufficient role).
+  2. **Role-Based Data & Action Scoping:**
+     - `owner`: Full global access including `System Logs`, user/role management, batch uploads, and all branches/teams.
+     - `admin` / `regional_manager`: Full operational access (Map, Upload, Assign, Agents, Data Table, Forms Manager, Visit Responses, Dashboard); scoped to `branch`/`area` if configured on `regional_manager`, otherwise global (excluding `owner`-only system logs/destructive resets).
+     - `supervisor`: Scoped to their assigned `branch`/`area` or `team_agent_ids` across `/api/chillers`, `/api/agents`, `/api/assignments`, and `/api/form-responses` (`Pending` / `Approved` / `Re-opened` visit review for their team). Cannot access `System Logs` or `Upload & Validate` master dataset ingestion.
+     - `agent`: Strictly isolated to their own assigned chillers (`agent_id`) for map, list, Customer 360, route planner, and visit form submission.
+     - `technician`: Scoped to the **Maintenance Queue** — chillers whose `Condition` is `Requires Maintenance`, `Damaged`, or `Scrap` (optionally filtered by technician's `branch`/`area` if set). Technicians can view Customer 360 and update chiller `Condition` / repair status (e.g., `Operational`) via a dedicated endpoint, but cannot edit sales financials, reassign sales reps, or manage forms/uploads.
+  3. **Admin / Agents UI Role Management (`agents_view.dart`):**
+     - Admin/Owner can create and edit users/agents with a **Role** selector (`agent`, `supervisor`, `technician`, `regional_manager`, `admin`; `owner` assignable only by `owner`), **Branch / Area** field, and optional **Team Members / Supervisor** assignment.
+     - Existing agent creation (`POST /api/agents`) defaults `role` to `'agent'` when omitted, preserving backward compatibility.
+     - Attempting to demote or delete the last `owner` is rejected (`400`/`403`).
+
+### `[STORY-011]` Role-Tailored Statistics & Analytics Dashboard (`GET /api/stats/dashboard`)
+- **Sprint:** Sprint 3
+- **Linked PO Goal:** Role-Tailored Statistics & Analytics Dashboard
+- **UI/UX Spec:** `Dashboard` home screen (`dashboard_view.dart`), `GET /api/stats/dashboard`
+- **As a** System Owner, Regional Manager/Admin, Supervisor, Sales Agent, or Field Technician, **I want** a single fast `GET /api/stats/dashboard` analytics endpoint returning KPIs, YTD achievement, Condition & Efficiency distributions, Visit Review velocity, and Branch/Agent performance tables scoped to my role, **so that** every persona immediately sees actionable performance and operational metrics without manual spreadsheet exports.
+- **Acceptance Criteria:**
+  1. **Authenticated & Role-Scoped Endpoint (`GET /api/stats/dashboard`):**
+     - Requires `requireAuth`; automatically scopes all aggregations to `req.user` (`owner`/`admin` = fleet-wide with optional `?branch=` filter; `regional_manager` = assigned branch or fleet; `supervisor` = assigned branch/team; `agent` = own assigned chillers; `technician` = maintenance-eligible fleet).
+     - Resolves in `< 150ms` for standard datasets (~1,400+ chillers) and handles missing/non-numeric invoice/achievement cells (`-`, `N/A`, blank) safely without `NaN` or `500` errors.
+  2. **Role-Tailored KPI Numbers:**
+     - **Executive / Branch / Supervisor:** Total Chillers, Assigned vs Unassigned %, Monthly Visit Coverage (`Visited This Month` count & `%`), Pending/Re-opened Reviews, Fleet/Team `Avg Achievement %`, Total `YTD` Revenue, and `Requires Maintenance / Damaged` count.
+     - **Rep (`agent`):** Assigned Chillers, Visited This Month (`%`), Pending/Re-opened Visits, Personal `Avg Achievement %`, and Personal `YTD` Revenue.
+     - **Technician (`technician`):** Open Maintenance Queue (`Requires Maintenance` + `Damaged`), Scrap Count, Repaired This Month, and Fleet Operational Health `%`.
+  3. **Distribution & Velocity Payloads:**
+     - **Condition Distribution:** Counts & percentages grouped by `Operational`/`Good`, `Requires Maintenance`, `Damaged`/`Scrap`, and `Unknown`.
+     - **Efficiency / Achievement Distribution:** Buckets (e.g., `>= 100% On-Target`, `75–99% Near Target`, `< 75% Underperforming`, `N/A`).
+     - **Visit Review Velocity:** Counts of visit responses by status (`Pending`, `Approved`, `Re-opened`) plus average review turnaround / submissions over the last 7 or 30 days.
+  4. **Branch & Agent Performance Tables:**
+     - Returns ranked `branchPerformance` (Branch name, chiller count, visited %, avg achievement %, YTD total, maintenance count) and `agentPerformance` (Agent name, area/branch, assigned count, visited %, pending reviews, avg achievement %) scoped to the caller's visibility (`agent` sees only their own row or summary; `technician` receives branch maintenance breakdown instead of rep sales rankings).
+
+### `[STORY-012]` Role-Specific Workflows & Dashboard Home (`Dashboard` Tab)
+- **Sprint:** Sprint 3
+- **Linked PO Goal:** Amazing Role-Specific Workflows & Dashboard Home
+- **UI/UX Spec:** New `Dashboard` home tab (`index 0` in `main.dart` for all roles on both Desktop `NavigationRail` and Mobile `NavigationBar`), backed by `GET /api/stats/dashboard`
+- **As a** logged-in user (`owner`, `admin`/`regional_manager`, `supervisor`, `agent`, or `technician`), **I want** a dedicated `Dashboard` home tab tailored to my exact role and daily workflow, **so that** I land on my highest-priority actions, charts, and queues the moment I sign in.
+- **Acceptance Criteria:**
+  1. **Universal `Dashboard` Home Tab (`main.dart`):**
+     - `Dashboard` (`Icons.dashboard_outlined` / `Icons.dashboard`) is the default landing tab (`index 0`) for all roles on Desktop (`NavigationRail`) and Mobile (`NavigationBar`), using `AppTokens`, `AppSkeleton` loading states, and `AppEmptyState` fallbacks across Dark, Light, and Outdoor themes.
+  2. **Owner / Admin / Regional Manager Command Center:**
+     - Displays executive KPI cards, interactive **Condition** & **Efficiency** distribution charts, **Visit Review Velocity** summary, and sortable **Branch & Agent Performance** tables with 1-click drill-down to `Map View` / `Data Table` filtered by that branch or agent.
+  3. **Supervisor Review & Team Hub:**
+     - Displays team KPIs, team agent coverage leaderboard, and a prioritized **Pending & Re-opened Visit Reviews** queue with quick actions to inspect photos/answers and `Approve` or `Re-open` directly (or jump to `Visit Responses` scoped to their team).
+  4. **Rep (`agent`) "My Day" Hub:**
+     - Displays personal KPIs (`Assigned`, `Visited This Month`, `Pending`, `Avg Achievement %`), a **Today's Priority Stops / NBA** list (highlighting `Re-opened` audits, overdue visits, and top revenue-drop outlets), and a prominent **"Launch Smart Route (Plan My Day)"** CTA that opens `My Map` with Route Mode active, plus 1-tap **Start Audit** / **Open 360°**.
+  5. **Technician Maintenance Queue:**
+     - Displays maintenance KPIs (`Open Repairs`, `Damaged/Scrap`, `Operational %`) and a prioritized **Maintenance Queue** list of chillers needing service (with `Chiller Code`, Customer, Branch, Condition badge, GPS/Directions link, and **Customer 360°**).
+     - Includes a **1-click "Mark Repaired / Update Condition"** action button on each queue item (with quick condition selector: `Operational`, `Requires Maintenance`, `Damaged`, `Scrap` + optional repair note) that calls the backend update endpoint, shows an `AppToast` confirmation, and immediately refreshes the queue and KPIs.
+

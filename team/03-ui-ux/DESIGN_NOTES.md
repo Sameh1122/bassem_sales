@@ -453,3 +453,203 @@
 | **P5** | Audit Photo Gallery & Delta Diff Cards | `customer_360_drawer.dart`, `form_responses_view.dart`, `delta_view.dart` | Zoomable lightbox gallery; Before→After visual diff cards in Delta view |
 | **P5** | Inline Validation & Toast System | `lib/widgets/app_toast.dart`, form views | Unified floating toasts; inline field errors + auto-scroll on invalid submit |
 | **P5** | Accessibility & Arabic RTL Readiness | `main.dart` + all views | `EdgeInsetsDirectional` / `BorderDirectional` migration; `44x44` touch targets; `EN/AR` toggle |
+
+---
+
+## 9. Step-Change Role-Tailored Home Dashboard & Workflow UI/UX (`DashboardViewScreen`)
+
+> **Design Objective:** Replace the cold "land straight on a dense map/table" experience with a calm, executive-grade, role-tailored **`DashboardViewScreen`** as **Tab 0 (Home)** for every role. Prioritize **generous whitespace**, **crisp typographic hierarchy**, **scannable cards**, **zero visual clutter**, and **1-tap primary workflows** — built 100% on [`AppTokens`](file:///c:/Users/skamal/Documents/antigravity/gallant-maxwell/frontend/lib/theme/app_tokens.dart) (Dark, Light, and Outdoor Field Contrast) with pure Flutter charts (no new `pubspec.yaml` dependencies).
+
+### 9.1 Navigation & Shell Integration (`main.dart`)
+
+- **First Tab (`index = 0`) for All Roles:**
+  - **Desktop (`>= 768px`):** `NavigationRail` index `0` = `Home` (`Icons.dashboard_outlined` / `Icons.dashboard_rounded`).
+  - **Mobile (`< 768px`):** Bottom `NavigationBar` index `0` = `Home` (`Icons.dashboard_outlined` / `Icons.dashboard_rounded`), keeping the thumb zone clean:
+    - **Owner / Regional Manager / Admin:** `Home` · `Map` · `Table` · `Responses` · `More` (sheet holds `Upload`, `Assign`, `Agents`, `Forms`, `Logs`).
+    - **Supervisor:** `Home` · `Map` · `Assign` · `Responses` · `Table`.
+    - **Field Sales Rep (`agent`):** `Home` · `My Map` · `My List` · `Route`.
+    - **Technician (`technician`):** `Home` · `Work Map` · `Repair Log`.
+- **Page Shell & Whitespace Budget:**
+  - Outer background: `t.canvasBg`.
+  - Centered scrollable canvas (`SingleChildScrollView` with `RefreshIndicator` for pull-to-refresh):
+    - `ConstrainedBox(constraints: BoxConstraints(maxWidth: 1360))` centered on wide desktop screens so cards never stretch across ultrawide monitors.
+    - Page padding: `EdgeInsetsDirectional.symmetric(horizontal: isMobile ? t.spaceLg : t.spaceXl, vertical: t.spaceLg)`.
+    - Vertical rhythm between major sections: `t.spaceXl` (`24px`).
+    - Grid gutter between cards: `t.spaceLg` (`16px`).
+  - **Clean Greeting Header (All Roles):**
+    - Left: Role eyebrow (`t.eyebrow`, e.g., `EXECUTIVE OVERVIEW` / `BRANCH SUPERVISOR` / `MY FIELD DAY` / `MAINTENANCE QUEUE`) + Greeting title (`t.displayTitle`, e.g., `"Good morning, <FirstName>"`) + subtle context subtitle (`t.caption`, e.g., `"Cairo East Branch • Updated 2m ago"`).
+    - Right: Compact `Last Synced` / `Refresh` `IconButton` (`44x44` touch target) + optional time/branch filter pill (Owner/Regional Manager).
+
+---
+
+### 9.2 Shared Card & Chart Primitives (Pure Flutter + `AppTokens`)
+
+To ensure visual consistency and zero external chart package bloat, build these reusable primitives in `frontend/lib/widgets/dashboard_widgets.dart`:
+
+1. **`DashboardCard`:**
+   - Surface: `t.surfaceElevated`, `BorderRadius.circular(t.radiusLg)` (`16px`), `Border.all(color: t.borderSubtle, width: t.borderWidth)`.
+   - Padding: `EdgeInsets.all(t.spaceLg)` (`16px` mobile) or `EdgeInsets.all(20)` (desktop).
+   - Subtle elevation only in Light mode (`BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: Offset(0, 4))`); flat crisp border in Dark & Outdoor modes.
+2. **`HeroKpiCard`:**
+   - Top row: `t.eyebrow` uppercase label (e.g., `TOTAL ASSETS`) + `32x32` tinted icon well (`accent.withValues(alpha: 0.14)`, `radiusSm`).
+   - Middle: Large tabular figure (`28px`, `FontWeight.w700`, `FontFeature.tabularFigures()`, `t.textPrimary`) wrapped in `Directionality(textDirection: TextDirection.ltr)` for RTL safety.
+   - Bottom row: Delta/context pill (`+4.2% vs last mo` in `t.success`, or `12 critical` in `t.danger`) + `t.caption` helper text.
+   - Optional `onTap` with `InkWell(borderRadius: BorderRadius.circular(t.radiusLg))` to jump directly to the filtered Map/Table view.
+3. **`ProgressRingPainter` (`CustomPainter`):**
+   - Smooth rounded-cap arc (`StrokeCap.round`, `strokeWidth: 8–10px`), track in `t.borderSubtle`, active sweep in `t.accentPrimary` or `t.success`, centered `%` in `t.metricNum`.
+4. **`MiniBarChart` & `DonutChartPainter` (`CustomPainter`):**
+   - Pure `CustomPainter` + `MouseRegion` / `Tooltip` for hover/tap inspection on web & mobile.
+
+---
+
+### 9.3 Role 1: Owner / Regional Manager (`owner` / `regional_manager` / `admin`)
+
+**Mental Model:** *"How is the business performing across branches, where is revenue or asset health slipping, and which chillers need attention?"*
+
+#### Layout Grid
+- **Row 1 — 4 Hero KPI Cards:**
+  - Desktop (`>= 1100px`): 4 equal columns (`Row` / `GridView` with `16px` gap).
+  - Tablet (`768px–1099px`): 2×2 grid.
+  - Mobile (`< 768px`): 2×2 compact grid (`12px` gap).
+  1. **Total Assets:** Count of chillers in scope (`t.accentPrimary`, `Icons.ac_unit_rounded`). Subtitle: `"Across X branches"`.
+  2. **YTD Achievement %:** Mean YTD achievement (`t.achievement`, `Icons.trending_up_rounded`), formatted `XX.X%` (`N/A` if no numeric data). Delta pill vs target (`>= 85%` green, `65–84%` amber, `< 65%` red).
+  3. **Active Visit Rate:** `Visited / Total` % (`t.success`, `Icons.verified_outlined`), e.g., `68.4%` with subtitle `"342 of 500 visited"`.
+  4. **Maintenance Alerts:** Count of `Requires Maintenance` + `Scrap` (`t.warning` / `t.danger`, `Icons.build_circle_outlined`). Tapping opens `MapViewScreen` pre-filtered to Maintenance + Scrap.
+
+- **Row 2 — Visual Analytics (2-Column Asymmetric Split on Desktop `>= 900px`: 7/12 Left, 5/12 Right; Stacked on Mobile):**
+  - **Left Card: Branch Performance Bar Chart**
+    - Header: `Branch Performance` + segmented toggle (`YTD Ach %` | `Visit Rate %`).
+    - Visual: Horizontal or vertical animated rounded bars (`8px` radius) per branch, sorted highest-to-lowest (max 8 visible with `"View all branches"` expander).
+    - Bar coloring by threshold: `>= 85%` `t.success`, `65–84%` `t.accentPrimary`, `< 65%` `t.warning`.
+    - Interactive: Tapping any branch bar filters the Dashboard (or drills into `MapViewScreen` for that branch) and highlights the selected bar with a `1.5px` `t.accentPrimary` outline.
+  - **Right Card: Condition & Efficiency Breakdown**
+    - Header: `Fleet Health Breakdown` + segmented tab (`Condition` | `Efficiency`).
+    - Visual: `140x140` **`DonutChartPainter`** on the left (or top on narrow mobile) with center total count, paired with a clean 3–4 row interactive legend on the right:
+      - *Condition mode:* `Operational` (`t.success`), `Requires Maintenance` (`t.warning`), `Scrap` (`t.danger`), `Unspecified` (`t.textMuted`).
+      - *Efficiency mode:* `Performing` (`t.success`), `Non-Performing` (`t.danger`), `Zero` (`t.textMuted`).
+    - Below donut: Slim `8px` stacked proportional bar for instant visual ratio scanning.
+
+- **Row 3 — Top / At-Risk Chillers Card (Full Width):**
+  - Header: `Chiller Watchlist` + segmented pill toggle (`At-Risk` [default] | `Top Performing`).
+  - **At-Risk Criteria:** `Scrap` / `Requires Maintenance` condition, `Non-Performing` / `Zero` efficiency, or `> 20%` MoM invoice drop.
+  - **Top Performing Criteria:** Highest YTD Achievement % & `Operational` + `Performing`.
+  - **List Items (max 5 rows, clean 1-line-per-attribute density):**
+    - Left: Semantic status dot (`10px`) + `Customer Name` (`t.cardTitle`) & `Chiller Code • Branch` (`t.caption`).
+    - Middle: Risk/Performance badge (`_buildBadge` style using `t.danger` / `t.warning` / `t.success`) + YTD Ach % (`t.metricNum`).
+    - Right: Compact `"360° →"` ghost button (`TextButton`) opening [`showCustomer360Drawer`](file:///c:/Users/skamal/Documents/antigravity/gallant-maxwell/frontend/lib/views/customer_360_drawer.dart#L9-L15).
+
+---
+
+### 9.4 Role 2: Supervisor (`supervisor`)
+
+**Mental Model:** *"Which audits need my sign-off right now, how is each rep on my team progressing today, and do I need to rebalance territories?"*
+
+#### Layout Grid
+- **Row 1 — Branch KPI Strip (4 compact cards, 4-col desktop / 2×2 mobile):**
+  1. **Branch Assets** (`t.accentPrimary`)
+  2. **Branch Visit Rate %** (`t.success`)
+  3. **Pending Audit Reviews** (`t.warning` — pulses subtly if `> 0`)
+  4. **Branch Maint. Alerts** (`t.danger`)
+
+- **Row 2 — Primary Workspace (2-Column Split on Desktop `>= 900px`: 6/12 Left, 6/12 Right; Stacked on Mobile):**
+  - **Left Card: Pending Audit Reviews Queue**
+    - Header: `Pending Audit Reviews` + count pill (`t.warning`) + `"View All"` link to `FormResponsesViewScreen`.
+    - Each queue card (`t.canvasBg` inner container, `radiusMd`, `padding: 12px`, `borderSubtle`):
+      - **Top row:** `Customer Name` (`t.cardTitle`) + `Chiller Code` (`t.caption`) + relative timestamp (`"14m ago"`).
+      - **Meta row:** Rep name chip + Condition badge + thumbnail strip (up to 3 `40x40` rounded-6 audit photos, tap to open lightbox).
+      - **1-Click Action Row:**
+        - **`Approve`** (`FilledButton`, `t.success` background, `Icons.check_rounded`, `minHeight: 40`) — immediately marks audit `Accepted` with optimistic UI update + `AppToast` undo/confirmation.
+        - **`Flag`** (`OutlinedButton`, `t.warning` border/text, `Icons.flag_outlined`, `minHeight: 40`) — opens a compact 1-field inline/modal reason prompt (`"What needs correction?"`) and marks audit `Re-opened`.
+        - **`360°`** (`IconButton`, `44x44` touch target) — opens Customer 360 Drawer.
+  - **Right Card: Team Rep Progress Bars + Quick Territory Rebalance CTA**
+    - Header: `Team Rep Progress` + subtitle `"Today / Current Cycle"`.
+    - **Rep Rows (sorted by lowest completion % first so laggards surface):**
+      - Top line: Rep Avatar (`28x28` initials circle) + `Rep Name` (`t.cardTitle`) + `Visited / Assigned` (`"12 / 20"`, `t.metricNum`) + `%` pill.
+      - Progress bar: `8px` rounded track (`t.borderSubtle`) + animated fill (`t.success` if `>= 80%`, `t.accentPrimary` if `40–79%`, `t.warning` if `< 40%`).
+      - Bottom caption: `"Avg Ach: 82.4% • 2 Re-opened"` (`t.caption`).
+    - **Card Footer — Quick Territory Rebalance CTA:**
+      - Full-width `OutlinedButton.icon` (`Icons.swap_horiz_rounded`, `t.accentPrimary`, `minHeight: 44`): **`Rebalance Territories`** → Navigates directly to `AssignLocationsViewScreen` pre-filtered to the supervisor's branch.
+
+---
+
+### 9.5 Role 3: Field Sales Rep (`agent`)
+
+**Mental Model:** *"What do I need to do today, where is my next stop, and how fast can I start my route or log a visit?"*
+
+#### Layout Grid (Single-Column Focused Flow on Mobile; 2-Column Split on Desktop `>= 900px`)
+- **Top — Clean "My Day" Hero Card (Full Width, `t.surfaceElevated` with subtle `t.accentPrimary` top/start accent):**
+  - **Left / Top Cluster:**
+    - Eyebrow: `MY FIELD DAY` (`t.eyebrow`) + Territory/Branch pill (`t.caption`).
+    - **3 Clean Stat Counters:** `Assigned` (`t.accentPrimary`), `Visited Today` (`t.success`), `Pending` (`t.warning`).
+  - **Center — Completion Ring (`96x96` `ProgressRingPainter`):**
+    - Shows `XX%` completion in bold `20px` `t.metricNum` + `"Done"` caption.
+  - **Right / Bottom — Next Stop Callout + 1-Tap Primary CTAs:**
+    - Mini `Next Stop` well (`t.canvasBg`, `radiusMd`, `padding: 12px`):
+      - `"NEXT STOP • 1.4 km away"` (`t.eyebrow`)
+      - `Customer Name` (`t.cardTitle`, 1 line ellipsis) + `Chiller Code • Condition` (`t.caption`).
+    - **Dual 1-Tap Action Row (`minHeight: 48px` outdoor-friendly touch targets):**
+      1. **`Start Route`** (`FilledButton.icon`, `#4285F4` Maps Blue or `t.accentPrimary`, `Icons.route_rounded`) — Jumps to `MapViewScreen` with Smart Daily Route Mode (`STORY-005`) active.
+      2. **`Log Visit`** (`FilledButton.icon`, `t.success`, `Icons.edit_note_rounded`) — Opens `FormFillerDialog` directly for the Next Stop (or opens quick stop picker if Next Stop is already visited).
+
+- **Below — Priority Action List (`DashboardCard`):**
+  - Header: `Priority Stops` + quick filter pills (`All` | `Re-opened` | `Overdue` | `High Value`).
+  - **Ordered Stop Cards (max 8 shown + `"View Full List"` link to `My List`):**
+    - Left: Priority indicator bar (`4px` `BorderDirectional.start`):
+      - `Re-opened` (`t.warning`) — displays admin feedback snippet inline!
+      - `Maintenance / Scrap` (`t.danger`)
+      - `High-Value / MoM Drop` (`t.accentPrimary`)
+      - `Overdue / Unvisited` (`t.caution`)
+    - Center: `Customer Name` (`t.cardTitle`), `Chiller Code • Distance (e.g. 1.2 km)` (`t.caption`), Priority badge.
+    - Right: Compact `Log` button (`44x44` min touch target) + `Navigate` icon (`Icons.navigation_rounded`, `#4285F4`) + tap card to open `Customer360Drawer`.
+
+---
+
+### 9.6 Role 4: Technician (`technician`)
+
+**Mental Model:** *"Which chillers are broken or need maintenance right now, how do I drive to them, and how do I mark them operational after repair?"*
+
+#### Layout Grid
+- **Row 1 — Compact Work Summary Strip (3 KPI pills/cards):**
+  1. **Critical / Scrap** (`t.danger`, `Icons.dangerous_outlined`)
+  2. **Requires Maintenance** (`t.warning`, `Icons.build_circle_outlined`)
+  3. **Repaired This Week** (`t.success`, `Icons.check_circle_outline`)
+
+- **Row 2 — Maintenance & Scrap Work Queue (Grouped by Urgency):**
+  - Clean filter/jump tabs at top of queue: `All Open (X)` · `Critical / Scrap` · `Requires Maint.` · `Recently Serviced`.
+  - **Urgency Group Headers:**
+    - Group 1: **`CRITICAL — SCRAP / DOWN`** (`t.danger` eyebrow + count badge).
+    - Group 2: **`URGENT — REQUIRES MAINTENANCE`** (`t.warning` eyebrow + count badge).
+    - Group 3: **`RECENTLY SERVICED`** (`t.success` eyebrow, collapsed by default).
+  - **Technician Work Card (`t.surfaceElevated`, `radiusMd`, `1px` `borderSubtle`, `4px` `BorderDirectional.start` in urgency color):**
+    - **Left:** `Customer Name` (`t.cardTitle`) + `Chiller Code • Branch • Serial ID` (`t.caption`) + Last reported issue/audit note (`t.bodyDefault`, max 2 lines).
+    - **Meta Badges:** Condition pill (`Scrap` / `Requires Maintenance`), Distance from live GPS (`2.8 km`), Days since flagged (`"Flagged 3d ago"`).
+    - **Right / Bottom Action Bar (`minHeight: 44px` buttons):**
+      1. **`Mark Operational / Log Repair`** (`FilledButton.icon`, `t.success`, `Icons.build_rounded`) — Opens a streamlined **Repair Log Modal** (status toggle: `Operational` / `Requires Follow-up` / `Confirm Scrap` + repair notes + optional photo upload) with 1-tap submit and `AppToast` feedback.
+      2. **`Navigate`** (`OutlinedButton.icon`, `#4285F4`, `Icons.directions_rounded`) — Deep-links directly to Google Maps driving directions (`lat,lng`).
+      3. **`360°`** (`IconButton`, `44x44`) — Opens Customer 360 Drawer for full chiller history & past audit photos.
+
+---
+
+### 9.7 Loading, Empty, Error, Accessibility & RTL States
+
+| State | Behavior in `DashboardViewScreen` |
+| :--- | :--- |
+| **Initial Loading** | Render role-matching **`AppSkeleton`** layout (4 KPI card skeletons `110px` tall + 2 chart/list card skeletons `240px` tall) so layout never jumps. |
+| **Pull-to-Refresh / Syncing** | Keep existing KPIs & cards visible; show thin `2px` `LinearProgressIndicator` (`t.accentPrimary`) at top of body. |
+| **Empty (No Data Uploaded)** | Render **`AppEmptyState`** with role-appropriate CTA: Owner/Admin → `"Upload Master Excel"` (navigates to Upload tab); Agent/Tech/Supervisor → `"No chillers assigned to your scope yet. Contact your administrator."` |
+| **Empty (Queue Clear — e.g. 0 Pending Reviews or 0 Maintenance Alerts)** | Positive celebratory micro-card (`t.success.withValues(alpha: 0.10)`): `"All caught up! No pending reviews / maintenance alerts."` |
+| **API Error** | Non-blocking top inline banner (`t.danger` left accent, `Icons.error_outline`) with `"Retry"` button; preserve cached dashboard data if available. |
+| **Accessibility (WCAG AA)** | All interactive cards, KPI tiles, and buttons use `Semantics(button: true, label: '...')` and `>= 44x44` touch targets. Chart bars & donut segments include `Tooltip` + text legend (never color-only). |
+| **Arabic RTL (`Locale('ar')`)** | Use `EdgeInsetsDirectional`, `BorderDirectional`, `AlignmentDirectional`; wrap all numeric KPIs, percentages, and Chiller Codes in `Directionality(textDirection: TextDirection.ltr)` so `-12.4%` and `CH-1042` never reverse. |
+
+---
+
+### 9.8 Acceptance Checklist for `DashboardViewScreen`
+
+- [ ] `DashboardViewScreen` is Tab `0` (`Home`) on both Desktop `NavigationRail` and Mobile `NavigationBar` for all roles (`owner`, `regional_manager`, `admin`, `supervisor`, `agent`, `technician`).
+- [ ] Zero hardcoded hex colors (`0xFF...`) — 100% `AppTokens.of(context)` compliant across **Dark**, **Light**, and **Outdoor Field Contrast** modes.
+- [ ] Owner/Regional Manager sees 4 Hero KPIs, Branch Performance Bar Chart, Condition/Efficiency Donut + Stacked Bar, and Top/At-Risk Chillers watchlist.
+- [ ] Supervisor sees Branch KPI strip, 1-click Approve/Flag Pending Audit Reviews Queue, Team Rep Progress Bars, and Rebalance Territories CTA.
+- [ ] Field Sales Rep sees "My Day" Hero Card with Completion Ring + Next Stop, Priority Action List, and 1-tap `Start Route` + `Log Visit`.
+- [ ] Technician sees Maintenance & Scrap Work Queue grouped by urgency, 1-tap `Mark Operational / Log Repair`, and Google Maps `Navigate` button.
+- [ ] Responsive verified at `375px` (mobile), `768px` (tablet), and `1280px+` (desktop) with zero horizontal overflow.

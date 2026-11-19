@@ -55,6 +55,32 @@ export const DEFAULT_USERS = [
     salt: '03e9fdeae99fe36067782642b2b02fad',
     password_hash: 'fd35adf2b0f09b8c1ad3442e546bb4cbe3a7a93e7536c657ea2728d928844106825905cfbc0b692872446f0440bd26080b82ee4179c4b1dcb4113a213d7362e9',
     created_at: new Date().toISOString()
+  },
+  {
+    id: 4,
+    email: 'supervisor@sales.com',
+    username: 'supervisor',
+    name: 'Branch Supervisor',
+    role: 'supervisor',
+    agent_id: null,
+    branch: 'CE',
+    supervised_agent_ids: [1, 2],
+    salt: 'fd7107f0476e9ae6ddd21815416cda6f',
+    password_hash: '53d60ec51a217ff5cf67cbeaaa83a201af75496676dc7e2d7234bef32cf4a1375ef047928cba7f5b599f6caaf2b509bc0be5335da322abba4a99a75f2443269c',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 5,
+    email: 'tech@sales.com',
+    username: 'tech',
+    name: 'Field Technician',
+    role: 'technician',
+    agent_id: null,
+    branch: null,
+    supervised_agent_ids: [],
+    salt: '7fe859f5676213620270b0de690d26bf',
+    password_hash: 'b0f7b7c37e4eeb89ea93bb2b8dfcc4ad70d3b6e7f57b4e46ff2b041f0fc2a176decaa27bfb9ca8afca949af2af65cfa237366aa9bd0446f66a14f95422c81512',
+    created_at: new Date().toISOString()
   }
 ];
 

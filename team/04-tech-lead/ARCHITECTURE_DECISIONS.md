@@ -32,6 +32,7 @@ The Bassem Sales Platform (`v2.5.0`) has proven product-market fit for FMCG chil
 | **ADR-005** | 2026-11-19 | Enforce Multi-Tenant RLS, Strict JWT/CORS & Signed Upload URLs | Auth, DB Schema, Storage | Proposed |
 | **ADR-006** | 2026-11-19 | Decouple Flutter Web builds via CI/CD & enable PWA asset caching | `.github/workflows/`, `vercel.json`, `public/` | Proposed |
 | **ADR-007** | 2026-11-19 | Sprint 2 API Contracts: Enhanced Rep KPI, Customer 360 & NBA, Smart Daily Route Planner | `api/index.js`, Flutter Client | Accepted |
+| **ADR-008** | 2026-11-19 | Hierarchical Sales RBAC, Dashboard Analytics & Technician Condition Updates | `api/middleware/auth.js`, `api/services/storage.js`, `api/services/chillerHelpers.js`, `api/routes/*` | Accepted |
 
 ---
 
@@ -171,6 +172,87 @@ The Bassem Sales Platform (`v2.5.0`) has proven product-market fit for FMCG chil
        }
        ```
 - **Consequences:** Provides an unambiguous contract for Sprint 2 (`DEV-08`, `ROAD-02`, `ROAD-03`) in `api/index.js` and Flutter UI, and maps 1:1 to `kpi.service.js`, `customer360.service.js`, and `routing.service.js` under `ADR-001` / `ADR-002` (PostGIS `ST_Distance`).
+
+### ADR-008: Hierarchical Sales RBAC, Role-Tailored Dashboard Analytics & Technician Condition Updates
+- **Context:** Following `ADR-001` modularization (`api/middleware/auth.js`, `api/services/storage.js`, `api/services/chillerHelpers.js`, `api/routes/*`), the platform only models `owner`, `admin`, and `agent`. Enterprise field operations require a 5-tier sales & maintenance hierarchy (`owner`, `regional_manager`, `supervisor`, `agent`, `technician`), a unified role-scoped dashboard analytics endpoint (`GET /api/stats/dashboard`), and a dedicated asset condition update workflow (`PATCH /api/chillers/:id/condition`) without breaking any existing `owner@sales.com`, `admin@sales.com`, `omnia@sales.com`, or `mina@sales.com` auth/RBAC tests.
+- **Decision:**
+
+  1. **Backward-Compatible Hierarchical RBAC (`api/middleware/auth.js`, `api/services/storage.js`, `api/services/chillerHelpers.js`, `api/routes/*`)**
+     - **Supported Roles & Hierarchy:**
+       - `owner`: Global system owner (all chillers, all branches, user/admin management, audit logs).
+       - `regional_manager`: Alias/peer to `admin` with full cross-branch operational & administrative privileges (cannot access Owner-only `/api/logs*` endpoints).
+       - `supervisor`: Branch/team lead scoped to assigned `branch` and/or `supervisedAgentIds`. Can view scoped chillers, manage/review scoped form responses, and update chiller conditions within their scope.
+       - `agent`: Field sales rep strictly scoped to their assigned chillers (`agentId` via `dbStore.assignments`).
+       - `technician`: Field maintenance role with read access to chillers (scoped to `branch` if set, otherwise all assets) and write access to `PATCH /api/chillers/:id/condition`. Denied access to admin batch imports, user/agent management, and form reviews.
+     - **Middleware Extensions (`api/middleware/auth.js`):**
+       - Preserve `attachUser`, `requireAuth`, `requireAdmin`, and `requireOwner` exports and signatures.
+       - Add `ADMIN_ROLES = new Set(['owner', 'admin', 'regional_manager'])` and `isAdminRole(user)` helper. Update `requireAdmin` to allow `owner`, `admin`, and `regional_manager`.
+       - Add `requireRoles(...allowedRoles)` middleware factory returning `401` if unauthenticated and `403` if `!allowedRoles.includes(req.user.role)`.
+     - **JWT & User Profile (`api/routes/auth.js`):**
+       - Include optional `branch: user.branch || null` and `supervisedAgentIds: Array.isArray(user.supervised_agent_ids) ? user.supervised_agent_ids : []` in JWT claims and `/api/auth/login` + `/api/auth/me` responses, keeping all existing fields (`id`, `email`, `username`, `name`, `role`, `agentId`, `agentArea`) unchanged.
+     - **Unified Territory & Branch Scoping (`api/services/chillerHelpers.js`):**
+       - Extend `filterRowsByTerritory(rows, user, store)` and add `canUserAccessChiller(row, user, store)`:
+         - `owner`, `admin`, `regional_manager`: full access (all rows).
+         - `supervisor`: match if `(row.branch || '').trim().toLowerCase() === (user.branch || '').trim().toLowerCase()` (when `user.branch` is set) **OR** chiller is assigned to any `agentId` in `user.supervisedAgentIds`. Fail-closed (`[]`) if neither is configured.
+         - `agent`: existing `getAgentAssignedSets(user.agentId, store)` logic.
+         - `technician`: if `user.branch` is set, filter to matching `branch`; otherwise return all rows for field maintenance visibility.
+       - Update `api/routes/chillers.js`, `api/routes/agents.js`, and `api/routes/forms.js` to use `isAdminRole(req.user)` / `filterRowsByTerritory()` / `requireRoles(...)` instead of raw `req.user.role === 'agent'` or `requireAdmin` where `supervisor` / `regional_manager` / `technician` access is intended.
+     - **Seeded Demo/Test Accounts (`DEFAULT_USERS` in `api/services/storage.js`):**
+       - Preserve `owner@sales.com` (`id: 0`), `admin@sales.com` (`id: 1`), `omnia@sales.com` (`id: 2`, `agent_id: 1`), and `mina@sales.com` (`id: 3`, `agent_id: 2`) with their exact IDs, salts, and PBKDF2-SHA512 hashes.
+       - Add two new `DEFAULT_USERS` entries with precomputed PBKDF2-SHA512 (100k iterations) `salt` and `password_hash`:
+         - `supervisor@sales.com` (`id: 4`, `username: 'supervisor'`, `name: 'Branch Supervisor'`, `role: 'supervisor'`, `agent_id: null`, `branch: 'Cairo'`, `supervised_agent_ids: [1, 2]`).
+         - `tech@sales.com` (`id: 5`, `username: 'tech'`, `name: 'Field Technician'`, `role: 'technician'`, `agent_id: null`, `branch: null`, `supervised_agent_ids: []`).
+       - `syncWithCloudStorage()` merges `DEFAULT_USERS` by email, ensuring existing cloud snapshots automatically receive `supervisor@sales.com` and `tech@sales.com` without mutating existing test accounts.
+
+  2. **Role-Tailored Dashboard Analytics (`GET /api/stats/dashboard`)**
+     - **Auth & Sync:** `requireAuth` (all roles) + `await ensureFreshCloudSync()`.
+     - **Query Params:** Optional `branch` (case-insensitive; ignored when omitted or `'All'`/`'all'`) and `batchId` (optional; defaults to current `dbStore.chillers`, or historical/filtered batch when specified).
+     - **Scoping:** Apply `filterRowsByTerritory(rows, req.user, dbStore)` first, then apply `?branch=` filter (intersecting with supervisor/agent scope).
+     - **KPI & Breakdown Rules:**
+       - Normalize `condition`: `'Requires Maintenance'` (case-insensitive / includes `'maint'`), `'Scrap'` (case-insensitive `'scrap'`), `'Operational'` (explicit `'operational'` or default when non-empty/active; track unset separately in `conditionBreakdown.unknown` while counting active non-maintenance/non-scrap assets in `activeOperational` or explicit `'Operational'` — specifically: `requiresMaintenance` = condition matches `maint`, `scrapCount` = condition matches `scrap`, `activeOperational` = `totalAssets - requiresMaintenance - scrapCount`).
+       - `ytdInvoiceTotal`: sum of numeric `rawData['YTD']` (fallback: sum of `Jan`..`Dec` invoice columns) across scoped rows, rounded to 2 decimals.
+       - `efficiencyBuckets`: `{ performing, underperforming, critical, other }` derived from normalized `r.efficiency`.
+       - `branchLeaderboard[]`: per-branch rollup `{ branch, totalAssets, visitedCount, pendingCount, completionRate, avgAchievement, ytdInvoiceTotal, requiresMaintenance }`, sorted by `avgAchievement` desc then `totalAssets` desc.
+       - `agentLeaderboard[]`: per-agent rollup `{ agentId, agentName, area, assignedCount, visitedCount, pendingCount, completionRate, avgAchievement }`, sorted by `completionRate` desc then `visitedCount` desc (`owner`/`admin`/`regional_manager`: all agents; `supervisor`: `supervisedAgentIds` or agents with chillers in `user.branch`; `agent`: self only; `technician`: `[]`).
+       - `pendingReviewsCount`: count of `dbStore.form_responses` with `status === 'submitted'` within the caller's scoped chillers (`0` for `agent` and `technician`).
+       - `maintenanceQueue[]`: scoped chillers where normalized condition is `'Requires Maintenance'` or `'Scrap'`, mapped to `{ id, chillerCode, customerName, customerAddress, branch, condition, efficiency, latitude, longitude, lastUpdated }` (`Requires Maintenance` sorted first).
+     - **Response (`200 OK`):**
+       ```json
+       {
+         "success": true,
+         "role": "supervisor",
+         "scope": "branch",
+         "branchFilter": "All",
+         "kpis": {
+           "totalAssets": 42,
+           "activeOperational": 35,
+           "requiresMaintenance": 5,
+           "scrapCount": 2,
+           "visitedCount": 28,
+           "pendingCount": 14,
+           "completionRate": 66.7,
+           "avgAchievement": 84.2,
+           "ytdInvoiceTotal": 1245000.5
+         },
+         "conditionBreakdown": { "operational": 35, "requiresMaintenance": 5, "scrap": 2 },
+         "efficiencyBuckets": { "performing": 24, "underperforming": 12, "critical": 6, "other": 0 },
+         "branchLeaderboard": [],
+         "agentLeaderboard": [],
+         "pendingReviewsCount": 4,
+         "maintenanceQueue": []
+       }
+       ```
+
+  3. **Technician / Supervisor Condition Update (`PATCH /api/chillers/:id/condition`)**
+     - **Auth & Scope:** `requireAuth` + `requireRoles('owner', 'admin', 'regional_manager', 'supervisor', 'technician')` (returns `403` for `agent`). Run `await ensureFreshCloudSync()` before lookup.
+     - **Lookup & Territory Guard:** Match `:id` against `String(r.id)` or case-insensitive `r.chiller_code` / `r.chillerCode` (`404` if missing). If `req.user.role === 'supervisor'` and `!canUserAccessChiller(chiller, req.user, dbStore)`, return `403`.
+     - **Validation:** `req.body.condition` must strictly match one of `'Operational'`, `'Requires Maintenance'`, or `'Scrap'` (`400` otherwise). Optional `req.body.notes` (string, trimmed, max 500 chars).
+     - **Mutation, Audit & Persistence:**
+       - Record `previousCondition = chiller.condition || 'Operational'`.
+       - Update `chiller.condition = condition`, `chiller.condition_updated_at = new Date().toISOString()`, `chiller.condition_updated_by = req.user.email || req.user.username`, and sync `Condiiton` / `Condition` inside `raw_data_json` if present.
+       - Populate `req.auditEvent` (`category: 'chiller'`, `action: 'CHILLER_CONDITION_UPDATED'`, `details`, `metadata: { chillerId: chiller.id, chillerCode, previousCondition, newCondition: condition, notes }`).
+       - Persist via `saveDbStore(dbStore)` **and** `await persistToBlobIfConfigured(dbStore)` before returning `200 OK` with `{ success: true, message: 'Chiller condition updated', chiller: formatChillerRecord(chiller, dbStore) }`.
+- **Consequences:** Enables hierarchical enterprise sales & maintenance workflows with zero breaking changes to existing `owner`, `admin`, and `agent` contracts, and maps cleanly to PostgreSQL RLS role claims (`app.role`, `app.branch`, `app.tenant_id`) in Phase 4 (`ADR-005`).
 
 ---
 

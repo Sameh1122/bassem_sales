@@ -1,15 +1,21 @@
 import express from 'express';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
-import { dbStore, saveDbStore, ensureFreshCloudSync } from '../services/storage.js';
+import { requireAuth, requireAdmin, requireRoles, isAdminRole } from '../middleware/auth.js';
+import { dbStore, saveDbStore, ensureFreshCloudSync, persistToBlobIfConfigured } from '../services/storage.js';
 import {
   getChillerVisitInfo,
   parseRawData,
   isChillerAssignedToAgent,
+  canUserAccessChiller,
   filterRowsByTerritory,
+  getSupervisedAgentIdSet,
   parseNumericValue,
+  extractChillerAchievement,
   computeKpiStats,
   haversineKm,
-  formatChillerRecord
+  formatChillerRecord,
+  normalizeCondition,
+  extractYtdInvoice,
+  classifyEfficiencyBucket
 } from '../services/chillerHelpers.js';
 
 const router = express.Router();
@@ -40,8 +46,8 @@ router.get('/chillers', requireAuth, async (req, res) => {
     rows = rows.filter(r => (r.customer_type || r.customerType || '').toLowerCase() === customerType.toLowerCase());
   }
 
-  // If the requester is an Agent, strictly restrict to their assigned locations ONLY!
-  if (req.user && req.user.role === 'agent') {
+  // Scope chillers by role/territory/branch
+  if (req.user && !isAdminRole(req.user)) {
     rows = filterRowsByTerritory(rows, req.user, dbStore);
   }
 
@@ -182,11 +188,13 @@ router.get('/chillers/latest-batch', requireAuth, (req, res) => {
     chillers = chillers.filter(c => c.assignedAgentId === null);
   }
 
-  // If requester is an agent, strictly isolate to their assigned chillers only
-  if (req.user && req.user.role === 'agent') {
-    const myAgentId = req.user.agentId;
-    chillers = chillers.filter(c => c.assignedAgentId === myAgentId);
-  } else if (agentId && agentId !== 'All') {
+  // Scope by role/territory/branch
+  if (req.user && !isAdminRole(req.user)) {
+    const allowedRows = filterRowsByTerritory(rows, req.user, dbStore);
+    const allowedIds = new Set(allowedRows.map(r => r.id));
+    chillers = chillers.filter(c => allowedIds.has(c.id));
+  }
+  if (agentId && agentId !== 'All' && req.user?.role !== 'agent') {
     const aId = parseInt(agentId);
     chillers = chillers.filter(c => c.assignedAgentId === aId);
   }
@@ -210,9 +218,9 @@ router.get('/stats/rep-kpi', requireAuth, async (req, res) => {
 
   let rows = [...(dbStore.chillers || [])];
   const isAgent = req.user && req.user.role === 'agent';
-  const isAdminOrOwner = req.user && (req.user.role === 'admin' || req.user.role === 'owner');
+  const isAdminOrOwner = isAdminRole(req.user);
 
-  if (isAgent) {
+  if (!isAdminOrOwner) {
     rows = filterRowsByTerritory(rows, req.user, dbStore);
   }
 
@@ -266,7 +274,7 @@ router.get('/chillers/:id/360', requireAuth, async (req, res) => {
     return res.status(404).json({ success: false, error: 'Chiller not found' });
   }
 
-  if (req.user && req.user.role === 'agent' && !isChillerAssignedToAgent(row, req.user.agentId, dbStore)) {
+  if (req.user && !canUserAccessChiller(row, req.user, dbStore)) {
     return res.status(403).json({ success: false, error: 'Access denied: Chiller is not assigned to your territory' });
   }
 
@@ -421,9 +429,8 @@ router.get('/chillers/:id/360', requireAuth, async (req, res) => {
 router.get('/routes/daily', requireAuth, async (req, res) => {
   await ensureFreshCloudSync();
 
-  const isAgent = req.user && req.user.role === 'agent';
   let rows = [...(dbStore.chillers || [])];
-  if (isAgent) {
+  if (req.user && !isAdminRole(req.user)) {
     rows = filterRowsByTerritory(rows, req.user, dbStore);
   }
 
@@ -579,13 +586,301 @@ router.get('/routes/daily', requireAuth, async (req, res) => {
 
   res.json({
     success: true,
-    scope: isAgent ? 'territory' : 'aggregate',
+    scope: (req.user && req.user.role === 'agent') ? 'territory' : 'aggregate',
     origin,
     totalStops: stops.length,
     skippedNoCoordsCount,
     totalEstimatedKm,
     estimatedDriveMinutes,
     stops
+  });
+});
+
+router.get('/stats/dashboard', requireAuth, async (req, res) => {
+  await ensureFreshCloudSync();
+
+  const { branch, batchId } = req.query;
+  let rows = [...(dbStore.chillers || [])];
+
+  if (batchId && batchId !== 'All' && batchId !== 'all') {
+    const bId = parseInt(batchId, 10);
+    if (!Number.isNaN(bId)) {
+      const historicalRows = (dbStore.history || []).filter(h => (h.batch_id || h.batchId) === bId);
+      rows = historicalRows.length > 0 ? historicalRows : rows.filter(r => (r.batch_id || r.batchId) === bId);
+    }
+  }
+
+  rows = filterRowsByTerritory(rows, req.user, dbStore);
+
+  const branchParam = (branch || '').toString().trim();
+  const hasBranchFilter = branchParam && branchParam.toLowerCase() !== 'all';
+  if (hasBranchFilter) {
+    const targetBranch = branchParam.toLowerCase();
+    rows = rows.filter(r => ((r.branch || '').toString().trim() || 'Unassigned').toLowerCase() === targetBranch);
+  }
+
+  let visitedCount = 0;
+  let achSum = 0;
+  let achCount = 0;
+  let ytdInvoiceTotal = 0;
+  let requiresMaintenance = 0;
+  let scrapCount = 0;
+
+  const efficiencyBuckets = { performing: 0, underperforming: 0, critical: 0, other: 0 };
+  const branchGroups = new Map();
+  const maintenanceQueue = [];
+  const scopedCodeSet = new Set();
+  const scopedNameSet = new Set();
+
+  for (const r of rows) {
+    const code = r.chiller_code || r.chillerCode || '';
+    const custName = r.customer_name || r.customerName || '';
+    if (code) scopedCodeSet.add(String(code).toLowerCase());
+    if (custName) scopedNameSet.add(custName.toLowerCase());
+
+    const rawData = parseRawData(r);
+    const visitInfo = getChillerVisitInfo(code, custName, dbStore);
+    const isVisited = visitInfo.visitStatus === 'submitted' || visitInfo.visitStatus === 'accepted';
+    if (isVisited) visitedCount++;
+
+    const ach = extractChillerAchievement(r, rawData);
+    if (ach !== null) {
+      achSum += ach;
+      achCount++;
+    }
+
+    const ytd = extractYtdInvoice(rawData);
+    ytdInvoiceTotal += ytd;
+
+    const normCond = normalizeCondition(r.condition);
+    if (normCond === 'Requires Maintenance') requiresMaintenance++;
+    else if (normCond === 'Scrap') scrapCount++;
+
+    const bucket = classifyEfficiencyBucket(r, rawData);
+    efficiencyBuckets[bucket]++;
+
+    const bName = (r.branch || '').toString().trim() || 'Unassigned';
+    if (!branchGroups.has(bName)) {
+      branchGroups.set(bName, {
+        branch: bName,
+        totalAssets: 0,
+        visitedCount: 0,
+        achSum: 0,
+        achCount: 0,
+        ytdInvoiceTotal: 0,
+        requiresMaintenance: 0
+      });
+    }
+    const bg = branchGroups.get(bName);
+    bg.totalAssets++;
+    if (isVisited) bg.visitedCount++;
+    if (ach !== null) {
+      bg.achSum += ach;
+      bg.achCount++;
+    }
+    bg.ytdInvoiceTotal += ytd;
+    if (normCond === 'Requires Maintenance' || normCond === 'Scrap') {
+      bg.requiresMaintenance++;
+    }
+
+    if (normCond === 'Requires Maintenance' || normCond === 'Scrap') {
+      maintenanceQueue.push({
+        id: r.id,
+        chillerCode: code,
+        customerName: custName,
+        customerAddress: r.customer_address || r.customerAddress || '',
+        branch: bName,
+        condition: normCond,
+        efficiency: r.efficiency || '',
+        latitude: r.latitude,
+        longitude: r.longitude,
+        lastUpdated: r.condition_updated_at || visitInfo.latestResponseDate || r.updated_at || null
+      });
+    }
+  }
+
+  maintenanceQueue.sort((a, b) => {
+    if (a.condition === b.condition) return String(a.chillerCode).localeCompare(String(b.chillerCode));
+    return a.condition === 'Requires Maintenance' ? -1 : 1;
+  });
+
+  const totalAssets = rows.length;
+  const activeOperational = Math.max(0, totalAssets - requiresMaintenance - scrapCount);
+  const pendingCount = Math.max(0, totalAssets - visitedCount);
+  const completionRate = totalAssets > 0 ? Math.round((visitedCount / totalAssets) * 1000) / 10 : 0;
+  const avgAchievement = achCount > 0 ? Math.round((achSum / achCount) * 10) / 10 : 0;
+  const roundedYtd = Math.round(ytdInvoiceTotal * 100) / 100;
+
+  const branchLeaderboard = Array.from(branchGroups.values())
+    .map(bg => ({
+      branch: bg.branch,
+      totalAssets: bg.totalAssets,
+      visitedCount: bg.visitedCount,
+      pendingCount: Math.max(0, bg.totalAssets - bg.visitedCount),
+      completionRate: bg.totalAssets > 0 ? Math.round((bg.visitedCount / bg.totalAssets) * 1000) / 10 : 0,
+      avgAchievement: bg.achCount > 0 ? Math.round((bg.achSum / bg.achCount) * 10) / 10 : 0,
+      ytdInvoiceTotal: Math.round(bg.ytdInvoiceTotal * 100) / 100,
+      requiresMaintenance: bg.requiresMaintenance
+    }))
+    .sort((a, b) => (b.avgAchievement - a.avgAchievement) || (b.totalAssets - a.totalAssets));
+
+  let agentLeaderboard = [];
+  if (req.user.role !== 'technician') {
+    let candidateAgents = [...(dbStore.agents || [])];
+    if (req.user.role === 'agent') {
+      candidateAgents = candidateAgents.filter(a => a.id === req.user.agentId);
+    } else if (req.user.role === 'supervisor') {
+      const supervisedSet = getSupervisedAgentIdSet(req.user);
+      if (supervisedSet.size > 0) {
+        candidateAgents = candidateAgents.filter(a => supervisedSet.has(a.id));
+      } else {
+        const scopedAssignments = new Set();
+        for (const r of rows) {
+          const code = r.chiller_code || r.chillerCode;
+          const custName = (r.customer_name || r.customerName || '').toLowerCase();
+          const as = (dbStore.assignments || []).find(x =>
+            (code && x.chiller_code === code) ||
+            (custName && x.customer_name && x.customer_name.toLowerCase() === custName)
+          );
+          if (as) scopedAssignments.add(as.agent_id);
+        }
+        candidateAgents = candidateAgents.filter(a => scopedAssignments.has(a.id));
+      }
+    }
+
+    agentLeaderboard = candidateAgents
+      .map(agent => {
+        const agentRows = rows.filter(r => isChillerAssignedToAgent(r, agent.id, dbStore));
+        const stats = computeKpiStats(agentRows, dbStore);
+        return {
+          agentId: agent.id,
+          agentName: agent.name,
+          area: agent.area || '',
+          assignedCount: stats.assignedCount,
+          visitedCount: stats.visitedCount,
+          pendingCount: stats.pendingCount,
+          completionRate: stats.completionRate,
+          avgAchievement: stats.avgAchievement
+        };
+      })
+      .sort((a, b) => (b.completionRate - a.completionRate) || (b.visitedCount - a.visitedCount));
+  }
+
+  let pendingReviewsCount = 0;
+  if (req.user.role !== 'agent' && req.user.role !== 'technician') {
+    pendingReviewsCount = (dbStore.form_responses || []).filter(resp => {
+      if ((resp.status || '').toLowerCase() !== 'submitted') return false;
+      const rCode = (resp.chiller_code || '').toLowerCase();
+      const rName = (resp.customer_name || '').toLowerCase();
+      return (rCode && scopedCodeSet.has(rCode)) || (rName && scopedNameSet.has(rName));
+    }).length;
+  }
+
+  const scope = isAdminRole(req.user)
+    ? 'global'
+    : (req.user.role === 'supervisor' ? 'branch' : (req.user.role === 'technician' ? 'maintenance' : 'territory'));
+
+  res.json({
+    success: true,
+    role: req.user.role,
+    scope,
+    branchFilter: hasBranchFilter ? branchParam : 'All',
+    kpis: {
+      totalAssets,
+      activeOperational,
+      requiresMaintenance,
+      scrapCount,
+      visitedCount,
+      pendingCount,
+      completionRate,
+      avgAchievement,
+      ytdInvoiceTotal: roundedYtd
+    },
+    conditionBreakdown: {
+      operational: activeOperational,
+      requiresMaintenance,
+      scrap: scrapCount
+    },
+    efficiencyBuckets,
+    branchLeaderboard,
+    agentLeaderboard,
+    pendingReviewsCount,
+    maintenanceQueue
+  });
+});
+
+router.patch('/chillers/:id/condition', requireAuth, requireRoles('owner', 'admin', 'regional_manager', 'supervisor', 'technician'), async (req, res) => {
+  await ensureFreshCloudSync();
+
+  const idParam = String(req.params.id || '').trim();
+  const chiller = (dbStore.chillers || []).find(r =>
+    String(r.id) === idParam ||
+    (r.chiller_code || r.chillerCode || '').toLowerCase() === idParam.toLowerCase()
+  );
+
+  if (!chiller) {
+    return res.status(404).json({ success: false, error: 'Chiller not found' });
+  }
+
+  if ((req.user.role === 'supervisor' || req.user.role === 'technician') && !canUserAccessChiller(chiller, req.user, dbStore)) {
+    return res.status(403).json({ success: false, error: 'Access denied: Chiller is outside your assigned scope' });
+  }
+
+  const allowedConditions = ['Operational', 'Requires Maintenance', 'Scrap'];
+  const condition = typeof req.body.condition === 'string' ? req.body.condition.trim() : '';
+  if (!allowedConditions.includes(condition)) {
+    return res.status(400).json({
+      success: false,
+      error: `Invalid condition. Must be one of: ${allowedConditions.join(', ')}`
+    });
+  }
+
+  const rawNotes = typeof req.body.notes === 'string' ? req.body.notes.trim().slice(0, 500) : '';
+  const previousCondition = chiller.condition || 'Operational';
+  const chillerCode = chiller.chiller_code || chiller.chillerCode || String(chiller.id);
+
+  chiller.condition = condition;
+  chiller.condition_updated_at = new Date().toISOString();
+  chiller.condition_updated_by = req.user.email || req.user.username || 'system';
+  if (rawNotes) {
+    chiller.condition_notes = rawNotes;
+  }
+
+  // Sync condition inside raw_data_json if present
+  if (typeof chiller.raw_data_json === 'string' && chiller.raw_data_json.trim()) {
+    try {
+      const parsedRaw = JSON.parse(chiller.raw_data_json);
+      if (parsedRaw && typeof parsedRaw === 'object') {
+        if (Object.prototype.hasOwnProperty.call(parsedRaw, 'Condiiton')) parsedRaw['Condiiton'] = condition;
+        if (Object.prototype.hasOwnProperty.call(parsedRaw, 'Condition')) parsedRaw['Condition'] = condition;
+        chiller.raw_data_json = JSON.stringify(parsedRaw);
+      }
+    } catch (_) {}
+  } else if (chiller.rawData && typeof chiller.rawData === 'object') {
+    if (Object.prototype.hasOwnProperty.call(chiller.rawData, 'Condiiton')) chiller.rawData['Condiiton'] = condition;
+    if (Object.prototype.hasOwnProperty.call(chiller.rawData, 'Condition')) chiller.rawData['Condition'] = condition;
+  }
+
+  req.auditEvent = {
+    category: 'chiller',
+    action: 'CHILLER_CONDITION_UPDATED',
+    details: `Chiller '${chillerCode}' condition changed from '${previousCondition}' to '${condition}'`,
+    metadata: {
+      chillerId: chiller.id,
+      chillerCode,
+      previousCondition,
+      newCondition: condition,
+      notes: rawNotes || null
+    }
+  };
+
+  saveDbStore(dbStore);
+  await persistToBlobIfConfigured(dbStore);
+
+  res.json({
+    success: true,
+    message: 'Chiller condition updated',
+    chiller: formatChillerRecord(chiller, dbStore)
   });
 });
 

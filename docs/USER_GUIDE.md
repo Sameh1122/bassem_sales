@@ -1,7 +1,7 @@
-# Bassem Sales Platform — User Guide (`v2.5.0` Baseline + `v2.6.0` Sprint 1 & 2)
+# Bassem Sales Platform — User Guide (`v2.5.0` Baseline + `v2.6.0` Sprint 1–3)
 
-**Product Version:** `v2.5.0` (Express API + Flutter Web + Vercel Blob) with `v2.6.0` Sprint 1 & 2 Enhancements  
-**Target Audience:** System Owners, Operations Administrators, Area Sales Managers, and Field Sales Agents  
+**Product Version:** `v2.5.0` (Express API + Flutter Web + Vercel Blob) with `v2.6.0` Sprint 1, 2 & 3 Enhancements  
+**Target Audience:** System Owners, Regional Managers / Operations Admins, Branch Supervisors, Field Sales Agents, and Maintenance Technicians  
 **Last Updated:** 2026-11-19  
 
 ---
@@ -34,6 +34,10 @@
 | **Delta View Before → After Visual Diff Cards** *(UI/UX P5)* | Owner / Admin | `docs/screenshots/19_delta_diff_cards.png` | [ ] Pending implementation & capture |
 | **Audit Photo Gallery & Zoomable Lightbox** *(UI/UX P5)* | Owner / Admin / Agent | `docs/screenshots/20_photo_lightbox.png` | [ ] Pending implementation & capture |
 | **`EN / عربي` Arabic RTL & WCAG AA Accessibility** *(UI/UX P5)* | Owner / Admin / Agent | `docs/screenshots/21_arabic_rtl_mode.png` | [ ] Pending implementation & capture |
+| **Owner / Regional Manager Command Center Dashboard** *(Sprint 3)* | Owner / Regional Manager / Admin | `docs/screenshots/22_dashboard_owner.png` | [ ] Pending implementation & capture |
+| **Supervisor Branch Team & Audit Review Hub** *(Sprint 3)* | Supervisor | `docs/screenshots/23_dashboard_supervisor.png` | [ ] Pending implementation & capture |
+| **Field Rep "My Day" Hero Card & Priority Action List** *(Sprint 3)* | Agent | `docs/screenshots/24_dashboard_rep_myday.png` | [ ] Pending implementation & capture |
+| **Technician Maintenance & Scrap Work Queue** *(Sprint 3)* | Technician | `docs/screenshots/25_dashboard_technician.png` | [ ] Pending implementation & capture |
 
 ---
 
@@ -51,7 +55,7 @@ Open the platform in your browser (`http://localhost:5000` locally, or your depl
 **Security Protections (`v2.5.0`):**
 - Passwords are hashed with **PBKDF2 (100,000 iterations, SHA-512)** and unique per-user salts.
 - **Brute-Force Protection:** After **5 failed login attempts**, a **5-minute lockout** is enforced per IP and account identifier.
-- **Password Management:** Admins can set or reset any agent's password from the **Sales Agents** tab. In addition, any logged-in user (`owner`, `admin`, or `agent`) can rotate their own password using the **Self-Service Change Password** dialog (`STORY-002`, Sprint 1):
+- **Password Management:** Admins and Owners can set or reset any user's password from the **Sales Agents** tab. In addition, any logged-in user (`owner`, `regional_manager`/`admin`, `supervisor`, `agent`, or `technician`) can rotate their own password using the **Self-Service Change Password** dialog (`STORY-002`, Sprint 1):
   1. Click **Change Password** in the top `AppBar` (desktop) or navigation `Drawer` (mobile `< 768px`).
   2. Enter your **Current Password**, **New Password**, and **Confirm New Password** (using the eye icon to toggle visibility).
   3. Ensure the new password meets complexity rules (**minimum 8 characters**, at least **1 uppercase**, **1 lowercase**, **1 digit**, and **1 special character**) and click **Update Password**.
@@ -59,14 +63,16 @@ Open the platform in your browser (`http://localhost:5000` locally, or your depl
 
 > *[Screenshot Placeholder: Add `docs/screenshots/10_change_password.png` showing the self-service Change Password dialog.]*
 
-### 1.2 Role-Based Navigation (RBAC) & Mobile Thumb-Zone Bar *(UI/UX P4 — `STORY-006`)*
-On desktop (`>= 768px`), the left `NavigationRail` adapts automatically to your role. On mobile (`< 768px`), primary actions move into a bottom **`NavigationBar`** in the lower thumb zone:
+### 1.2 5-Tier Sales Hierarchy, RBAC & Role-Based Navigation *(Sprint 3 — `STORY-010` & UI/UX P4)*
+The platform enforces a **5-tier Sales Hierarchy** across all API routes (`requireRole` / `requireSupervisorOrAbove`) and adapts navigation on both Desktop (`NavigationRail`, `>= 768px`) and Mobile (`NavigationBar` in the lower thumb zone, `< 768px`), with **`Home` (`DashboardViewScreen`)** as **Tab 0** for every role:
 
-| Role | Desktop Navigation (`>= 768px`) | Mobile Bottom Bar (`< 768px`) | Data Scope |
-| :--- | :--- | :--- | :--- |
-| **System Owner (`owner`)** | **8 Tabs:** Map View, Upload & Validate, Assign Locations, Sales Agents, Data Table, Forms Manager, Visit Responses, **System Logs** | **4 Primary Tabs** (`Map`, `Table`, `Assign`, `Responses`) + **`More` Sheet** (`Upload & Validate`, `Sales Agents`, `Forms Manager`, `System Logs`, `Theme Mode`) | Full fleet visibility + audit logs |
-| **Admin (`admin`)** | **7 Tabs:** Map View, Upload & Validate, Assign Locations, Sales Agents, Data Table, Forms Manager, Visit Responses | **4 Primary Tabs** (`Map`, `Table`, `Assign`, `Responses`) + **`More` Sheet** (`Upload & Validate`, `Sales Agents`, `Forms Manager`, `Theme Mode`) | Full fleet visibility |
-| **Sales Agent (`agent`)** | **1 Tab:** **My Assigned Customers** (Map View) | **3 Ergonomic Tabs:** `My Map`, `My List` (searchable assigned chiller cards), and `Route` (opens Map & toggles Smart Daily Route Mode) | **Strictly isolated** to chillers/accounts assigned to that agent |
+| Tier / Role | Permissions & Data Scope | Daily Workflow | Desktop Tabs (`>= 768px`) | Mobile Bottom Bar (`< 768px`) |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. System Owner (`owner`)** | Full global access across all branches, teams, user/role creation (including assigning `owner`), master uploads, destructive resets, and **System Logs**. | Review fleet-wide KPIs & branch performance on `Home`, monitor at-risk chillers, audit system logs, and oversee regional managers. | **9 Tabs:** `Home`, Map View, Upload & Validate, Assign Locations, Sales Agents, Data Table, Forms Manager, Visit Responses, **System Logs** | **4 Primary Tabs** (`Home`, `Map`, `Table`, `Responses`) + **`More` Sheet** (`Upload & Validate`, `Assign Locations`, `Sales Agents`, `Forms Manager`, `System Logs`, `Theme Mode`) |
+| **2. Regional Manager / Admin (`regional_manager` / `admin`)** | Full operational access (`admin` tier; `regional_manager` optionally scoped to assigned `branch`/`area`). Excludes `owner`-only System Logs and destructive resets. | Track branch targets & condition breakdowns on `Home`, ingest master Excel sheets, assign territories, manage users/roles, and configure forms. | **8 Tabs:** `Home`, Map View, Upload & Validate, Assign Locations, Sales Agents, Data Table, Forms Manager, Visit Responses | **4 Primary Tabs** (`Home`, `Map`, `Table`, `Responses`) + **`More` Sheet** (`Upload & Validate`, `Assign Locations`, `Sales Agents`, `Forms Manager`, `Theme Mode`) |
+| **3. Supervisor (`supervisor`)** | Scoped strictly to their assigned `branch`/`area` or `team_agent_ids` across chillers, agents, assignments, and visit reviews. Cannot access `System Logs` or master `Upload & Validate`. | Sign off **Pending Audit Reviews** (`Approve` / `Flag` with feedback) on `Home`, monitor team rep coverage bars, and rebalance branch territories. | **5 Tabs:** `Home`, Map View, Assign Locations, Visit Responses, Data Table | **5 Tabs:** `Home`, `Map`, `Assign`, `Responses`, `Table` |
+| **4. Field Sales Agent (`agent`)** | Strictly isolated to chillers/accounts assigned to their `agent_id` for map, list, Customer 360, route planner, and visit audit submission. | Check **My Day** KPIs & Next Stop on `Home`, launch **Start Route** (`Plan My Day`), visit outlets, and submit audit forms & photos. | **2 Tabs:** `Home`, **My Assigned Customers** (Map View) | **4 Ergonomic Tabs:** `Home`, `My Map`, `My List` (searchable assigned chiller cards), `Route` (opens Map & toggles Smart Daily Route Mode) |
+| **5. Maintenance Technician (`technician`)** | Scoped to the **Maintenance Queue** (chillers in `Requires Maintenance`, `Damaged`, or `Scrap`, optionally filtered by `branch`/`area`). Can view Customer 360 and update chiller `Condition` / repair status; cannot edit sales financials, reassign reps, or manage forms/uploads. | Work through urgency-grouped **Maintenance & Scrap** cards on `Home`, navigate via Google Maps, and log repairs with **Mark Operational / Log Repair**. | **3 Tabs:** `Home` (Maintenance Queue), Work Map, Repair Log | **3 Tabs:** `Home`, `Work Map`, `Repair Log` |
 
 > *[Screenshot Placeholder: Add `docs/screenshots/15_mobile_bottom_nav.png` showing the mobile thumb-zone `NavigationBar` and `More` sheet.]*
 
@@ -87,6 +93,49 @@ Click the **Theme Mode** switcher icon in the top `AppBar` (or inside the mobile
   - **Unified Toasts & Inline Form Validation:** Floating `AppToast` notifications (`success`, `info`, `warning`, `error`) and inline field validation (`AutovalidateMode.onUserInteraction`, `#EF4444` error borders, and auto-scroll to the first invalid field on submit).
 
 > *[Screenshot Placeholder: Add `docs/screenshots/21_arabic_rtl_mode.png` showing Arabic RTL layout mode and WCAG AA accessibility controls.]*
+
+### 1.5 Role-Tailored `Dashboard` Home Tab (`DashboardViewScreen`) *(Sprint 3 — `STORY-011`, `STORY-012`)*
+Upon signing in, every user lands on **`Home`** (**`DashboardViewScreen`** at Tab `0`), backed by the role-scoped `GET /api/stats/dashboard` analytics endpoint. It adapts automatically to Dark, Light, and Outdoor Field Contrast themes, supports pull-to-refresh, and honors Arabic RTL (`Locale('ar')`) with `LTR`-locked numeric KPIs and chiller codes.
+
+#### 1.5.1 Owner / Regional Manager Command Center (`owner` / `regional_manager` / `admin`)
+- **4 Hero KPI Cards:**
+  1. **Total Assets:** Fleet-wide (or branch-filtered) chiller count across branches.
+  2. **YTD Achievement %:** Mean YTD achievement (`XX.X%` or `N/A`) with color-coded target delta pill (`>= 85%` green, `65–84%` amber, `< 65%` red).
+  3. **Active Visit Rate:** `Visited / Total` percentage and raw counts.
+  4. **Maintenance Alerts:** Total `Requires Maintenance` + `Scrap` chillers; tapping drills directly into `Map View` pre-filtered to maintenance alerts.
+- **Branch Performance Bar Chart:** Interactive horizontal/vertical bars sorted highest-to-lowest with a **`YTD Ach %` | `Visit Rate %`** segmented toggle. Tapping any branch bar filters the dashboard or drills into `Map View` for that branch.
+- **Condition & Efficiency Breakdown:** `DonutChartPainter` + proportional stacked bar and interactive legend with a **`Condition` (`Operational`, `Requires Maintenance`, `Scrap`, `Unspecified`) | `Efficiency` (`Performing`, `Non-Performing`, `Zero`)** toggle.
+- **Chiller Watchlist:** Full-width card with an **`At-Risk` | `Top Performing`** toggle (max 5 priority rows) and a **`360° →`** button on each row to open the **Customer 360 Drawer**.
+
+> *[Screenshot Placeholder: Add `docs/screenshots/22_dashboard_owner.png` showing the Owner / Regional Manager Command Center Dashboard.]*
+
+#### 1.5.2 Supervisor Branch Team & Audit Review Hub (`supervisor`)
+- **Branch KPI Strip:** **Branch Assets**, **Branch Visit Rate %**, **Pending Audit Reviews**, and **Branch Maint. Alerts**.
+- **Pending Audit Reviews Queue:** Prioritized queue of `Pending` and `Re-opened` team visit audits showing customer, `Chiller Code`, relative timestamp, rep chip, condition badge, and up to 3 audit photo thumbnails (tap to open Lightbox), plus 1-click actions:
+  - **`Approve`:** Immediately marks the audit `Accepted` with optimistic UI update and `AppToast` confirmation.
+  - **`Flag`:** Opens a 1-field reason prompt (`"What needs correction?"`) and marks the audit `Re-opened`.
+  - **`360°`:** Opens the **Customer 360 Drawer**.
+- **Team Rep Progress & Territory Rebalance:** Rep completion bars sorted by lowest completion `%` first (`Visited / Assigned`, `Avg Ach %`, and `Re-opened` count), plus a **`Rebalance Territories`** footer button that jumps directly to `Assign Locations` pre-filtered to the supervisor's branch.
+
+> *[Screenshot Placeholder: Add `docs/screenshots/23_dashboard_supervisor.png` showing the Supervisor Branch Team & Audit Review Hub.]*
+
+#### 1.5.3 Field Rep "My Day" Hero Card & Priority Action List (`agent`)
+- **"My Day" Hero Card:** Displays your territory/branch pill, **Assigned / Visited Today / Pending** counters, a **`96x96` Completion Ring**, a **Next Stop** callout (customer, `Chiller Code`, condition, and distance in `km`), and dual 1-tap outdoor-friendly (`>= 48px`) CTAs:
+  1. **`Start Route`:** Launches `My Map` with **Smart Daily Route Mode ("Plan My Day")** active.
+  2. **`Log Visit`:** Opens the **Visit Audit Form** directly for the Next Stop.
+- **Priority Action List:** Ordered stop cards with quick filter pills (**`All`** | **`Re-opened`** | **`Overdue`** | **`High Value`**). `Re-opened` cards display admin review feedback inline; each card provides **`Log`**, **`Navigate`**, and tap-to-open **`Customer 360°`**.
+
+> *[Screenshot Placeholder: Add `docs/screenshots/24_dashboard_rep_myday.png` showing the Field Rep "My Day" Hero Card and Priority Action List.]*
+
+#### 1.5.4 Technician Maintenance & Scrap Work Queue (`technician`)
+- **Work Summary Strip:** **Critical / Scrap**, **Requires Maintenance**, and **Repaired This Week** KPI cards.
+- **Urgency-Grouped Maintenance & Scrap Queue:** Filterable by **`All Open`** · **`Critical / Scrap`** · **`Requires Maint.`** · **`Recently Serviced`**, and grouped under **`CRITICAL — SCRAP / DOWN`**, **`URGENT — REQUIRES MAINTENANCE`**, and **`RECENTLY SERVICED`** headers.
+- **Work Card Actions:** Each card displays customer, `Chiller Code`, branch, serial ID, last reported issue note, condition badge, live GPS distance, and days since flagged, with 3 actions:
+  1. **`Mark Operational / Log Repair`:** Opens the streamlined **Repair Log Modal** (status toggle: `Operational`, `Requires Follow-up`, or `Confirm Scrap` + repair notes + optional photo upload) with 1-tap submit, `AppToast` confirmation, and instant queue/KPI refresh.
+  2. **`Navigate`:** Deep-links to Google Maps driving directions (`lat,lng`).
+  3. **`360°`:** Opens the **Customer 360 Drawer** for full chiller history and past audit photos.
+
+> *[Screenshot Placeholder: Add `docs/screenshots/25_dashboard_technician.png` showing the Technician Maintenance & Scrap Work Queue and Repair Log action.]*
 
 ---
 

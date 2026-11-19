@@ -11,14 +11,14 @@
 - [x] **P5 (UI/UX Sprint 2 — `STORY-008`, `STORY-009`):** Implemented Data Table sticky pinning, density toggle & 3-level multi-sort (`data_table_view.dart`), `Before → After` Delta diff cards (`delta_view.dart`), `AuditPhotoGallery` 1x–4x Lightbox (`audit_photo_gallery.dart`), `AppToast` & inline validation + auto-scroll, and `EN / عربي` RTL + `flutter_localizations` + WCAG AA readiness.
 - [x] **P4 & P5 QA Sign-Off:** **5 Pass, 1 Partial, 0 Fail** (`STORY-006`–`009` all **PASS**, `34/34` regression **PASS**, `0` `[ROUTE -> DEV]`, `0` `[ROUTE -> BA]`). See [06-qa/TEST_PLAN.md](06-qa/TEST_PLAN.md).
 - [x] **BA Living User Guide:** Documented P4 & P5 in [../docs/USER_GUIDE.md](../docs/USER_GUIDE.md) (`§1.2–§1.4`, `§2.1`, `§2.3`, `§3`, `§4`, `§6.3`).
+- [x] **OPS-01 & Live Local QA (`http://localhost:5000`):** Compiled Flutter Web UI via CI (`p5-local-build`, run `44543405288`), pulled `public/`, restarted `:5000`, and passed **8/8** live QA items (**67 Passed, 0 Failed** assertions, `0` browser console/HTTP errors). See [06-qa/TEST_PLAN.md](06-qa/TEST_PLAN.md).
 
 ---
 
 ## ⚪ Release & Post-Build Items (CI / Ops)
 | ID | Scope | Item | Owner | Priority | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **OPS-01** | `P3`–`P5` | Commit & push to `main` to trigger `.github/workflows/flutter-build.yml` (`public/` rebuild) & restart `localhost:5000` Node process | DevOps / User | High | Ready |
-| **BA-07** | `docs/USER_GUIDE.md` | Capture authenticated User Guide snapshots (`02`–`21`) after CI `public/` rebuild & `:5000` restart | BA | Medium | Queued |
+| **BA-07** | `docs/USER_GUIDE.md` | Capture authenticated User Guide snapshots (`02`–`21`) from live `http://localhost:5000` | BA | Medium | Queued |
 
 ---
 

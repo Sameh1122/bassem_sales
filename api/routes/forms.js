@@ -2,7 +2,8 @@ import express from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, requireRoles } from '../middleware/auth.js';
+import { canUserAccessChiller, getSupervisedAgentIdSet } from '../services/chillerHelpers.js';
 import { ALLOWED_ATTACHMENT_EXTS, ALLOWED_ATTACHMENT_MIMES } from '../utils/security.js';
 import { uploadAttach } from '../services/excel.js';
 import { dbStore, saveDbStore } from '../services/storage.js';
@@ -302,6 +303,18 @@ router.get('/form-responses', requireAuth, (req, res) => {
 
   if (req.user && req.user.role === 'agent') {
     responses = responses.filter(r => r.agent_id === req.user.agentId);
+  } else if (req.user && req.user.role === 'supervisor') {
+    const supervisedSet = getSupervisedAgentIdSet(req.user);
+    responses = responses.filter(r => {
+      if (supervisedSet.has(Number(r.agent_id))) return true;
+      const chiller = (dbStore.chillers || []).find(c =>
+        (r.chiller_code && (c.chiller_code || c.chillerCode) === r.chiller_code) ||
+        (r.customer_name && (c.customer_name || c.customerName || '').toLowerCase() === r.customer_name.toLowerCase())
+      );
+      return chiller ? canUserAccessChiller(chiller, req.user, dbStore) : false;
+    });
+  } else if (req.user && req.user.role === 'technician') {
+    responses = [];
   }
 
   if (status && status !== 'All') {
@@ -332,12 +345,25 @@ router.get('/form-responses', requireAuth, (req, res) => {
   res.json({ success: true, count: responses.length, responses });
 });
 
-// PUT review form response (Admin accepts feedback or re-opens to agent)
-router.put('/form-responses/:id/review', requireAdmin, (req, res) => {
+// PUT review form response (Admin/Owner/Regional Manager/Supervisor accepts feedback or re-opens to agent)
+router.put('/form-responses/:id/review', requireRoles('owner', 'admin', 'regional_manager', 'supervisor'), (req, res) => {
   const responseId = parseInt(req.params.id);
   const resp = (dbStore.form_responses || []).find(r => r.id === responseId);
   if (!resp) {
     return res.status(404).json({ success: false, error: 'Form response not found' });
+  }
+
+  if (req.user.role === 'supervisor') {
+    const supervisedSet = getSupervisedAgentIdSet(req.user);
+    const inAgents = supervisedSet.has(Number(resp.agent_id));
+    const chiller = (dbStore.chillers || []).find(c =>
+      (resp.chiller_code && (c.chiller_code || c.chillerCode) === resp.chiller_code) ||
+      (resp.customer_name && (c.customer_name || c.customerName || '').toLowerCase() === resp.customer_name.toLowerCase())
+    );
+    const inBranch = chiller ? canUserAccessChiller(chiller, req.user, dbStore) : false;
+    if (!inAgents && !inBranch) {
+      return res.status(403).json({ success: false, error: 'Access denied: Form response is outside your supervised scope' });
+    }
   }
 
   const { status, admin_feedback } = req.body;

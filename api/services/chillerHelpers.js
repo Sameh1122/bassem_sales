@@ -1,4 +1,5 @@
 import { dbStore, loadDbStore } from './storage.js';
+import { isAdminRole } from '../middleware/auth.js';
 
 export function getChillerVisitInfo(chillerCode, customerName, store = null) {
   const currentStore = store || dbStore || loadDbStore();
@@ -57,14 +58,130 @@ export function isChillerAssignedToAgent(r, agentId, store = null) {
   return Boolean((code && assignedCodes.has(code)) || (name && assignedNames.has(name)));
 }
 
+export function getSupervisedAgentIdSet(user) {
+  if (!user || !Array.isArray(user.supervisedAgentIds)) return new Set();
+  return new Set(user.supervisedAgentIds.map(id => Number(id)).filter(id => Number.isFinite(id)));
+}
+
+export function canUserAccessChiller(row, user, store = null) {
+  if (!user) return false;
+  if (isAdminRole(user)) return true;
+
+  if (user.role === 'agent') {
+    return isChillerAssignedToAgent(row, user.agentId, store);
+  }
+
+  if (user.role === 'supervisor') {
+    const userBranch = (user.branch || '').toString().trim().toLowerCase();
+    const rowBranch = (row.branch || '').toString().trim().toLowerCase();
+    const supervisedSet = getSupervisedAgentIdSet(user);
+
+    if (!userBranch && supervisedSet.size === 0) return false;
+    if (userBranch && rowBranch && rowBranch === userBranch) return true;
+
+    for (const aId of supervisedSet) {
+      if (isChillerAssignedToAgent(row, aId, store)) return true;
+    }
+    return false;
+  }
+
+  if (user.role === 'technician') {
+    const userBranch = (user.branch || '').toString().trim().toLowerCase();
+    if (!userBranch) return true;
+    const rowBranch = (row.branch || '').toString().trim().toLowerCase();
+    return rowBranch === userBranch;
+  }
+
+  return false;
+}
+
 export function filterRowsByTerritory(rows, user, store = null) {
-  if (!user || user.role !== 'agent') return rows;
-  const { assignedCodes, assignedNames } = getAgentAssignedSets(user.agentId, store);
-  return rows.filter(r => {
-    const code = r.chiller_code || r.chillerCode;
-    const name = (r.customer_name || r.customerName || '').toLowerCase();
-    return (code && assignedCodes.has(code)) || (name && assignedNames.has(name));
-  });
+  if (!user || isAdminRole(user)) return rows;
+
+  if (user.role === 'agent') {
+    const { assignedCodes, assignedNames } = getAgentAssignedSets(user.agentId, store);
+    return rows.filter(r => {
+      const code = r.chiller_code || r.chillerCode;
+      const name = (r.customer_name || r.customerName || '').toLowerCase();
+      return (code && assignedCodes.has(code)) || (name && assignedNames.has(name));
+    });
+  }
+
+  if (user.role === 'supervisor') {
+    const userBranch = (user.branch || '').toString().trim().toLowerCase();
+    const supervisedSet = getSupervisedAgentIdSet(user);
+    if (!userBranch && supervisedSet.size === 0) return [];
+
+    const combinedCodes = new Set();
+    const combinedNames = new Set();
+    for (const aId of supervisedSet) {
+      const sets = getAgentAssignedSets(aId, store);
+      sets.assignedCodes.forEach(c => combinedCodes.add(c));
+      sets.assignedNames.forEach(n => combinedNames.add(n));
+    }
+
+    return rows.filter(r => {
+      const rowBranch = (r.branch || '').toString().trim().toLowerCase();
+      if (userBranch && rowBranch && rowBranch === userBranch) return true;
+      const code = r.chiller_code || r.chillerCode;
+      const name = (r.customer_name || r.customerName || '').toLowerCase();
+      return (code && combinedCodes.has(code)) || (name && combinedNames.has(name));
+    });
+  }
+
+  if (user.role === 'technician') {
+    const userBranch = (user.branch || '').toString().trim().toLowerCase();
+    if (!userBranch) return rows;
+    return rows.filter(r => (r.branch || '').toString().trim().toLowerCase() === userBranch);
+  }
+
+  return [];
+}
+
+export function normalizeCondition(condition) {
+  const str = String(condition || '').trim().toLowerCase();
+  if (str.includes('scrap')) return 'Scrap';
+  if (str.includes('maint') || str.includes('damaged')) return 'Requires Maintenance';
+  return 'Operational';
+}
+
+export function extractYtdInvoice(rawData) {
+  if (!rawData || typeof rawData !== 'object') return 0;
+  if (Object.prototype.hasOwnProperty.call(rawData, 'YTD')) {
+    const ytd = parseNumericValue(rawData['YTD']);
+    if (ytd !== null) return ytd;
+  }
+  let sum = 0;
+  let foundMonth = false;
+  const monthRegex = /^(jan|feb|mar|apr|may|jun|june|jul|july|aug|sep|oct|nov|dec)\b.*invoice/i;
+  for (const [k, v] of Object.entries(rawData)) {
+    if (monthRegex.test(k)) {
+      const val = parseNumericValue(v);
+      if (val !== null) {
+        sum += val;
+        foundMonth = true;
+      }
+    }
+  }
+  return foundMonth ? sum : 0;
+}
+
+export function classifyEfficiencyBucket(r, rawData) {
+  const effLower = String(r.efficiency || '').trim().toLowerCase();
+  if (effLower.includes('critical') || effLower.includes('at risk') || effLower === 'zero') {
+    return 'critical';
+  }
+  if (effLower.includes('underperforming') || effLower.includes('non-performing') || effLower.includes('non performing')) {
+    return 'underperforming';
+  }
+  if (effLower.includes('performing')) {
+    return 'performing';
+  }
+  const ach = extractChillerAchievement(r, rawData);
+  if (ach === null) return 'other';
+  if (ach >= 100) return 'performing';
+  if (ach >= 75) return 'underperforming';
+  return 'critical';
 }
 
 export function parseNumericValue(val) {

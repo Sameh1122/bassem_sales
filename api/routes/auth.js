@@ -102,13 +102,18 @@ router.post(['/auth/login', '/login'], (req, res) => {
   clearFailedAttempts(`ip:${clientIp}`);
   clearFailedAttempts(`user:${cleanIdentifier}`);
 
+  const branch = user.branch || null;
+  const supervisedAgentIds = Array.isArray(user.supervised_agent_ids) ? user.supervised_agent_ids : [];
+
   const token = createToken({
     id: user.id,
     email: user.email,
     username: user.username,
     name: user.name,
     role: user.role,
-    agentId: user.agent_id
+    agentId: user.agent_id,
+    branch,
+    supervisedAgentIds
   });
 
   const linkedAgent = user.agent_id ? (dbStore.agents || []).find(a => a.id === user.agent_id) : null;
@@ -124,7 +129,9 @@ router.post(['/auth/login', '/login'], (req, res) => {
       name: user.name,
       role: user.role,
       agentId: user.agent_id,
-      agentArea: linkedAgent ? linkedAgent.area : null
+      agentArea: linkedAgent ? linkedAgent.area : null,
+      branch,
+      supervisedAgentIds
     }
   });
 });
@@ -135,6 +142,10 @@ router.get(['/auth/me', '/me'], (req, res) => {
   }
   const user = (dbStore.users || []).find(u => u.id === req.user.id);
   const linkedAgent = req.user.agentId ? (dbStore.agents || []).find(a => a.id === req.user.agentId) : null;
+  const branch = (user && user.branch) || req.user.branch || null;
+  const supervisedAgentIds = (user && Array.isArray(user.supervised_agent_ids))
+    ? user.supervised_agent_ids
+    : (Array.isArray(req.user.supervisedAgentIds) ? req.user.supervisedAgentIds : []);
   res.json({
     success: true,
     user: {
@@ -144,7 +155,9 @@ router.get(['/auth/me', '/me'], (req, res) => {
       name: req.user.name,
       role: req.user.role,
       agentId: req.user.agentId,
-      agentArea: linkedAgent ? linkedAgent.area : null
+      agentArea: linkedAgent ? linkedAgent.area : null,
+      branch,
+      supervisedAgentIds
     }
   });
 });

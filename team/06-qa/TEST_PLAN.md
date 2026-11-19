@@ -82,4 +82,35 @@
 | 5 | Backend Regression Suite | `scripts/test_qa_remediation.js` vs `http://localhost:5000` | **PASS** | **34 Passed, 0 Failed** (non-destructive against live `:5000`). |
 | 6 | `docs/USER_GUIDE.md` P4 & P5 Coverage & Checklist (`14`–`21`) | `docs/USER_GUIDE.md` | **PARTIAL** | All P4 & P5 features are documented (`§1.2–§1.4`, `§2.1`, `§2.3`, `§3`, `§4`, `§6.3`). **Gap (`[ROUTE -> DOCS / CI]`):** Snapshot Checklist items `14`–`21` (`:29-36`) still read `Pending implementation & capture` and await CI `public/` rebuild + screenshot capture. |
 
+---
+
+## Live End-to-End QA Pass on `http://localhost:5000` (2026-11-19 — Compiled `public/` + Modular P3 `api/`)
+**Summary:** **8 Pass, 0 Partial, 0 Fail** across 8 live verification items (**67/67** total automated & browser assertions passed, **0 Failed**; non-destructive — live `1,403` chillers / `7` batches dataset preserved).
+
+| # | Verification Item | Target / Scope | Result | Observed Evidence |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | QA Remediation Regression Suite | `node scripts/test_qa_remediation.js` vs `http://localhost:5000/api` | **PASS** | **34 Passed, 0 Failed** (`batchId=all` count=`1403`, next batch=`8`). |
+| 2 | `GET /api/health` & `GET /api/admin/diagnostics` | `http://localhost:5000/api` | **PASS** | `/api/health` -> `200` sanitized (no `users`/`blobTokenPrefix`/`matchingEnvKeys`); `/api/admin/diagnostics` -> `401` unauth, `403` agent (`omnia@sales.com`), `200` admin (`users=4`). |
+| 3 | `GET /api/stats/rep-kpi` | `http://localhost:5000/api/stats/rep-kpi` | **PASS** | `401` unauth; admin `200` (`scope: "aggregate"`, `5` `branchRollups`, `avgAchievement: 66.4`); `?branch=CE` `200` (`branchFilter: "CE"`, `assignedCount: 1397`, `branchRollups: 5`); agent `omnia@sales.com` `200` (`scope: "territory"`, `assignedCount: 1`, `branchRollups` omitted). |
+| 4 | `GET /api/chillers/:id/360` | `http://localhost:5000/api/chillers/2413/360` | **PASS** | `401` unauth; `404` nonexistent (`nonexistent-id-999999`); `403` out-of-territory agent (`mina@sales.com`); `200` in-territory (`omnia@sales.com`) with 12-month `invoiceSummary.months`, `visitHistory` (`len=12`), and `nextBestAction.actionCode` (`healthy_upsell`). |
+| 5 | `GET /api/routes/daily` | `http://localhost:5000/api/routes/daily` | **PASS** | `401` unauth; admin `?limit=10` -> `200` (`scope: "aggregate"`, `10` ordered stops, `totalEstimatedKm: 9.72`); agent `omnia@sales.com` -> `200` (`scope: "territory"`, `totalStops: 1`). |
+| 6 | `POST /api/excel/parse` (DDE Neutralization) | `http://localhost:5000/api/excel/parse` (no confirm/commit) | **PASS** | `200` (`success: true`); `rowObj` prefixes `=`, `@`, `+` formulas (`'=CMD\|'/C calc'!A0`, `'@SUM(1+1)`, `'+1+1`) while preserving negative numbers (`"-12.34"`). |
+| 7 | Frontend Static Assets (`public/`) | `http://localhost:5000/` | **PASS** | `GET /` (`200`, `1,492` B), `/main.dart.js` (`200`, `4,073,039` B), `/flutter_bootstrap.js` (`200`, `14,173` B), `/manifest.json` (`200`, `947` B). |
+| 8 | Live Headless Chrome Render & Console Check | `http://localhost:5000/` via Chrome CDP (`--headless=new`) | **PASS** | `flutter-view` mounted (`title: "Excel Map Analytics & Data Platform"`), **0** console errors, **0** runtime exceptions, **0** HTTP `>= 400` responses. |
+
+---
+
+## Sprint 3 QA Verification Results (`STORY-010`, `STORY-011`, `STORY-012`, `DESIGN_NOTES.md` §9, `ADR-008` — 2026-11-19)
+**Summary:** **3 Pass, 1 Partial, 1 Fail** across **5** Sprint 3 verification items (**2** `[ROUTE -> DEV]`, **0** `[ROUTE -> BA]`). Tested against an isolated ephemeral-port server (`PORT=0`, `BLOB_READ_WRITE_TOKEN=""`) across all 5 roles (`owner@sales.com`, `admin@sales.com`, `supervisor@sales.com`, `omnia@sales.com`, `tech@sales.com`) plus static code audit of `frontend/lib/`.
+
+| # | Verification Item | Scope / Files | Result | Findings & Routing |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | `GET /api/stats/dashboard` (`STORY-011`, `ADR-008`) | `api/routes/chillers.js:599-810`, `api/services/chillerHelpers.js` | **PASS** | Isolated ephemeral server verified all 5 roles: unauth `401`; `owner` `200` (`scope: "global"`, `1403` assets, `5` `branchLeaderboard`, `2` `agentLeaderboard`, `24` `maintenanceQueue`, `pendingReviewsCount: 13`); `admin` `?branch=CE` (`1397` assets); `supervisor@sales.com` `200` (`scope: "branch"`, `1397` assets, `agentLeaderboard: [1, 2]`, `pendingReviewsCount: 12`); `omnia@sales.com` (`agent`) `200` (`scope: "territory"`, `1` asset, `agentLeaderboard` length `1`, `pendingReviewsCount: 0`); `tech@sales.com` (`technician`) `200` (`scope: "maintenance"`, `1403` assets, `agentLeaderboard: []`, `maintenanceQueue: 24`, `pendingReviewsCount: 0`). |
+| 2 | `PATCH /api/chillers/:id/condition` (`STORY-010`, `ADR-008`) | `api/routes/chillers.js:812-885`, `api/middleware/auth.js:41-51` | **PASS** | Unauth `401`; nonexistent ID `404`; `agent` (`omnia@sales.com`) `403`; `technician` (`tech@sales.com`) invalid condition (`"Broken"`) `400`, valid (`"Requires Maintenance"`) `200`; `supervisor@sales.com` in-branch (`CE`) `200`, out-of-branch (`Cairo East`) `403`; `admin` valid (`"Operational"`) `200`. |
+| 3 | `PUT /api/form-responses/:id/review` (`STORY-010`) | `api/routes/forms.js:349-388` | **PASS** | Unauth `401`; `agent` (`omnia@sales.com`) `403`; `technician` (`tech@sales.com`) `403`; `supervisor@sales.com` within branch/supervised team `200` (`status: "accepted"`); `admin` invalid status `400`. |
+| 4 | `GET /api/agents` & `GET /api/assignments` Scoping (`STORY-010`) | `api/routes/agents.js:9-27, 30, 169-175` | **PARTIAL** | **`[ROUTE -> DEV]`:** `agent` (`omnia@sales.com`) strictly scoped to own profile (`count=1`) and assignments (`agent_id=1`). **Gap:** `api/routes/agents.js:12` and `:171` only check `req.user.role === 'agent'` and lack `supervisor` (`supervisedAgentIds` / `branch`) and `technician` scoping. Additionally, `POST /api/agents` (`:30`) does not yet accept `role`, `branch`, or `supervised_agent_ids` (`STORY-010` AC 3). |
+| 5 | Sprint 3 Frontend Code Audit (`STORY-012`, `DESIGN_NOTES.md` §9) | `frontend/lib/widgets/dashboard_widgets.dart`, `frontend/lib/views/dashboard_view.dart`, `frontend/lib/services/api_service.dart`, `frontend/lib/main.dart` | **FAIL** | **`[ROUTE -> DEV]`:** (a) `frontend/lib/widgets/dashboard_widgets.dart` and `frontend/lib/views/dashboard_view.dart` do not exist yet; (b) `api_service.dart` (`861` lines) and `main.dart` (`903` lines) pass static syntax checks (`0` unbalanced `()/[]/{}`, `0` missing imports, `0` invalid `AppTokens` getters across 31 `AppTokens` members), **but** lack Sprint 3 `fetchDashboardStats()` / `updateChillerCondition()` methods, Tab 0 `DashboardViewScreen`, and `supervisor`/`technician`/`regional_manager` navigation wiring. |
+
+
+
 
