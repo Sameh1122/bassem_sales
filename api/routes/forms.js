@@ -230,7 +230,7 @@ router.post('/forms/upload-attachment', requireAuth, (req, res) => {
 });
 
 // POST submit form response (Agent completing a visit)
-router.post('/form-responses', requireAuth, (req, res) => {
+router.post('/form-responses', requireAuth, requireRoles('owner', 'admin', 'regional_manager', 'supervisor', 'agent'), (req, res) => {
   const { form_id, chiller_code, customer_name, answers, attachments } = req.body;
   if (!form_id) {
     return res.status(400).json({ success: false, error: 'form_id is required' });
@@ -261,6 +261,19 @@ router.post('/form-responses', requireAuth, (req, res) => {
       return res.status(403).json({
         success: false,
         error: 'Access denied: Chiller or customer is not assigned to your territory'
+      });
+    }
+  } else if (req.user && req.user.role === 'supervisor') {
+    const cleanCode = (chiller_code || '').trim();
+    const cleanCust = (customer_name || '').trim().toLowerCase();
+    const chiller = (dbStore.chillers || []).find(c =>
+      (cleanCode && (c.chiller_code || c.chillerCode) === cleanCode) ||
+      (cleanCust && (c.customer_name || c.customerName || '').toLowerCase() === cleanCust)
+    );
+    if (!chiller || !canUserAccessChiller(chiller, req.user, dbStore)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: Chiller or customer is outside your branch/team scope'
       });
     }
   }

@@ -206,8 +206,8 @@ router.get('/chillers/latest-batch', requireAuth, (req, res) => {
     selectedBatchId,
     latestBatchId,
     latestBatch,
-    batches: req.user?.role === 'agent' ? [] : (dbStore.batches || []),
-    totalDbLocations: req.user?.role === 'agent' ? chillers.length : dbStore.chillers.length,
+    batches: !isAdminRole(req.user) ? [] : (dbStore.batches || []),
+    totalDbLocations: !isAdminRole(req.user) ? chillers.length : dbStore.chillers.length,
     count: chillers.length,
     chillers
   });
