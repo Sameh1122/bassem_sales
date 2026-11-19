@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'services/api_service.dart';
+import 'services/offline_sync_service.dart';
 import 'services/storage.dart';
 import 'theme/app_tokens.dart';
 import 'widgets/app_feedback.dart';
+import 'widgets/offline_sync_banner.dart';
 import 'views/login_view.dart';
 import 'views/dashboard_view.dart';
 import 'views/map_view.dart';
@@ -18,6 +20,7 @@ import 'views/system_logs_view.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   ApiService.initAuth();
+  OfflineSyncService.instance.init();
   runApp(const ChillerAnalyticsApp());
 }
 
@@ -126,10 +129,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       _currentIndex = 1;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _dashboardKey.currentState?.reload();
-      _mapKey.currentState?.reload(forceRecenter: true, forceApi: true);
-      _tableKey.currentState?.reload(forceApi: true);
+      _refreshAfterSync();
     });
+  }
+
+  void _refreshAfterSync() {
+    _dashboardKey.currentState?.reload();
+    _mapKey.currentState?.reload(forceRecenter: false, forceApi: true);
+    _tableKey.currentState?.reload(forceApi: true);
   }
 
   @override
@@ -504,10 +511,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ],
       ),
       body: isMobile
-          ? IndexedStack(
+          ? Column(
+              children: [
+                Expanded(
+                  child: IndexedStack(
               index: safeIndex,
               children: screens,
             )
+            ),
+            OfflineSyncBanner(
+              isCompactMobile: true,
+              onSyncCompleted: _refreshAfterSync,
+            ),
+          ],
+        )
           : Row(
               children: [
                 // Sidebar Navigation Rail
@@ -527,13 +544,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
                 // Main View Content
                 Expanded(
-                  child: IndexedStack(
-                    index: safeIndex,
-                    children: screens,
+                  child: Column(
+                    children: [
+                      OfflineSyncBanner(
+                        isCompactMobile: false,
+                        onSyncCompleted: _refreshAfterSync,
+                      ),
+                      Expanded(
+                        child: IndexedStack(
+                          index: safeIndex,
+                          children: screens,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
+
       bottomNavigationBar: isMobile ? _buildMobileBottomBar(context, safeIndex, isAdmin, isOwner, t) : null,
     );
   }
@@ -653,9 +681,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           child: Text(errorMsg!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                         ),
                       ],
-                    ],
-                  ),
-                ),
+    
               ),
               actions: [
                 TextButton(

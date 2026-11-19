@@ -34,14 +34,20 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
   DateTime? _lastSynced;
 
   Map<String, dynamic>? _stats;
+  Map<String, dynamic>? _insights;
+  Map<String, dynamic>? _roiData;
   List<Map<String, dynamic>> _chillers = [];
   List<Map<String, dynamic>> _pendingResponses = [];
+  List<Map<String, dynamic>> _tickets = [];
+  Map<String, dynamic>? _gamification;
+  bool _isSyncingErp = false;
 
   // Interactive UI state
   String? _selectedBranch;
   int _branchMetricMode = 0; // 0 = YTD Ach %, 1 = Visit Rate %
   int _healthMode = 0; // 0 = Condition, 1 = Efficiency
   int _watchlistMode = 0; // 0 = At-Risk, 1 = Top Performing
+  int _insightsTab = 0; // 0 = Relocation, 1 = Revenue Drop, 2 = Purity/OOS
   String _agentFilter = 'All'; // All, Re-opened, Maintenance, Unvisited
   String _techFilter = 'All'; // All, Scrap, Requires Maintenance
 
@@ -72,14 +78,28 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
       final responsesFuture = (ApiService.isSupervisor || ApiService.isAdmin)
           ? ApiService.fetchFormResponses(status: 'submitted').catchError((_) => <Map<String, dynamic>>[])
           : Future.value(<Map<String, dynamic>>[]);
+      final ticketsFuture = ApiService.fetchTickets().catchError((_) => <Map<String, dynamic>>[]);
+      final gamificationFuture = ApiService.fetchGamification(branch: _selectedBranch).catchError((_) => <String, dynamic>{});
+      final insightsFuture = (!ApiService.isAgent && !ApiService.isTechnician)
+          ? ApiService.fetchInsightsAnomalies(branch: _selectedBranch).catchError((_) => <String, dynamic>{})
+          : Future.value(<String, dynamic>{});
+      final roiFuture = ApiService.isAdmin
+          ? ApiService.fetchRoiMetrics(branch: _selectedBranch).catchError((_) => <String, dynamic>{})
+          : Future.value(<String, dynamic>{});
 
-      final results = await Future.wait([statsFuture, chillersFuture, responsesFuture]);
+      final results = await Future.wait([statsFuture, chillersFuture, responsesFuture, ticketsFuture, gamificationFuture, insightsFuture, roiFuture]);
       if (!mounted) return;
 
       setState(() {
         _stats = results[0] as Map<String, dynamic>;
         _chillers = (results[1] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _pendingResponses = List<Map<String, dynamic>>.from(results[2] as List);
+        _tickets = List<Map<String, dynamic>>.from(results[3] as List);
+        final gam = results[4] as Map<String, dynamic>;
+        _gamification = gam.isNotEmpty ? gam : null;
+        _insights = results[5] as Map<String, dynamic>;
+        final roiMap = results[6] as Map<String, dynamic>;
+        _roiData = roiMap.isNotEmpty ? roiMap : null;
         _lastSynced = DateTime.now();
         _isLoading = false;
         _isRefreshing = false;
@@ -408,8 +428,150 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
           _buildFleetHealthCard(t, totalAssets),
         ],
         SizedBox(height: t.spaceXl),
+        _buildGamificationCard(t),
+        SizedBox(height: t.spaceXl),
+        _buildAiInsightsCard(t),
+        SizedBox(height: t.spaceXl),
+        if (width >= 900)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 5, child: _buildDataCompletenessCard(t)),
+              SizedBox(width: t.spaceLg),
+              Expanded(flex: 7, child: _buildDistrictRollupsCard(t)),
+            ],
+          )
+        else ...[
+          _buildDataCompletenessCard(t),
+          SizedBox(height: t.spaceLg),
+          _buildDistrictRollupsCard(t),
+        ],
+        SizedBox(height: t.spaceXl),
+        _buildExecutiveRoiAndErpCard(t, isMobile),
+        SizedBox(height: t.spaceXl),
         _buildChillerWatchlistCard(t),
       ],
+    );
+  }
+
+  Future<void> _handleTriggerErpSync() async {
+    if (_isSyncingErp) return;
+    setState(() => _isSyncingErp = true);
+    try {
+      final res = await ApiService.triggerErpSync();
+      final roiRes = await ApiService.fetchRoiMetrics(branch: _selectedBranch).catchError((_) => <String, dynamic>{});
+      if (!mounted) return;
+      final syncRun = Map<String, dynamic>.from(res['syncRun'] ?? {});
+      setState(() {
+        if (roiRes.isNotEmpty) _roiData = roiRes;
+        _isSyncingErp = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'ERP Sync completed: ${syncRun['chillersSynced'] ?? 0} chillers, ${syncRun['ticketsSynced'] ?? 0} tickets, ${syncRun['invoicesSynced'] ?? 0} invoices',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSyncingErp = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Widget _buildExecutiveRoiAndErpCard(AppTokens t, bool isMobile) {
+    final roi = Map<String, dynamic>.from(_roiData?['roi'] ?? {});
+    final lastSync = _roiData?['lastErpSync'] is Map
+        ? Map<String, dynamic>.from(_roiData!['lastErpSync'])
+        : null;
+    final int webhooksCount = (_roiData?['webhooksCount'] as num?)?.toInt() ?? 0;
+
+    final num revPerActive = (roi['revenuePerActiveChiller'] as num?) ?? 0;
+    final num maintDrag = (roi['maintenanceDrag'] as num?) ?? 0;
+    final num upliftPotential = (roi['relocationUpliftPotential'] as num?) ?? 0;
+    final double netRoiPct = (roi['netAssetRoiPct'] as num?)?.toDouble() ?? 0.0;
+
+    return DashboardCard(
+      title: 'Executive ROI & ERP Sync',
+      subtitle: lastSync != null
+          ? 'Last ERP Sync: ${lastSync['source'] ?? 'DMS/ERP'} (${lastSync['chillersSynced'] ?? 0} chillers) • $webhooksCount webhooks'
+          : 'Asset yield, maintenance drag & DMS/ERP integration • $webhooksCount webhooks',
+      trailing: ElevatedButton.icon(
+        onPressed: _isSyncingErp ? null : _handleTriggerErpSync,
+        icon: _isSyncingErp
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.sync_rounded, size: 16),
+        label: Text(_isSyncingErp ? 'Syncing...' : 'Run ERP Sync'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: t.accentPrimary,
+          foregroundColor: Colors.white,
+          padding: EdgeInsets.symmetric(horizontal: t.spaceMd, vertical: t.spaceSm),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(t.radiusMd)),
+        ),
+      ),
+      child: Wrap(
+        spacing: t.spaceMd,
+        runSpacing: t.spaceMd,
+        children: [
+          _buildRoiMetricTile(
+            t,
+            label: 'Net Asset ROI',
+            value: '${netRoiPct.toStringAsFixed(1)}%',
+            color: netRoiPct >= 100 ? t.success : t.accentPrimary,
+            isMobile: isMobile,
+          ),
+          _buildRoiMetricTile(
+            t,
+            label: 'Rev / Active Chiller',
+            value: _formatCompactCurrency(revPerActive),
+            color: t.achievement,
+            isMobile: isMobile,
+          ),
+          _buildRoiMetricTile(
+            t,
+            label: 'Maintenance Drag',
+            value: _formatCompactCurrency(maintDrag),
+            color: maintDrag > 0 ? t.warning : t.success,
+            isMobile: isMobile,
+          ),
+          _buildRoiMetricTile(
+            t,
+            label: 'Relocation Uplift',
+            value: '+${_formatCompactCurrency(upliftPotential)}',
+            color: t.success,
+            isMobile: isMobile,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoiMetricTile(
+    AppTokens t, {
+    required String label,
+    required String value,
+    required Color color,
+    required bool isMobile,
+  }) {
+    return Container(
+      width: isMobile ? 148 : 200,
+      padding: EdgeInsets.all(t.spaceMd),
+      decoration: BoxDecoration(
+        color: t.surfaceHeader,
+        borderRadius: BorderRadius.circular(t.radiusMd),
+        border: Border.all(color: t.borderSubtle, width: t.borderWidth),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: t.caption.copyWith(color: t.textSecondary)),
+          SizedBox(height: t.spaceXs),
+          Text(value, style: t.metricNum.copyWith(fontSize: 20, color: color)),
+        ],
+      ),
     );
   }
 
@@ -589,6 +751,298 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic> _resolveChillerForDrawer(Map<String, dynamic> item) {
+    final code = (item['chillerCode'] ?? '').toString();
+    if (code.isNotEmpty) {
+      final match = _chillers.cast<Map<String, dynamic>?>().firstWhere(
+        (c) => c != null && (c['chillerCode'] ?? '').toString() == code,
+        orElse: () => null,
+      );
+      if (match != null) return match;
+    }
+    return item;
+  }
+
+  Widget _buildAiInsightsCard(AppTokens t) {
+    final summary = Map<String, dynamic>.from(_insights?['summary'] ?? {});
+    final int relocCount = (summary['relocationCandidatesCount'] as num?)?.toInt() ?? 0;
+    final int revDropCount = (summary['revenueDropCount'] as num?)?.toInt() ?? 0;
+    final int purityCount = (summary['purityOosCount'] as num?)?.toInt() ?? 0;
+    final num estUplift = (summary['estimatedMonthlyUplift'] as num?) ?? 0;
+
+    final List<Map<String, dynamic>> relocList = List<Map<String, dynamic>>.from(
+      (_insights?['relocationCandidates'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
+    );
+    final List<Map<String, dynamic>> revList = List<Map<String, dynamic>>.from(
+      (_insights?['revenueDrops'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
+    );
+    final List<Map<String, dynamic>> purityList = List<Map<String, dynamic>>.from(
+      (_insights?['purityOosFlags'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
+    );
+
+    final activeList = _insightsTab == 0
+        ? relocList
+        : (_insightsTab == 1 ? revList : purityList);
+    final visible = activeList.take(6).toList();
+
+    return DashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: t.spaceMd,
+            runSpacing: t.spaceSm,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('AI RETAIL INTELLIGENCE', style: t.eyebrow),
+                  SizedBox(height: t.spaceXs),
+                  Text('AI Insights & Relocation Watchlist', style: t.sectionTitle),
+                ],
+              ),
+              SegmentedToggle(
+                options: [
+                  'Relocate ($relocCount)',
+                  'Rev Drop ($revDropCount)',
+                  'Purity/OOS ($purityCount)',
+                ],
+                selectedIndex: _insightsTab,
+                onChanged: (i) => setState(() => _insightsTab = i),
+              ),
+            ],
+          ),
+          SizedBox(height: t.spaceMd),
+          Wrap(
+            spacing: t.spaceSm,
+            runSpacing: t.spaceSm,
+            children: [
+              StatusPill(
+                label: 'Est. Uplift: +${_formatCompactCurrency(estUplift)}/mo',
+                color: t.success,
+              ),
+              StatusPill(
+                label: '$relocCount Relocation Candidates',
+                color: t.caution,
+              ),
+              StatusPill(
+                label: '$revDropCount MoM Drops >=25%',
+                color: t.danger,
+              ),
+              StatusPill(
+                label: '$purityCount Purity/OOS Alerts',
+                color: t.warning,
+              ),
+            ],
+          ),
+          SizedBox(height: t.spaceMd),
+          if (visible.isEmpty)
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: t.spaceLg),
+              child: Text(
+                'No anomalies detected in this category for the active scope.',
+                style: t.caption,
+              ),
+            )
+          else
+            ...visible.map((item) {
+              final String code = (item['chillerCode'] ?? '—').toString();
+              final String name = (item['customerName'] ?? 'Unknown Customer').toString();
+              String metricText = '';
+              Color badgeColor = t.caution;
+
+              if (_insightsTab == 0) {
+                final num uplift = (item['estimatedMonthlyUplift'] as num?) ?? 0;
+                metricText = '+${_formatCompactCurrency(uplift)}/mo • ${item['reason'] ?? 'Low utilization'}';
+                badgeColor = t.caution;
+              } else if (_insightsTab == 1) {
+                final num drop = (item['dropPct'] as num?) ?? 0;
+                metricText = '-${drop.toStringAsFixed(1)}% MoM (${item['prevMonth']} → ${item['currMonth']})';
+                badgeColor = t.danger;
+              } else {
+                final int score = (item['purityScore'] as num?)?.toInt() ?? 0;
+                final String oos = (item['oosRisk'] ?? 'low').toString().toUpperCase();
+                metricText = 'Purity $score% • OOS $oos';
+                badgeColor = score < 60 ? t.danger : t.warning;
+              }
+
+              return Container(
+                margin: EdgeInsets.only(bottom: t.spaceSm),
+                padding: EdgeInsets.symmetric(horizontal: t.spaceMd, vertical: t.spaceSm),
+                decoration: BoxDecoration(
+                  color: t.canvasBg,
+                  borderRadius: BorderRadius.circular(t.radiusMd),
+                  border: Border.all(color: t.borderSubtle),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('$code · $name', style: t.cardTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          SizedBox(height: t.spaceXs),
+                          Text(metricText, style: t.caption.copyWith(color: badgeColor), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                    SizedBox(width: t.spaceSm),
+                    TextButton(
+                      onPressed: () => showCustomer360Drawer(
+                        context,
+                        chiller: _resolveChillerForDrawer(item),
+                        onAuditSubmitted: _loadDashboard,
+                      ),
+                      child: Text('360°', style: TextStyle(color: t.accentPrimary, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDataCompletenessCard(AppTokens t) {
+    final comp = Map<String, dynamic>.from(_stats?['dataCompleteness'] ?? {});
+    final int missingGps = (comp['missingGpsCount'] as num?)?.toInt() ?? 0;
+    final int unspecifiedCond = (comp['unspecifiedConditionCount'] as num?)?.toInt() ?? 0;
+    final int unknownEff = (comp['unknownEfficiencyCount'] as num?)?.toInt() ?? 0;
+    final double scorePct = (comp['completenessScorePct'] as num?)?.toDouble() ?? 100.0;
+    final Color scoreColor = scorePct >= 90 ? t.success : (scorePct >= 70 ? t.caution : t.danger);
+
+    Widget metricRow(String label, int count, Color color) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: t.spaceSm),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: t.bodyDefault),
+            StatusPill(label: '$count assets', color: count > 0 ? color : t.success),
+          ],
+        ),
+      );
+    }
+
+    return DashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('DATA COMPLETENESS', style: t.eyebrow),
+                  SizedBox(height: t.spaceXs),
+                  Text('Asset Data Hygiene', style: t.sectionTitle),
+                ],
+              ),
+              StatusPill(label: '${scorePct.toStringAsFixed(1)}%', color: scoreColor),
+            ],
+          ),
+          SizedBox(height: t.spaceMd),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(t.radiusPill),
+            child: LinearProgressIndicator(
+              value: (scorePct / 100).clamp(0.0, 1.0),
+              minHeight: 8,
+              backgroundColor: t.borderSubtle,
+              valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
+            ),
+          ),
+          SizedBox(height: t.spaceLg),
+          metricRow('Missing GPS Coordinates', missingGps, t.danger),
+          metricRow('Unspecified Condition', unspecifiedCond, t.warning),
+          metricRow('Unknown Efficiency', unknownEff, t.caution),
+          if (widget.onOpenTable != null) ...[
+            SizedBox(height: t.spaceSm),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: widget.onOpenTable,
+                icon: Icon(Icons.table_chart_outlined, size: 16, color: t.accentPrimary),
+                label: Text('Inspect Incomplete in Table', style: TextStyle(color: t.accentPrimary)),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDistrictRollupsCard(AppTokens t) {
+    final districts = List<Map<String, dynamic>>.from(
+      (_stats?['districtRollups'] as List? ?? []).map((e) => Map<String, dynamic>.from(e)),
+    );
+    final visible = districts.take(6).toList();
+
+    return DashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('SUB-DISTRICT ROLLUPS', style: t.eyebrow),
+          SizedBox(height: t.spaceXs),
+          Text('Territory & Area Breakdown', style: t.sectionTitle),
+          SizedBox(height: t.spaceMd),
+          if (visible.isEmpty)
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: t.spaceLg),
+              child: Text('No district rollup data available for the active scope.', style: t.caption),
+            )
+          else
+            ...visible.map((d) {
+              final String name = (d['district'] ?? 'Unspecified').toString();
+              final int assets = (d['totalAssets'] as num?)?.toInt() ?? 0;
+              final double visitRate = (d['completionRate'] as num?)?.toDouble() ?? 0.0;
+              final double avgAch = (d['avgAchievement'] as num?)?.toDouble() ?? 0.0;
+              final int missGps = (d['missingGpsCount'] as num?)?.toInt() ?? 0;
+
+              return Container(
+                margin: EdgeInsets.only(bottom: t.spaceSm),
+                padding: EdgeInsets.symmetric(horizontal: t.spaceMd, vertical: t.spaceSm),
+                decoration: BoxDecoration(
+                  color: t.canvasBg,
+                  borderRadius: BorderRadius.circular(t.radiusMd),
+                  border: Border.all(color: t.borderSubtle),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name, style: t.cardTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          SizedBox(height: t.spaceXs),
+                          Text(
+                            '$assets assets • Visit ${visitRate.toStringAsFixed(0)}% • Missing GPS: $missGps',
+                            style: t.caption,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(width: t.spaceSm),
+                    Text(
+                      '${avgAch.toStringAsFixed(1)}%',
+                      style: t.metricNum.copyWith(
+                        color: avgAch >= 85 ? t.success : (avgAch >= 65 ? t.caution : t.danger),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -793,6 +1247,27 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
           SizedBox(height: t.spaceLg),
           _buildTeamProgressCard(t, agents),
         ],
+        SizedBox(height: t.spaceXl),
+        _buildAiInsightsCard(t),
+        SizedBox(height: t.spaceXl),
+        if (width >= 900)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 5, child: _buildDataCompletenessCard(t)),
+              SizedBox(width: t.spaceLg),
+              Expanded(flex: 7, child: _buildDistrictRollupsCard(t)),
+            ],
+          )
+        else ...[
+          _buildDataCompletenessCard(t),
+          SizedBox(height: t.spaceLg),
+          _buildDistrictRollupsCard(t),
+        ],
+        SizedBox(height: t.spaceXl),
+        _buildSlaTicketsCard(t),
+        SizedBox(height: t.spaceXl),
+        _buildGamificationCard(t),
       ],
     );
   }
@@ -1047,18 +1522,31 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
             }),
           if (widget.onOpenAssign != null) ...[
             SizedBox(height: t.spaceSm),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: t.accentPrimary,
-                  side: BorderSide(color: t.accentPrimary),
-                  minimumSize: const Size(0, 44),
+            Wrap(
+              spacing: t.spaceSm,
+              runSpacing: t.spaceSm,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: t.accentPrimary,
+                    side: BorderSide(color: t.accentPrimary),
+                    minimumSize: const Size(0, 44),
+                  ),
+                  icon: const Icon(Icons.swap_horiz_rounded),
+                  label: const Text('Rebalance Territories'),
+                  onPressed: widget.onOpenAssign,
                 ),
-                icon: const Icon(Icons.swap_horiz_rounded),
-                label: const Text('Rebalance Territories'),
-                onPressed: widget.onOpenAssign,
-              ),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: t.accentPrimary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 44),
+                  ),
+                  icon: const Icon(Icons.bolt_rounded),
+                  label: const Text('Bulk Assign Unassigned'),
+                  onPressed: () => _showBulkAssignUnassignedDialog(agents),
+                ),
+              ],
             ),
           ],
         ],
@@ -1391,6 +1879,8 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
           ],
         ),
         SizedBox(height: t.spaceXl),
+        _buildSlaTicketsCard(t),
+        SizedBox(height: t.spaceXl),
         DashboardCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1634,5 +2124,383 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
       ),
     );
     notesCtrl.dispose();
+  }
+
+  Future<void> _updateTicketStatus(Map<String, dynamic> ticket, String nextStatus) async {
+    try {
+      await ApiService.updateTicket(ticket['id'], status: nextStatus);
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        type: AppToastType.success,
+        message: 'Ticket #${ticket['id']} marked $nextStatus',
+      );
+      _loadDashboard();
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        type: AppToastType.error,
+        message: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
+  Widget _buildSlaTicketsCard(AppTokens t) {
+    final activeTickets = _tickets.where((tk) => tk['status'] != 'resolved').toList();
+    final resolvedCount = _tickets.where((tk) => tk['status'] == 'resolved').length;
+
+    return DashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: t.spaceSm,
+            runSpacing: t.spaceSm,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('SLA Service Tickets', style: t.sectionTitle),
+                  SizedBox(height: t.spaceXs),
+                  Text(
+                    '${activeTickets.length} active • $resolvedCount resolved',
+                    style: t.caption,
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (activeTickets.isNotEmpty ? t.warning : t.success).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(t.radiusPill),
+                ),
+                child: Text(
+                  activeTickets.isNotEmpty ? '${activeTickets.length} Open SLA' : 'All Resolved',
+                  style: t.caption.copyWith(
+                    color: activeTickets.isNotEmpty ? t.warning : t.success,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: t.spaceLg),
+          if (_tickets.isEmpty)
+            Text('No SLA tickets logged yet.', style: t.caption)
+          else
+            ..._tickets.take(6).map((tk) {
+              final status = (tk['status'] ?? 'open').toString();
+              final priority = (tk['priority'] ?? 'high').toString();
+              final isCritical = priority == 'critical';
+              final priorityColor = isCritical ? t.danger : t.warning;
+              final statusColor = status == 'resolved'
+                  ? t.success
+                  : (status == 'in_progress' ? t.accentPrimary : t.caution);
+              final slaHours = (tk['sla_hours'] as num?)?.toInt() ?? (isCritical ? 24 : 72);
+
+              return Container(
+                margin: EdgeInsets.only(bottom: t.spaceMd),
+                padding: EdgeInsets.all(t.spaceMd),
+                decoration: BoxDecoration(
+                  color: t.canvasBg,
+                  borderRadius: BorderRadius.circular(t.radiusMd),
+                  border: Border.all(color: t.borderSubtle),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: t.spaceSm,
+                      runSpacing: t.spaceXs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          '${tk['chiller_code'] ?? 'Chiller'} • ${(tk['customer_name'] ?? '').toString().isNotEmpty ? tk['customer_name'] : (tk['branch'] ?? '')}',
+                          style: t.cardTitle,
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: priorityColor.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(t.radiusPill),
+                          ),
+                          child: Text(
+                            '${priority.toUpperCase()} (${slaHours}h)',
+                            style: t.caption.copyWith(color: priorityColor, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(t.radiusPill),
+                          ),
+                          child: Text(
+                            status.replaceAll('_', ' ').toUpperCase(),
+                            style: t.caption.copyWith(color: statusColor, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if ((tk['reason'] ?? '').toString().isNotEmpty) ...[
+                      SizedBox(height: t.spaceXs),
+                      Text(tk['reason'].toString(), style: t.caption, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ],
+                    if (status != 'resolved') ...[
+                      SizedBox(height: t.spaceSm),
+                      Wrap(
+                        spacing: t.spaceSm,
+                        children: [
+                          if (status == 'open')
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: t.accentPrimary,
+                                side: BorderSide(color: t.accentPrimary),
+                                minimumSize: const Size(0, 36),
+                              ),
+                              icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                              label: const Text('Start'),
+                              onPressed: () => _updateTicketStatus(tk, 'in_progress'),
+                            ),
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: t.success,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 36),
+                            ),
+                            icon: const Icon(Icons.check_rounded, size: 16),
+                            label: const Text('Resolve'),
+                            onPressed: () => _updateTicketStatus(tk, 'resolved'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGamificationCard(AppTokens t) {
+    final perfectCount = (_gamification?['perfectChillersCount'] as num?)?.toInt() ?? 0;
+    final totalEvaluated = (_gamification?['totalEvaluated'] as num?)?.toInt() ?? 0;
+    final perfectRate = (_gamification?['perfectRate'] as num?)?.toDouble() ?? 0.0;
+    final leaderboard = List<Map<String, dynamic>>.from(
+      (_gamification?['leaderboard'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+    );
+
+    return DashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: t.spaceSm,
+            runSpacing: t.spaceSm,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Perfect Chiller & Rep Leaderboard', style: t.sectionTitle),
+                  SizedBox(height: t.spaceXs),
+                  Text('Operational + Performing + Audited', style: t.caption),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: t.achievement.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(t.radiusPill),
+                ),
+                child: Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: Text(
+                    '$perfectCount / $totalEvaluated Perfect (${perfectRate.toStringAsFixed(1)}%)',
+                    style: t.caption.copyWith(color: t.achievement, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: t.spaceLg),
+          if (leaderboard.isEmpty)
+            Text('No leaderboard data available for this scope.', style: t.caption)
+          else
+            ...leaderboard.take(5).toList().asMap().entries.map((entry) {
+              final rank = entry.key + 1;
+              final rep = entry.value;
+              final name = (rep['name'] ?? 'Rep').toString();
+              final area = (rep['area'] ?? '').toString();
+              final points = (rep['points'] as num?)?.toInt() ?? 0;
+              final streak = (rep['streakDays'] as num?)?.toInt() ?? 0;
+              final perfect = (rep['perfectCount'] as num?)?.toInt() ?? 0;
+              final visited = (rep['visitedCount'] as num?)?.toInt() ?? 0;
+              final assigned = (rep['assignedCount'] as num?)?.toInt() ?? 0;
+
+              return Container(
+                margin: EdgeInsets.only(bottom: t.spaceSm),
+                padding: EdgeInsets.all(t.spaceMd),
+                decoration: BoxDecoration(
+                  color: t.canvasBg,
+                  borderRadius: BorderRadius.circular(t.radiusMd),
+                  border: Border.all(color: rank == 1 ? t.achievement.withValues(alpha: 0.45) : t.borderSubtle),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 15,
+                      backgroundColor: (rank == 1 ? t.achievement : t.accentPrimary).withValues(alpha: 0.18),
+                      child: Text(
+                        '#$rank',
+                        style: t.caption.copyWith(
+                          color: rank == 1 ? t.achievement : t.accentPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: t.spaceMd),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name, style: t.cardTitle, overflow: TextOverflow.ellipsis),
+                          Text(
+                            '${area.isNotEmpty ? '$area • ' : ''}$perfect Perfect • $visited/$assigned Visited',
+                            style: t.caption,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Directionality(
+                          textDirection: TextDirection.ltr,
+                          child: Text('$points pts', style: t.metricNum.copyWith(color: t.achievement, fontSize: 13.5)),
+                        ),
+                        if (streak > 0)
+                          Directionality(
+                            textDirection: TextDirection.ltr,
+                            child: Text('${streak}d streak', style: t.caption.copyWith(color: t.success)),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showBulkAssignUnassignedDialog(List<Map<String, dynamic>> agents) async {
+    final t = AppTokens.of(context);
+    final unassigned = _chillers.where((c) => (c['assignedAgentName'] ?? '').toString().trim().isEmpty).toList();
+    if (unassigned.isEmpty) {
+      AppToast.show(context, type: AppToastType.info, message: 'No unassigned chillers found in your scope.');
+      return;
+    }
+
+    int? selectedAgentId = agents.isNotEmpty ? (agents.first['agentId'] as num?)?.toInt() : null;
+    if (selectedAgentId == null) {
+      try {
+        final fetched = await ApiService.fetchAgents();
+        if (fetched.isNotEmpty) {
+          selectedAgentId = (fetched.first['id'] as num?)?.toInt();
+        }
+      } catch (_) {}
+    }
+
+    if (selectedAgentId == null || !mounted) {
+      if (mounted) {
+        AppToast.show(context, type: AppToastType.warning, message: 'No supervised sales agents available.');
+      }
+      return;
+    }
+
+    int batchCount = unassigned.length > 10 ? 10 : unassigned.length;
+    bool isSubmitting = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Bulk Assign Unassigned Chillers'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${unassigned.length} unassigned chiller(s) available in scope. Assign up to $batchCount chiller(s) atomically:',
+                style: t.bodyDefault,
+              ),
+              SizedBox(height: t.spaceMd),
+              if (agents.isNotEmpty)
+                DropdownButtonFormField<int>(
+                  value: selectedAgentId,
+                  decoration: const InputDecoration(labelText: 'Target Sales Rep', border: OutlineInputBorder()),
+                  items: agents
+                      .where((a) => a['agentId'] != null)
+                      .map((a) => DropdownMenuItem<int>(
+                            value: (a['agentId'] as num).toInt(),
+                            child: Text((a['agentName'] ?? 'Agent').toString()),
+                          ))
+                      .toList(),
+                  onChanged: isSubmitting ? null : (val) => setDialogState(() => selectedAgentId = val),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: t.accentPrimary, foregroundColor: Colors.white),
+              onPressed: isSubmitting || selectedAgentId == null
+                  ? null
+                  : () async {
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        final items = unassigned.take(batchCount).map((c) => {
+                              'chillerCode': (c['chillerCode'] ?? '').toString(),
+                              'customerName': (c['customerName'] ?? '').toString(),
+                            }).toList();
+                        final res = await ApiService.bulkAssign(agentId: selectedAgentId!, items: items);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (!mounted) return;
+                        AppToast.show(
+                          context,
+                          type: AppToastType.success,
+                          message: (res['message'] ?? 'Bulk assigned successfully').toString(),
+                        );
+                        _loadDashboard();
+                      } catch (e) {
+                        setDialogState(() => isSubmitting = false);
+                        if (!mounted) return;
+                        AppToast.show(
+                          context,
+                          type: AppToastType.error,
+                          message: e.toString().replaceFirst('Exception: ', ''),
+                        );
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text('Assign $batchCount'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

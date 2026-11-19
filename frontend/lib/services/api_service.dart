@@ -288,11 +288,13 @@ class ApiService {
     String customerType = 'All',
     String search = '',
     dynamic batchId = 'All',
+    String? incomplete,
     bool forceApi = false,
   }) async {
     final bool hasBatchFilter = batchId != null && batchId != 'All' && batchId != 'all';
     // If user is Agent, ALWAYS forceApi so the server applies their restricted assigned set!
-    final bool shouldForce = forceApi || isAgent;
+    final bool hasIncompleteFilter = incomplete != null && incomplete.trim().isNotEmpty && incomplete != 'none';
+    final bool shouldForce = forceApi || isAgent || hasIncompleteFilter;
 
     if (!shouldForce && !hasBatchFilter && _cachedChillers != null && _cachedChillers!.isNotEmpty) {
       return _filterLocalChillers(_cachedChillers!, efficiency, customerType, search, batchId);
@@ -303,6 +305,7 @@ class ApiService {
       if (customerType != 'All') 'customerType': customerType,
       if (search.isNotEmpty) 'search': search,
       if (hasBatchFilter) 'batchId': batchId.toString(),
+      if (hasIncompleteFilter) 'incomplete': incomplete.trim(),
     });
 
     try {
@@ -311,7 +314,7 @@ class ApiService {
         final data = _safeJsonDecode(response.body);
         if (data is Map && data.containsKey('chillers')) {
           final List<dynamic> fetched = data['chillers'] ?? [];
-          if (!hasBatchFilter && !isAgent) {
+          if (!hasBatchFilter && !hasIncompleteFilter && !isAgent) {
             _cachedChillers = fetched;
             setLocalStorage('chillers_dataset', jsonEncode(fetched));
           }
@@ -672,7 +675,9 @@ class ApiService {
     required String chillerCode,
     required String customerName,
     required Map<String, dynamic> answers,
-    List<String> attachments = const [],
+    List<dynamic> attachments = const [],
+    double? checkInLat,
+    double? checkInLng,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/form-responses'),
@@ -683,6 +688,8 @@ class ApiService {
         'customer_name': customerName,
         'answers': answers,
         'attachments': attachments,
+        if (checkInLat != null && checkInLng != null) 'checkInLat': checkInLat,
+        if (checkInLat != null && checkInLng != null) 'checkInLng': checkInLng,
       }),
     );
     final decoded = _safeJsonDecode(response.body);
@@ -883,6 +890,50 @@ class ApiService {
     throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to load dashboard stats (${response.statusCode})');
   }
 
+  // ==========================================
+  // AI Insights & Predictive Relocation (Sprint 8)
+  // ==========================================
+
+  static Future<Map<String, dynamic>> fetchInsightsAnomalies({String? branch, int? batchId}) async {
+    final params = <String, String>{};
+    if (branch != null && branch.isNotEmpty && branch != 'All') {
+      params['branch'] = branch;
+    }
+    if (batchId != null) {
+      params['batchId'] = batchId.toString();
+    }
+    final uri = params.isEmpty
+        ? Uri.parse('$baseUrl/insights/anomalies')
+        : Uri.parse('$baseUrl/insights/anomalies').replace(queryParameters: params);
+    final response = await http.get(uri, headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to load AI insights (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> analyzeAudit({
+    required Map<String, dynamic> answers,
+    List<dynamic>? attachments,
+    String? chillerCode,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/insights/analyze-audit'),
+      headers: _headers,
+      body: jsonEncode({
+        'answers': answers,
+        'attachments': attachments ?? const [],
+        if (chillerCode != null && chillerCode.isNotEmpty) 'chillerCode': chillerCode,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to analyze audit (${response.statusCode})');
+  }
+
   static Future<Map<String, dynamic>> updateChillerCondition(
     dynamic idOrCode,
     String condition, {
@@ -904,6 +955,253 @@ class ApiService {
       return Map<String, dynamic>.from(decoded);
     }
     throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to update chiller condition (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> pullSync({String? since}) async {
+    final uri = Uri.parse('$baseUrl/sync/pull').replace(
+      queryParameters: {
+        if (since != null && since.trim().isNotEmpty) 'since': since.trim(),
+      },
+    );
+    final response = await http.get(uri, headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Sync pull failed (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> pushSyncBatch(
+    List<Map<String, dynamic>> operations, {
+    String? idempotencyKey,
+  }) async {
+    final headers = Map<String, String>.from(_headers);
+    if (idempotencyKey != null && idempotencyKey.trim().isNotEmpty) {
+      headers['Idempotency-Key'] = idempotencyKey.trim();
+    }
+    final response = await http.post(
+      Uri.parse('$baseUrl/sync/batch'),
+      headers: headers,
+      body: jsonEncode({'operations': operations}),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      _cachedChillers = null;
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Sync batch failed (${response.statusCode})');
+  }
+
+  static String getAuditReportUrl(dynamic responseId, {String format = 'html'}) {
+    final encodedId = Uri.encodeComponent(responseId.toString());
+    return '$baseUrl/form-responses/$encodedId/report?format=${Uri.encodeComponent(format)}';
+  }
+
+  static Future<String> fetchAuditReportHtml(dynamic responseId) async {
+    final response = await http.get(
+      Uri.parse(getAuditReportUrl(responseId, format: 'html')),
+      headers: _authHeaders,
+    );
+    if (response.statusCode == 200) {
+      return response.body;
+    }
+    final decoded = _safeJsonDecode(response.body);
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to load audit report (${response.statusCode})');
+  }
+
+  // ==========================================
+  // Sprint 6: SLA Ticketing
+  // ==========================================
+
+  static Future<List<Map<String, dynamic>>> fetchTickets({
+    String? status,
+    String? priority,
+    String? chillerCode,
+  }) async {
+    final params = <String, String>{};
+    if (status != null && status.isNotEmpty && status != 'all') {
+      params['status'] = status;
+    }
+    if (priority != null && priority.isNotEmpty && priority != 'all') {
+      params['priority'] = priority;
+    }
+    if (chillerCode != null && chillerCode.isNotEmpty) {
+      params['chillerCode'] = chillerCode;
+    }
+    final uri = params.isEmpty
+        ? Uri.parse('$baseUrl/tickets')
+        : Uri.parse('$baseUrl/tickets').replace(queryParameters: params);
+    final response = await http.get(uri, headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      final list = decoded['tickets'] as List<dynamic>? ?? [];
+      return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to load tickets (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> createTicket({
+    required String chillerCode,
+    String? condition,
+    String? priority,
+    String? reason,
+    dynamic assignedTo,
+  }) async {
+    final body = <String, dynamic>{
+      'chillerCode': chillerCode,
+      if (condition != null && condition.isNotEmpty) 'condition': condition,
+      if (priority != null && priority.isNotEmpty) 'priority': priority,
+      if (reason != null && reason.isNotEmpty) 'reason': reason,
+      if (assignedTo != null) 'assignedTo': assignedTo,
+    };
+    final response = await http.post(
+      Uri.parse('$baseUrl/tickets'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if ((response.statusCode == 200 || response.statusCode == 201) && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded['ticket'] ?? decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to create ticket (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> updateTicket(
+    dynamic ticketId, {
+    String? status,
+    dynamic assignedTo,
+    String? resolutionNote,
+  }) async {
+    final encodedId = Uri.encodeComponent(ticketId.toString());
+    final body = <String, dynamic>{
+      if (status != null && status.isNotEmpty) 'status': status,
+      if (assignedTo != null) 'assignedTo': assignedTo,
+      if (resolutionNote != null) 'resolutionNote': resolutionNote,
+    };
+    final response = await http.patch(
+      Uri.parse('$baseUrl/tickets/$encodedId'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded['ticket'] ?? decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to update ticket (${response.statusCode})');
+  }
+
+  // ==========================================
+  // Sprint 7: Gamification & Bulk Territory Rebalance
+  // ==========================================
+
+  static Future<Map<String, dynamic>> fetchGamification({String? branch}) async {
+    final params = <String, String>{};
+    if (branch != null && branch.isNotEmpty && branch != 'All') {
+      params['branch'] = branch;
+    }
+    final uri = params.isEmpty
+        ? Uri.parse('$baseUrl/stats/gamification')
+        : Uri.parse('$baseUrl/stats/gamification').replace(queryParameters: params);
+    final response = await http.get(uri, headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to load gamification stats (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> bulkAssign({
+    required int agentId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/assignments/bulk'),
+      headers: _headers,
+      body: jsonEncode({
+        'agentId': agentId,
+        'items': items,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      _cachedChillers = null;
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Bulk assignment failed (${response.statusCode})');
+  }
+
+  // ==========================================
+  // Sprint 10: Enterprise ERP / DMS Webhooks & Executive ROI
+  // ==========================================
+
+  static Future<Map<String, dynamic>> fetchRoiMetrics({String? branch}) async {
+    final params = <String, String>{};
+    if (branch != null && branch.isNotEmpty && branch != 'All') {
+      params['branch'] = branch;
+    }
+    final uri = params.isEmpty
+        ? Uri.parse('$baseUrl/integrations/roi')
+        : Uri.parse('$baseUrl/integrations/roi').replace(queryParameters: params);
+    final response = await http.get(uri, headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to load Executive ROI (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> triggerErpSync({
+    String source = 'DMS/ERP',
+    String mode = 'incremental',
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/integrations/erp-sync'),
+      headers: _headers,
+      body: jsonEncode({
+        'source': source,
+        'mode': mode,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'ERP sync failed (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> fetchWebhooks() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/integrations/webhooks'),
+      headers: _authHeaders,
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to load webhooks (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> createWebhook({
+    required String name,
+    required String url,
+    required List<String> events,
+    String? signingSecret,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/integrations/webhooks'),
+      headers: _headers,
+      body: jsonEncode({
+        'name': name,
+        'url': url,
+        'events': events,
+        if (signingSecret != null && signingSecret.isNotEmpty) 'signingSecret': signingSecret,
+      }),
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if ((response.statusCode == 200 || response.statusCode == 201) && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to create webhook (${response.statusCode})');
   }
 }
 

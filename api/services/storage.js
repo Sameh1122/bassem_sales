@@ -227,6 +227,30 @@ export function reconcileMasterDataset(store) {
   return false;
 }
 
+export function ensureSyncStoreFields(store) {
+  if (!store || typeof store !== 'object') return store;
+  if (!Array.isArray(store.idempotency_keys)) {
+    store.idempotency_keys = [];
+  }
+  if (!Array.isArray(store.tickets)) {
+    store.tickets = [];
+  }
+  if (!Array.isArray(store.webhooks)) {
+    store.webhooks = [];
+  }
+  if (!Array.isArray(store.erp_sync_logs)) {
+    store.erp_sync_logs = [];
+  }
+  if (!store.tombstones || typeof store.tombstones !== 'object') {
+    store.tombstones = { chillers: [], forms: [], assignments: [] };
+  } else {
+    if (!Array.isArray(store.tombstones.chillers)) store.tombstones.chillers = [];
+    if (!Array.isArray(store.tombstones.forms)) store.tombstones.forms = [];
+    if (!Array.isArray(store.tombstones.assignments)) store.tombstones.assignments = [];
+  }
+  return store;
+}
+
 export function loadDbStore() {
   try {
     if (fs.existsSync(DB_FILE)) {
@@ -266,7 +290,11 @@ export function loadDbStore() {
         if (!Array.isArray(parsed.form_responses)) {
           parsed.form_responses = [];
         }
+        if (!Array.isArray(parsed.tickets)) {
+          parsed.tickets = [];
+        }
         reconcileMasterDataset(parsed);
+        ensureSyncStoreFields(parsed);
         return parsed;
       }
     }
@@ -283,7 +311,12 @@ export function loadDbStore() {
     assignments: [],
     forms: JSON.parse(JSON.stringify(DEFAULT_FORMS)),
     form_responses: [],
-    users: [...DEFAULT_USERS]
+    tickets: [],
+    webhooks: [],
+    erp_sync_logs: [],
+    users: [...DEFAULT_USERS],
+    idempotency_keys: [],
+    tombstones: { chillers: [], forms: [], assignments: [] }
   };
 
   try {
@@ -360,6 +393,7 @@ export async function syncWithCloudStorage(force = false) {
       const needsSave = reconcileMasterDataset(cloudData);
 
       Object.assign(dbStore, cloudData);
+      ensureSyncStoreFields(dbStore);
       hasSyncedWithCloud = true;
 
       if (needsSave) {

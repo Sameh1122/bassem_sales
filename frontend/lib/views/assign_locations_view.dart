@@ -149,10 +149,15 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
 
     if (confirmed == true && chosenAgentId != null) {
       try {
-        final res = await ApiService.assignLocations(
+        final items = <Map<String, dynamic>>[];
+        for (int i = 0; i < chillerCodes.length; i++) {
+          final code = chillerCodes[i];
+          final cust = i < customerNames.length ? customerNames[i] : '';
+          items.add({'chillerCode': code, 'customerName': cust});
+        }
+        final res = await ApiService.bulkAssign(
           agentId: chosenAgentId!,
-          chillerCodes: chillerCodes,
-          customerNames: customerNames,
+          items: items,
         );
         setState(() {
           _selectedChillerCodes.clear();
@@ -315,6 +320,28 @@ class AssignLocationsViewScreenState extends State<AssignLocationsViewScreen> {
                       backgroundColor: const Color(0xFF1E293B),
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: Colors.white24),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      final unassigned = _chillers.where((c) => (c['assignedAgentName'] ?? '').toString().trim().isEmpty).toList();
+                      if (unassigned.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('No unassigned chillers in current view'), backgroundColor: Colors.orangeAccent),
+                        );
+                        return;
+                      }
+                      final batch = unassigned.take(25).toList();
+                      final codes = batch.map<String>((c) => (c['chillerCode'] ?? '').toString()).toList();
+                      final names = batch.map<String>((c) => (c['customerName'] ?? '').toString()).toList();
+                      _assignSelected(codes, names);
+                    },
+                    icon: const Icon(Icons.bolt, size: 18),
+                    label: const Text('Bulk Assign Unassigned'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF06B6D4),
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),

@@ -33,6 +33,7 @@ The Bassem Sales Platform (`v2.5.0`) has proven product-market fit for FMCG chil
 | **ADR-006** | 2026-11-19 | Decouple Flutter Web builds via CI/CD & enable PWA asset caching | `.github/workflows/`, `vercel.json`, `public/` | Proposed |
 | **ADR-007** | 2026-11-19 | Sprint 2 API Contracts: Enhanced Rep KPI, Customer 360 & NBA, Smart Daily Route Planner | `api/index.js`, Flutter Client | Accepted |
 | **ADR-008** | 2026-11-19 | Hierarchical Sales RBAC, Dashboard Analytics & Technician Condition Updates | `api/middleware/auth.js`, `api/services/storage.js`, `api/services/chillerHelpers.js`, `api/routes/*` | Accepted |
+| **ADR-009** | 2026-11-19 | P6 (`v2.7.0`): Offline-First Delta Sync, 100m GPS Geofencing, Geo-Stamped Photos & Audit Export | `api/routes/sync.js`, `api/routes/forms.js`, `api/routes/chillers.js`, `api/services/storage.js`, Flutter Client | Accepted |
 
 ---
 
@@ -253,6 +254,139 @@ The Bassem Sales Platform (`v2.5.0`) has proven product-market fit for FMCG chil
        - Populate `req.auditEvent` (`category: 'chiller'`, `action: 'CHILLER_CONDITION_UPDATED'`, `details`, `metadata: { chillerId: chiller.id, chillerCode, previousCondition, newCondition: condition, notes }`).
        - Persist via `saveDbStore(dbStore)` **and** `await persistToBlobIfConfigured(dbStore)` before returning `200 OK` with `{ success: true, message: 'Chiller condition updated', chiller: formatChillerRecord(chiller, dbStore) }`.
 - **Consequences:** Enables hierarchical enterprise sales & maintenance workflows with zero breaking changes to existing `owner`, `admin`, and `agent` contracts, and maps cleanly to PostgreSQL RLS role claims (`app.role`, `app.branch`, `app.tenant_id`) in Phase 4 (`ADR-005`).
+
+### ADR-009: P6 (`v2.7.0`) — Offline-First Field Resilience & Trust
+- **Context:** Field sales reps and technicians operate in low-connectivity retail/warehouse zones where full `/api/chillers` fetches waste bandwidth and dropped requests risk lost visit audits. Additionally, enterprise audit trust requires verifying physical presence at the store (100m GPS geofence), tamper-evident geo-stamped photo evidence, and a 1-click printable/PDF audit report for supervisors and customers. This ADR concretizes `ADR-004` on top of the modular `v2.6.x` Express architecture (`api/routes/*`, `api/services/storage.js`, `api/services/chillerHelpers.js`) while remaining 100% forward-compatible with PostgreSQL + PostGIS (`ADR-002`) and Upstash Redis (`ADR-003`).
+- **Decision:**
+
+  1. **Offline-First Delta Sync & Outbox (`api/routes/sync.js`, mounted under `/api`)**
+     - **Storage Extensions (`api/services/storage.js`):**
+       - Ensure `dbStore.idempotency_keys` (array of `{ key, userId, createdAt, statusCode, result }`, pruned past `24h` TTL) and `dbStore.tombstones` (`{ chillers: [], forms: [], assignments: [] }` storing `{ id, deletedAt }`) are initialized on load/sync.
+       - Ensure mutating routes stamp `updated_at` (ISO-8601) on `chillers`, `forms`, and `assignments` so cursor-based delta queries are deterministic.
+     - **Delta Pull: `GET /api/sync/pull?since=<iso>`**
+       - **Auth & Sync:** `requireAuth` (all roles) + `await ensureFreshCloudSync()`.
+       - **Query Params:** `since` (optional ISO-8601 timestamp). If omitted/empty, performs a full bootstrap sync (`isFullSync: true`). If provided and invalid (`Number.isNaN(Date.parse(since))`), return `400 Bad Request`.
+       - **Cursor & Consistency:** Capture `serverTime = new Date().toISOString()` *before* filtering records so clients use `serverTime` as their next `since` cursor without missing concurrent writes.
+       - **Territory Scoping & Filtering:**
+         - `chillers`: Apply `filterRowsByTerritory(dbStore.chillers || [], req.user, dbStore)`, filter where `(r.updated_at || r.condition_updated_at || r.created_at)` is `> since` (or include all when `isFullSync` or record lacks timestamps), and map via `formatChillerRecord(r, dbStore)`.
+         - `forms`: If `req.user.role === 'agent'`, include forms where `assigned_agent_ids` is empty or contains `req.user.agentId`; otherwise all forms. Filter by `(f.updated_at || f.created_at) > since`.
+         - `assignments`: Scope by role (`agent`: `as.agent_id === req.user.agentId`; `supervisor`: `supervisedAgentIds` or matching chiller in `user.branch`; `owner`/`admin`/`regional_manager`: all; `technician`: `[]`). Filter by `(as.updated_at || as.assigned_at || as.created_at) > since`.
+         - `tombstones`: Return `{ chillerCodes, formIds, assignmentIds }` deleted after `since` (empty arrays on full sync).
+       - **Response (`200 OK`):**
+         ```json
+         {
+           "success": true,
+           "serverTime": "2026-11-19T15:20:50.000Z",
+           "since": "2026-11-18T10:00:00.000Z",
+           "isFullSync": false,
+           "counts": { "chillers": 3, "forms": 1, "assignments": 2 },
+           "chillers": [],
+           "forms": [],
+           "assignments": [],
+           "tombstones": { "chillerCodes": [], "formIds": [], "assignmentIds": [] }
+         }
+         ```
+     - **Transactional Outbox Flush: `POST /api/sync/batch`**
+       - **Auth & Sync:** `requireAuth` + `requireRoles('owner', 'admin', 'regional_manager', 'supervisor', 'agent', 'technician')` + `await ensureFreshCloudSync()`.
+       - **Idempotency (`Idempotency-Key`):**
+         - Support optional request header `Idempotency-Key` for batch-level deduplication (`userId + ':' + headerKey`) **and** per-operation `idempotencyKey` (required string per item, max 128 chars) for item-level deduplication.
+         - If the batch-level `Idempotency-Key` already exists in `dbStore.idempotency_keys` (within `24h` TTL) for the same `req.user.id`, return `200 OK` with `{ success: true, deduplicated: true, ...cachedResult }`.
+         - If an individual item's `idempotencyKey` was already processed, skip re-execution and return `{ index, type, idempotencyKey, status: 'duplicate', statusCode: 200, resourceId }` in `results[]`.
+       - **Request Body:**
+         ```json
+         {
+           "operations": [
+             {
+               "type": "form_response",
+               "idempotencyKey": "550e8400-e29b-41d4-a716-446655440000",
+               "clientTimestamp": "2026-11-19T14:00:00.000Z",
+               "payload": {
+                 "form_id": 1,
+                 "chiller_code": "CH-001",
+                 "customer_name": "Al-Noor Market",
+                 "answers": { "Cleanliness": "Good" },
+                 "attachments": [],
+                 "checkInLat": 30.0444,
+                 "checkInLng": 31.2357
+               }
+             },
+             {
+               "type": "condition",
+               "idempotencyKey": "550e8400-e29b-41d4-a716-446655440001",
+               "clientTimestamp": "2026-11-19T14:05:00.000Z",
+               "payload": {
+                 "chillerId": "CH-001",
+                 "condition": "Requires Maintenance",
+                 "notes": "Compressor noise"
+               }
+             }
+           ]
+         }
+         ```
+       - **Validation & Partial-Success Execution:**
+         - `operations` must be a non-empty array with `1..50` items (`400 Bad Request` otherwise).
+         - Supported `type` values: `'form_response'` (accepting `'form-responses'` / `'form-response'` aliases) and `'condition'`. Unknown types yield item-level `status: 'error', statusCode: 400`.
+         - Each item executes the exact RBAC, territory-scoping, geofence computation, and validation rules of `POST /api/form-responses` or `PATCH /api/chillers/:id/condition` (so `technician` gets item-level `403` on `form_response`, and `agent` gets item-level `403` on `condition`).
+         - Persist once via `saveDbStore(dbStore)` and `await persistToBlobIfConfigured(dbStore)` if `succeededCount > 0`.
+       - **Response (`200 OK`):**
+         ```json
+         {
+           "success": true,
+           "deduplicated": false,
+           "serverTime": "2026-11-19T15:21:00.000Z",
+           "processedCount": 2,
+           "succeededCount": 2,
+           "duplicateCount": 0,
+           "failedCount": 0,
+           "results": [
+             { "index": 0, "type": "form_response", "idempotencyKey": "...", "status": "created", "statusCode": 201, "resourceId": 1732029660000, "checkInDistanceM": 42, "geofenceVerified": true },
+             { "index": 1, "type": "condition", "idempotencyKey": "...", "status": "updated", "statusCode": 200, "resourceId": "CH-001" }
+           ]
+         }
+         ```
+
+  2. **100m GPS Check-In Geofencing (`POST /api/form-responses` & `sync/batch`)**
+     - **Optional Request Fields:** `checkInLat` (number) and `checkInLng` (number) on `POST /api/form-responses` (and `form_response` batch payloads).
+     - **Non-Breaking Backward Compatibility:**
+       - If **neither** `checkInLat` nor `checkInLng` is supplied (`undefined`, `null`, or `''`), submission proceeds normally with `checkInLat: null`, `checkInLng: null`, `checkInDistanceM: null`, `geofenceVerified: null`.
+       - If **only one** coordinate is supplied, or if either is non-finite / outside WGS84 bounds (`lat` in `[-90, 90]`, `lng` in `[-180, 180]`), return `400 Bad Request`.
+     - **Distance & Verification Calculation:**
+       - Resolve target chiller in `dbStore.chillers` by `chiller_code` (or case-insensitive `customer_name`).
+       - If the chiller has valid non-zero finite `latitude` and `longitude`, compute `checkInDistanceM = Math.round(haversineKm(checkInLat, checkInLng, chillerLat, chillerLng) * 1000)` and `geofenceVerified = checkInDistanceM <= 100`.
+       - If the chiller lacks valid coordinates, set `checkInDistanceM = null` and `geofenceVerified = null`.
+       - **Soft-Flag Policy:** A check-in `> 100m` (`geofenceVerified: false`) is **accepted** (not rejected) so legitimate audits with GPS drift or relocated chillers are never blocked, while surfacing the `OUT OF RANGE` badge to supervisors/admins.
+     - **Stored & Returned Fields:** Persist `check_in_lat`, `check_in_lng`, `check_in_distance_m`, `geofence_verified` on the `form_responses` record and expose camelCase aliases `checkInLat`, `checkInLng`, `checkInDistanceM`, `geofenceVerified` in API responses.
+
+  3. **Geo-Stamped Photo Watermarking & 1-Click Audit Export**
+     - **Attachment Metadata Schema (`attachments[]`):**
+       - Preserve backward compatibility with legacy string URLs/data-URIs in `attachments[]`, while supporting structured geo-stamped attachment objects:
+         ```json
+         {
+           "url": "/uploads/attach_1732028400_a1b2c3d4.jpg",
+           "filename": "attach_1732028400_a1b2c3d4.jpg",
+           "watermark": {
+             "capturedAt": "2026-11-19T14:02:15.000Z",
+             "lat": 30.044412,
+             "lng": 31.235711,
+             "agentName": "أمنية",
+             "chillerCode": "CH-001"
+           }
+         }
+         ```
+       - **Client + Server Responsibility:** The Flutter client renders the visible geo-stamp watermark (`agentName · chillerCode · lat, lng · capturedAt`) onto the captured photo prior to upload and attaches the structured `watermark` object. `POST /api/form-responses` validates/normalizes each `attachments[]` item, preserving string entries and sanitizing `watermark` fields (`capturedAt`, `lat`, `lng`, `agentName`, `chillerCode`) on object entries.
+     - **1-Click Audit Export: `GET /api/form-responses/:id/report`**
+       - **Auth & Territory Guard:** `requireAuth` + `requireRoles('owner', 'admin', 'regional_manager', 'supervisor', 'agent')` + `await ensureFreshCloudSync()`. Lookup response by `String(r.id) === String(req.params.id)` (`404` if missing). Enforce `agent` (`r.agent_id === req.user.agentId`) and `supervisor` (`supervisedAgentIds` or `canUserAccessChiller`) scope (`403` otherwise).
+       - **Query Param:** `format` (`'html'` default; `'json'` optional for structured export consumers).
+       - **HTML/PDF Printable Output (`format=html`):**
+         - Returns `200 OK` with `Content-Type: text/html; charset=utf-8` containing a self-contained, print-optimized (`@media print` + `window.print()` "Print / Save as PDF" button) audit dossier:
+           1. **Header & Status:** Report ID, Form Title, Status badge (`submitted` / `accepted` / `reopened`), `submitted_at`, `reviewed_at`.
+           2. **Asset & Customer Context:** `chillerCode`, `customerName`, `branch`, `customerAddress`, `condition`, `efficiency`.
+           3. **Field Trust & Geofence Verification:** `agentName`, `checkInLat`/`checkInLng`, `checkInDistanceM`, and badge (`VERIFIED <= 100m`, `OUT OF RANGE (>100m)`, or `NO GPS`).
+           4. **Audit Q&A Table:** All `answers` key-value pairs.
+           5. **Geo-Stamped Photo Evidence:** Each attachment image rendered with its `watermark` metadata (`capturedAt`, `lat`, `lng`, `agentName`, `chillerCode`).
+           6. **Review Decision:** `admin_feedback`, `reviewed_by`, `reviewed_at`.
+         - **Security:** All dynamic text MUST be HTML-escaped (`escapeHtml`) and attachment `url` values restricted to safe schemes (`https://`, `http://`, `/uploads/`, `data:image/`) to prevent stored XSS.
+- **Consequences:** Delivers zero-loss offline field operations, verifiable on-site check-ins, tamper-evident photo evidence, and 1-click executive/customer audit exports, while mapping directly to `ADR-002` Postgres tables (`idempotency_keys`, `tombstones`, `GEOGRAPHY(Point, 4326)`) and `ADR-003` Redis idempotency cache.
 
 ---
 

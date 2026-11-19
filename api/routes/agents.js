@@ -1,8 +1,8 @@
 import express from 'express';
 import { requireAuth, requireAdmin, requireRoles } from '../middleware/auth.js';
 import { validateComplexPassword, hashPassword } from '../utils/security.js';
-import { dbStore, saveDbStore } from '../services/storage.js';
-import { getSupervisedAgentIdSet } from '../services/chillerHelpers.js';
+import { dbStore, saveDbStore, persistToBlobIfConfigured } from '../services/storage.js';
+import { getSupervisedAgentIdSet, canUserAccessChiller } from '../services/chillerHelpers.js';
 
 const router = express.Router();
 
@@ -251,6 +251,123 @@ router.post('/assignments', requireRoles('owner', 'admin', 'regional_manager', '
     message: `Successfully assigned ${assignedCount} location(s) to ${agent.name}`,
     assignedCount,
     agent
+  });
+});
+
+// POST bulk assign chillers/customers to an agent atomically (Owner/Admin/Regional Manager/Supervisor)
+router.post('/assignments/bulk', requireRoles('owner', 'admin', 'regional_manager', 'supervisor'), async (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const rawAgentId = body.agentId ?? body.agent_id;
+  const agentId = parseInt(rawAgentId, 10);
+
+  if (!Number.isFinite(agentId)) {
+    return res.status(400).json({ success: false, error: 'Valid sales agentId is required' });
+  }
+
+  if (req.user.role === 'supervisor') {
+    const supervisedSet = getSupervisedAgentIdSet(req.user);
+    if (!supervisedSet.has(agentId)) {
+      return res.status(403).json({ success: false, error: 'Access denied: Agent is outside your supervised team' });
+    }
+  }
+
+  const agent = (dbStore.agents || []).find(a => a.id === agentId);
+  if (!agent) {
+    return res.status(400).json({ success: false, error: 'Valid sales agent ID is required' });
+  }
+
+  const items = Array.isArray(body.items) ? body.items : [];
+  if (items.length === 0) {
+    return res.status(400).json({ success: false, error: 'items array must contain at least one assignment' });
+  }
+
+  const normalizedItems = [];
+  const supervisorBranch = (req.user.branch || '').toString().trim().toLowerCase();
+
+  for (const item of items) {
+    if (!item || typeof item !== 'object') {
+      return res.status(400).json({ success: false, error: 'Each item must be an object with chillerCode or customerName' });
+    }
+    const chillerCode = String(item.chillerCode || item.chiller_code || '').trim();
+    const customerNameInput = String(item.customerName || item.customer_name || '').trim();
+    if (!chillerCode && !customerNameInput) {
+      return res.status(400).json({ success: false, error: 'Each item must include chillerCode or customerName' });
+    }
+
+    const ch = (dbStore.chillers || []).find(c => {
+      const code = (c.chiller_code || c.chillerCode || '').toLowerCase();
+      const name = (c.customer_name || c.customerName || '').toLowerCase();
+      if (chillerCode && code === chillerCode.toLowerCase()) return true;
+      if (!chillerCode && customerNameInput && name === customerNameInput.toLowerCase()) return true;
+      return false;
+    });
+
+    if (req.user.role === 'supervisor' && ch) {
+      const rowBranch = (ch.branch || '').toString().trim().toLowerCase();
+      if (supervisorBranch && rowBranch && rowBranch !== supervisorBranch) {
+        return res.status(403).json({ success: false, error: `Access denied: Chiller '${chillerCode || customerNameInput}' is outside your branch scope` });
+      }
+      if (!supervisorBranch && !canUserAccessChiller(ch, req.user, dbStore)) {
+        return res.status(403).json({ success: false, error: `Access denied: Chiller '${chillerCode || customerNameInput}' is outside your assigned scope` });
+      }
+    }
+
+    normalizedItems.push({
+      chillerCode: ch ? (ch.chiller_code || ch.chillerCode || chillerCode) : chillerCode,
+      chillerId: ch?.id ?? null,
+      customerName: customerNameInput || (ch ? (ch.customer_name || ch.customerName || '') : '')
+    });
+  }
+
+  if (!Array.isArray(dbStore.assignments)) {
+    dbStore.assignments = [];
+  }
+
+  const nowIso = new Date().toISOString();
+  const nextAssignments = [...dbStore.assignments];
+  const createdAssignments = [];
+
+  for (const entry of normalizedItems) {
+    for (let i = nextAssignments.length - 1; i >= 0; i--) {
+      const existing = nextAssignments[i];
+      const matchCode = entry.chillerCode && existing.chiller_code && existing.chiller_code.toLowerCase() === entry.chillerCode.toLowerCase();
+      const matchName = !entry.chillerCode && entry.customerName && existing.customer_name && existing.customer_name.toLowerCase() === entry.customerName.toLowerCase();
+      if (matchCode || matchName) {
+        nextAssignments.splice(i, 1);
+      }
+    }
+
+    const newAssignment = {
+      id: Date.now() + Math.floor(Math.random() * 10000),
+      ...(entry.chillerCode ? { chiller_code: entry.chillerCode } : {}),
+      ...(entry.chillerId !== null ? { chiller_id: entry.chillerId } : {}),
+      customer_name: entry.customerName,
+      agent_id: agent.id,
+      agent_name: agent.name,
+      agent_area: agent.area,
+      assigned_at: nowIso
+    };
+    nextAssignments.push(newAssignment);
+    createdAssignments.push(newAssignment);
+  }
+
+  dbStore.assignments = nextAssignments;
+  req.auditEvent = {
+    category: 'assignment',
+    action: 'BULK_ASSIGNMENTS_CREATED',
+    details: `Bulk assigned ${createdAssignments.length} chiller(s)/location(s) to ${agent.name}`,
+    metadata: { agentId: agent.id, count: createdAssignments.length }
+  };
+
+  saveDbStore(dbStore);
+  await persistToBlobIfConfigured(dbStore);
+
+  res.json({
+    success: true,
+    message: `Successfully bulk assigned ${createdAssignments.length} location(s) to ${agent.name}`,
+    assignedCount: createdAssignments.length,
+    agent,
+    assignments: createdAssignments
   });
 });
 

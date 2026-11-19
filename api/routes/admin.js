@@ -2,6 +2,7 @@ import express from 'express';
 import auditLogger from '../audit_logger.js';
 import { requireAuth, requireAdmin, requireOwner } from '../middleware/auth.js';
 import { getClientIp } from '../utils/security.js';
+import { getDbAdapterStatus } from '../services/dbAdapter.js';
 import {
   dbStore,
   saveDbStore,
@@ -144,6 +145,7 @@ router.get('/admin/diagnostics', requireAdmin, (req, res) => {
       blobConfigured: isCloudStorageConfigured(),
       hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN)
     },
+    dbAdapter: getDbAdapterStatus(),
     usersCount: (dbStore.users || []).length,
     users: (dbStore.users || []).map(u => ({ email: u.email, role: u.role, name: u.name, username: u.username })),
     timestamp: new Date().toISOString()

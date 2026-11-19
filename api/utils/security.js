@@ -9,7 +9,9 @@ export function resolveJwtSecret() {
   }
   if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
     if (process.env.JWT_SECRET && process.env.JWT_SECRET.trim().length > 0) {
-      return process.env.JWT_SECRET.trim();
+      const shortSecret = process.env.JWT_SECRET.trim();
+      console.warn(`⚠️ [SECURITY WARNING] Production JWT_SECRET is shorter than 32 characters (length=${shortSecret.length}). Use at least 32 characters for HS256.`);
+      return shortSecret;
     }
     console.error('⚠️ [SECURITY WARNING] Explicit JWT_SECRET is missing in production. Generating ephemeral runtime key.');
     return crypto.randomBytes(32).toString('hex');

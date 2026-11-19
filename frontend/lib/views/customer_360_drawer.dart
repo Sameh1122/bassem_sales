@@ -126,6 +126,7 @@ class _Customer360ContentState extends State<_Customer360Content> {
   String? _error;
   Map<String, dynamic>? _data360;
   bool _showAllAudits = false;
+  final Set<String> _expandedAuditDates = {};
 
   @override
   void initState() {
@@ -705,6 +706,7 @@ class _Customer360ContentState extends State<_Customer360Content> {
     final double ytd = _toDouble(summary['ytd'], 0.0);
     final double avg = _toDouble(summary['avgPerMonth'], 0.0);
     final double? deltaPct = summary['latestMonthDeltaPct'] != null ? _toDouble(summary['latestMonthDeltaPct']) : null;
+    final String? comparedMonthsLabel = summary['comparedMonthsLabel']?.toString();
 
     double maxAmt = 0.0;
     for (final m in months) {
@@ -746,6 +748,9 @@ class _Customer360ContentState extends State<_Customer360Content> {
                     : deltaPct >= 0
                         ? const Color(0xFF10B981)
                         : const Color(0xFFEF4444),
+                subLabel: (deltaPct != null && comparedMonthsLabel != null && comparedMonthsLabel.isNotEmpty)
+                    ? comparedMonthsLabel
+                    : null,
               ),
             ),
           ],
@@ -822,7 +827,7 @@ class _Customer360ContentState extends State<_Customer360Content> {
     );
   }
 
-  Widget _statBox(String label, String value, Color valueColor) {
+  Widget _statBox(String label, String value, Color valueColor, {String? subLabel}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -835,14 +840,133 @@ class _Customer360ContentState extends State<_Customer360Content> {
         children: [
           Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
           const SizedBox(height: 2),
-          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: valueColor, fontWeight: FontWeight.bold, fontSize: 13)),
+          Row(
+            children: [
+              Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: valueColor, fontWeight: FontWeight.bold, fontSize: 13)),
+              if (subLabel != null && subLabel.isNotEmpty) ...[
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    subLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuditCard(Map audit) {
+    final String st = (audit['status'] ?? 'submitted').toString();
+    final Color dotColor = st == 'accepted'
+        ? const Color(0xFF10B981)
+        : st == 'reopened'
+            ? const Color(0xFFF97316)
+            : const Color(0xFF06B6D4);
+    final String submittedAt = (audit['submittedAt'] ?? '').toString();
+    final String shortDate = submittedAt.length >= 10 ? submittedAt.substring(0, 10) : submittedAt;
+    final String feedback = (audit['adminFeedback'] ?? '').toString();
+    final List<String> attachments = (audit['attachments'] is List)
+        ? (audit['attachments'] as List).map((e) => e.toString()).where((u) => u.isNotEmpty).toList()
+        : <String>[];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${audit['formTitle'] ?? 'Visit Audit'} • $shortDate',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12),
+                ),
+              ),
+              _buildBadge(st.toUpperCase(), dotColor),
+            ],
+          ),
+          if ((audit['agentName'] ?? '').toString().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text('By: ${audit['agentName']}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+          ],
+          if (attachments.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            AuditPhotoGallery(
+              columns: 3,
+              photos: attachments.map((url) => AuditPhotoItem(
+                url: url,
+                timestamp: submittedAt,
+                agentName: audit['agentName']?.toString(),
+                chillerCode: (widget.chiller['chillerCode'] ?? widget.chiller['chiller_code'])?.toString(),
+                latitude: (audit['agentLat'] as num?)?.toDouble(),
+                longitude: (audit['agentLng'] as num?)?.toDouble(),
+              )).toList(),
+            ),
+          ],
+          if (st == 'reopened' && feedback.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF97316).withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFF97316).withValues(alpha: 0.6)),
+              ),
+              child: Text('Feedback: $feedback', style: const TextStyle(color: Color(0xFFF97316), fontSize: 11)),
+            ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildVisitHistorySection(List<dynamic> history) {
-    final displayed = _showAllAudits ? history : history.take(5).toList();
+    // Group audits by shortDate (preserving newest-first order) so >3 same-day audits collapse
+    final Map<String, List<Map>> groupedByDate = {};
+    final List<String> dateOrder = [];
+    for (final item in history) {
+      final audit = item as Map;
+      final String submittedAt = (audit['submittedAt'] ?? '').toString();
+      final String shortDate = submittedAt.length >= 10 ? submittedAt.substring(0, 10) : (submittedAt.isEmpty ? 'Unknown' : submittedAt);
+      if (!groupedByDate.containsKey(shortDate)) {
+        groupedByDate[shortDate] = [];
+        dateOrder.add(shortDate);
+      }
+      groupedByDate[shortDate]!.add(audit);
+    }
+
+    // Build display entries: either a single audit Map or a collapsed date-group Map
+    final List<Map<String, dynamic>> entries = [];
+    for (final dateKey in dateOrder) {
+      final items = groupedByDate[dateKey]!;
+      if (items.length > 3) {
+        entries.add({'isGroup': true, 'date': dateKey, 'items': items});
+      } else {
+        for (final audit in items) {
+          entries.add({'isGroup': false, 'audit': audit});
+        }
+      }
+    }
+
+    final visibleEntries = _showAllAudits ? entries : entries.take(5).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -856,7 +980,7 @@ class _Customer360ContentState extends State<_Customer360Content> {
                 _buildBadge('${history.length}', const Color(0xFF06B6D4)),
               ],
             ),
-            if (history.length > 5)
+            if (entries.length > 5)
               TextButton(
                 onPressed: () => setState(() => _showAllAudits = !_showAllAudits),
                 child: Text(_showAllAudits ? 'Show less' : 'Show all (${history.length})', style: const TextStyle(color: Colors.cyanAccent, fontSize: 11)),
@@ -886,79 +1010,62 @@ class _Customer360ContentState extends State<_Customer360Content> {
             ),
           )
         else
-          ...displayed.map((item) {
-            final audit = item as Map;
-            final String st = (audit['status'] ?? 'submitted').toString();
-            final Color dotColor = st == 'accepted'
-                ? const Color(0xFF10B981)
-                : st == 'reopened'
-                    ? const Color(0xFFF97316)
-                    : const Color(0xFF06B6D4);
-            final String submittedAt = (audit['submittedAt'] ?? '').toString();
-            final String shortDate = submittedAt.length >= 10 ? submittedAt.substring(0, 10) : submittedAt;
-            final String feedback = (audit['adminFeedback'] ?? '').toString();
-            final List<String> attachments = (audit['attachments'] is List)
-                ? (audit['attachments'] as List).map((e) => e.toString()).where((u) => u.isNotEmpty).toList()
-                : <String>[];
+          ...visibleEntries.map((entry) {
+            if (entry['isGroup'] != true) {
+              return _buildAuditCard(entry['audit'] as Map);
+            }
+            final String dateKey = entry['date'] as String;
+            final List<Map> groupItems = entry['items'] as List<Map>;
+            final bool isExpanded = _expandedAuditDates.contains(dateKey);
 
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0xFF0F172A),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.white12),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => setState(() {
+                      if (isExpanded) {
+                        _expandedAuditDates.remove(dateKey);
+                      } else {
+                        _expandedAuditDates.add(dateKey);
+                      }
+                    }),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.layers_outlined, color: Color(0xFF06B6D4), size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '$dateKey • ${groupItems.length} visit audits',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12),
+                            ),
+                          ),
+                          _buildBadge('${groupItems.length}x', const Color(0xFF06B6D4)),
+                          const SizedBox(width: 6),
+                          Icon(
+                            isExpanded ? Icons.expand_less : Icons.expand_more,
+                            color: Colors.white54,
+                            size: 18,
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${audit['formTitle'] ?? 'Visit Audit'} • $shortDate',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12),
-                        ),
-                      ),
-                      _buildBadge(st.toUpperCase(), dotColor),
-                    ],
+                    ),
                   ),
-                  if ((audit['agentName'] ?? '').toString().isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text('By: ${audit['agentName']}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                  ],
-                  if (attachments.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    AuditPhotoGallery(
-                      columns: 3,
-                      photos: attachments.map((url) => AuditPhotoItem(
-                        url: url,
-                        timestamp: submittedAt,
-                        agentName: audit['agentName']?.toString(),
-                        chillerCode: (widget.chiller['chillerCode'] ?? widget.chiller['chiller_code'])?.toString(),
-                        latitude: (audit['agentLat'] as num?)?.toDouble(),
-                        longitude: (audit['agentLng'] as num?)?.toDouble(),
-                      )).toList(),
-                    ),
-                  ],
-                  if (st == 'reopened' && feedback.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF97316).withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFFF97316).withValues(alpha: 0.6)),
+                  if (isExpanded)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
+                      child: Column(
+                        children: groupItems.map(_buildAuditCard).toList(),
                       ),
-                      child: Text('Feedback: $feedback', style: const TextStyle(color: Color(0xFFF97316), fontSize: 11)),
                     ),
-                  ],
                 ],
               ),
             );

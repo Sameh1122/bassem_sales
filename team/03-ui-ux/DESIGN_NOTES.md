@@ -653,3 +653,137 @@ To ensure visual consistency and zero external chart package bloat, build these 
 - [ ] Field Sales Rep sees "My Day" Hero Card with Completion Ring + Next Stop, Priority Action List, and 1-tap `Start Route` + `Log Visit`.
 - [ ] Technician sees Maintenance & Scrap Work Queue grouped by urgency, 1-tap `Mark Operational / Log Repair`, and Google Maps `Navigate` button.
 - [ ] Responsive verified at `375px` (mobile), `768px` (tablet), and `1280px+` (desktop) with zero horizontal overflow.
+
+---
+
+## 10. P6 (`v2.7.0`) — Offline-First Field Resilience & Trust UI/UX Specs
+
+**Scope:** Field-resilience & audit-trust enhancements across the global app shell (`main.dart`), `DashboardViewScreen`, `FormFillerDialog`, `AuditPhotoGallery`, `FormResponsesViewScreen`, and `Customer360Drawer`.  
+**Theme Compliance:** All colors, surfaces, radii, and spacing MUST use `AppTokens.of(context)` (`frontend/lib/theme/app_tokens.dart`) so every component works seamlessly in **Dark**, **Light**, and **Outdoor Field Contrast** modes.
+
+---
+
+### 10.1 Offline Sync Status Bar & Outbox Queue (`OfflineSyncBanner` + `OutboxQueueSheet`)
+
+**Goal:** Give field reps and technicians constant, zero-anxiety visibility into connectivity and locally queued audits without blocking form entry or cluttering the workspace.
+
+#### A. Placement & Responsive Behavior
+- **Desktop / Wide Web (`>= 768px`):** Compact, full-width slim status strip (`height: 36px`–`40px`) docked at the **top of the main content pane** (to the right of `NavigationRail`, above the active view body) in `main.dart`.
+- **Mobile / Narrow Web (`< 768px`):** Slim floating/docked bar (`minHeight: 40px`) positioned **directly above `NavigationBar`** (`bottomNavigationBar` slot or `Column` footer above `NavigationBar`) so it sits comfortably in thumb reach and never covers top headers or dialog actions.
+- **Auto-Hide When Healthy:** When **Online** and **Outbox Queue == 0**, the bar collapses to `height: 0` (no wasted vertical space). Exception: immediately after a sync finishes, show a transient `"All audits synced ✓"` (`t.success`) confirmation strip for `3 seconds` before collapsing.
+
+#### B. Visual States & Token Mapping
+| State | Surface / Fill | Border & Left Accent | Icon | Copy | Primary CTA / Action |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Online (Queue Empty)** | Collapsed (`0px`) — or transient `t.success.withValues(alpha: 0.14)` for 3s | `1px` `t.success` (`0.45`) | `Icons.cloud_done_rounded` (`t.success`) | `"Online · All audits synced"` | None (auto-collapses) |
+| **Offline (0 Queued)** | `t.surfaceElevated` | `1px` `t.borderSubtle`, `3px` start accent `t.caution` | `Icons.cloud_off_rounded` (`t.caution`) | `"Offline — Visits will save to device queue"` | None |
+| **Offline (`N` Queued)** | `t.caution.withValues(alpha: 0.14)` | `1px` `t.caution` (`0.50`) | `Icons.cloud_off_rounded` (`t.caution`) | `"Offline — N queued audit(s)"` | `"View Queue"` (`TextButton`) |
+| **Online (`N` Queued — Ready)** | `t.accentPrimary.withValues(alpha: 0.14)` | `1px` `t.accentPrimary` (`0.50`) | `Icons.cloud_upload_outlined` (`t.accentPrimary`) | `"Online — N queued audit(s) ready"` | **`"Sync Now"`** (`FilledButton` / compact pill, `minHeight: 32px`) + `"View"` |
+| **Syncing (`i` of `N`)** | `t.surfaceElevated` + `2px` `LinearProgressIndicator` (`t.accentPrimary`) at bottom edge | `1px` `t.accentPrimary` (`0.40`) | `SizedBox(14, 14, child: CircularProgressIndicator)` | `"Syncing audit i of N..."` | Disabled `"Syncing..."` |
+| **Sync Error / Conflict (`K` Failed)** | `t.danger.withValues(alpha: 0.14)` | `1px` `t.danger` (`0.55`) | `Icons.sync_problem_rounded` (`t.danger`) | `"Sync paused — K audit(s) need attention"` | **`"Resolve / Retry"`** (`OutlinedButton`, `t.danger`) |
+
+#### C. Outbox Queue Sheet / Dialog (`OutboxQueueSheet`)
+Triggered by tapping `"View Queue"`, `"View"`, or `"Resolve / Retry"`:
+- **Container:** `ModalBottomSheet` (`DraggableScrollableSheet`, `initialChildSize: 0.65`, `maxChildSize: 0.90`) on mobile (`< 768px`); `AlertDialog` (`width: 520px`, `maxHeight: 560px`) on desktop (`>= 768px`).
+- **Header:** `"Offline Outbox Queue (N)"` + `"Sync All"` primary button (enabled when Online & `N > 0`).
+- **Queue Item Card (`t.canvasBg`, `t.radiusMd`, `1px` `t.borderSubtle`, `padding: 12px`):**
+  - **Top Row:** `Customer Name` (`14px` bold `t.textPrimary`) + `Chiller Code` (`t.caption`, `Directionality.ltr`) + Status Pill:
+    - `Queued` (`t.caution`, `Icons.schedule_rounded`)
+    - `Syncing` (`t.accentPrimary`, spinner)
+    - `Retry Needed` (`t.warning`, `Icons.refresh_rounded` — shows brief error reason, e.g. `"Timeout — tap Retry"`)
+    - `Conflict` (`t.danger`, `Icons.warning_amber_rounded` — e.g. `"Server has a newer review for this visit"`)
+  - **Meta Row:** Captured timestamp (`YYYY-MM-DD HH:mm`, `Directionality.ltr`), attached photo count (`"2 photos"`), and Geofence badge (`Within 100m ✓` or `Xm away`).
+  - **Item Actions (`minHeight: 40px`):**
+    - On `Retry Needed`: **`"Retry"`** (`t.accentPrimary`) + `"Discard"` (`t.danger` text button with confirm dialog).
+    - On `Conflict`: **`"Keep Mine (Resubmit)"`** + **`"Discard Local"`**.
+- **Empty State:** `AppEmptyState` with `Icons.cloud_done_outlined` (`t.success`): `"Outbox is empty — all field audits are synced."`
+
+---
+
+### 10.2 100m GPS Geofence Check-In Pill (`GeofenceCheckInPill`)
+
+**Goal:** Provide instant, transparent GPS proximity verification at the moment of visit logging and in the daily stop queue, reinforcing field audit trust without hard-blocking reps when GPS drifts indoors.
+
+#### A. Target Locations
+1. **`FormFillerDialog` (`frontend/lib/views/form_filler_dialog.dart`):**
+   - Placed in the dialog header/sub-header strip directly below `$customerName ($chillerCode)` (and above the form selector / re-opened admin feedback banner).
+   - Always visible while filling the form; updates live if GPS improves, and records the final distance + coordinates on submit.
+2. **`DashboardViewScreen` (`frontend/lib/views/dashboard_view.dart`):**
+   - **Field Sales Rep `"My Day"` Hero Card:** Inside the `"NEXT STOP"` well (`t.canvasBg`) next to the `"NEXT STOP • 1.4 km away"` eyebrow.
+   - **Priority Stop Cards & Technician Work Cards:** Inline in the card's meta badge row alongside the Condition pill (when live GPS is available).
+
+#### B. Pill States & Visual Tokens
+Use the shared pill pattern (`BorderRadius.circular(t.radiusPill)`, `padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4)`, `1px` border, `11.5px` bold text):
+
+| State | Condition | Fill | Border | Icon (`14px`) | Label (with `Directionality.ltr` on distance) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Within Geofence** | `distanceMeters <= 100` | `t.success.withValues(alpha: 0.14)` | `t.success.withValues(alpha: 0.50)` | `Icons.verified_user_rounded` (`t.success`) | `"Within 100m ✓"` (optional tooltip: `"Live GPS: 42m from pin"`) |
+| **Outside Geofence** | `distanceMeters > 100` | `t.caution.withValues(alpha: 0.14)` | `t.caution.withValues(alpha: 0.50)` | `Icons.warning_amber_rounded` (`t.caution`) | `"Outside Geofence — 240m"` (or `"Outside Geofence — 1.4 km"` when `>= 1000m`) |
+| **Locating GPS** | Initial acquisition (`< 5s`) | `t.accentPrimary.withValues(alpha: 0.12)` | `t.accentPrimary.withValues(alpha: 0.40)` | `12x12` `CircularProgressIndicator` (`t.accentPrimary`) | `"Checking GPS..."` |
+| **GPS Unavailable** | Denied / unsupported / timeout | `t.surfaceHeader` | `t.borderSubtle` | `Icons.location_disabled_rounded` (`t.textMuted`) | `"GPS Unavailable"` (+ `"Retry"` tap action inside `FormFillerDialog`) |
+
+#### C. Non-Blocking Warning Banner in `FormFillerDialog`
+- When `distanceMeters > 100`, show a compact, non-blocking inline helper line directly beneath the pill (`t.caution`, `11.5px`):
+  - `"You are Xm from the registered chiller pin. You can still submit — distance is logged for supervisor review."`
+- **No Hard Block:** Reps can still submit `FormFillerDialog` offline or outside `100m` (e.g., indoor signal drift or relocated chiller); the supervisor sees the logged distance badge in `FormResponsesViewScreen`.
+
+---
+
+### 10.3 Geo-Stamped Photo Watermark & 1-Click Audit PDF Export
+
+#### A. Geo-Stamped Photo Watermark (`AuditPhotoGallery` & `_AuditPhotoLightbox`)
+Target file: `frontend/lib/widgets/audit_photo_gallery.dart`.
+
+1. **Thumbnail Grid (`AuditPhotoGallery`):**
+   - **Top Row (Existing):** Keep `Photo N/M` pill (`top: 4, start: 4`) and GPS Verified `10x10` `t.success` dot (`top: 4, end: 4`). If `!photo.isGpsVerified`, render a `10x10` `t.caution` dot with `Tooltip(message: 'GPS Unverified')`.
+   - **Bottom Geo-Stamp Watermark Strip:** Replace the flat single-line date bar (`bottom: 0, start: 0, end: 0`) with a subtle bottom gradient scrim (`LinearGradient` from `Colors.transparent` to `Colors.black.withValues(alpha: 0.82)`) containing **2 compact lines** wrapped in `Directionality(textDirection: TextDirection.ltr)`:
+     - **Line 1 (`9.5px`, `Colors.white`, `FontWeight.w600`):** `${chillerCode ?? ''} · $shortDateTime` (e.g. `CH-1042 · 2026-11-19 14:32`).
+     - **Line 2 (`9px`, `Colors.white70`):** If `photo.isGpsVerified`: `"📍 ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}"`; else `"📍 GPS Unverified"` in `t.caution`.
+
+2. **Fullscreen Lightbox (`_AuditPhotoLightbox`):**
+   - **Bottom Watermark Metadata Card:** Docked at `bottom: 16, start: 16, end: 16` above the safe area, styled with `Colors.black.withValues(alpha: 0.76)`, `BorderRadius.circular(t.radiusMd)`, `1px` `Colors.white24` border, `padding: 12px`:
+     - **Left Column (`Directionality.ltr` for codes/coords/dates):**
+       - Row 1: `Chiller Code` (`13px` bold white) + `Condition` badge + `Geofence` pill (`Within 100m ✓` or `Xm away` if available).
+       - Row 2: `"🕒 YYYY-MM-DD HH:mm  ·  👤 Agent Name"` (`12px` `Colors.white70`).
+       - Row 3: `"📍 30.044412, 31.235708"` (`12px` monospace/tabular `t.accentPrimary` or `"📍 GPS coordinates not captured"` in `t.caution`).
+     - **Right Actions:** Compact `"Open in Maps"` (`Icons.open_in_new_rounded`, `44x44` touch target) when `photo.isGpsVerified`.
+
+#### B. 1-Click `"Export Visual Audit PDF"` CTA (`FormResponsesViewScreen` & `Customer360Drawer`)
+
+1. **Placement in `FormResponsesViewScreen` (`frontend/lib/views/form_responses_view.dart`):**
+   - **Response Card (List View):** Add a compact `IconButton` (`Icons.picture_as_pdf_outlined`, `t.accentPrimary`, `tooltip: 'Export Visual Audit PDF'`, `44x44` min touch target) in the card header/action row so supervisors can export in 1 click without opening the modal.
+   - **Visit Response Detail Dialog (`actions` row):** Add an `OutlinedButton.icon` **to the left of `Re-open to Agent` / `Accept & Verify`**:
+     - Icon: `Icons.picture_as_pdf_outlined` (`16px`)
+     - Label: `"Export Visual Audit PDF"`
+     - Style: `foregroundColor: t.accentPrimary`, `side: BorderSide(color: t.accentPrimary.withValues(alpha: 0.6))`, `shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(t.radiusSm))`.
+
+2. **Placement in `Customer360Drawer` (`frontend/lib/views/customer_360_drawer.dart`):**
+   - **Recent Visit Audit History Section Header:** Add a right-aligned compact `OutlinedButton.icon` / `TextButton.icon` (`"Export Visual Audit PDF"`, `Icons.picture_as_pdf_outlined`, `t.accentPrimary`, `minHeight: 36px`) visible whenever `visitHistory.isNotEmpty`. Clicking it exports the most recent audit (or lets the user click the per-audit PDF icon on any historical visit card).
+   - **Per-Visit History Card:** Add a compact `44x44` `IconButton` (`Icons.picture_as_pdf_outlined`, `tooltip: 'Export Visual Audit PDF'`) on each audit entry header.
+
+3. **Export Button Interaction States:**
+   | State | Visual Behavior | Feedback |
+   | :--- | :--- | :--- |
+   | **Idle** | Enabled button with `Icons.picture_as_pdf_outlined` | Tooltip: `"Download PDF with geo-stamped photos"` |
+   | **Generating** | Button disabled; icon replaced with `14x14` `CircularProgressIndicator(strokeWidth: 2)` + label `"Generating PDF..."` | Prevents duplicate requests |
+   | **Success** | Returns to Idle; triggers browser download / share sheet (`Audit_${chillerCode}_${date}.pdf`) | `AppToast.show(context, type: AppToastType.success, message: 'Visual Audit PDF exported.')` |
+   | **Error** | Returns to Idle | `AppToast.show(context, type: AppToastType.error, message: 'PDF export failed.', actionLabel: 'Retry', onAction: ...)` |
+
+4. **Visual Audit PDF Document Layout Spec (A4 Portrait):**
+   - **Header Band:** Platform title (`Bassem Sales Platform — Visual Visit Audit`), Export Timestamp, Audit Status badge (`VERIFIED` / `SUBMITTED` / `RE-OPENED`).
+   - **Site & Check-In Summary Box:** Customer Name, Chiller Code, Branch, Assigned Rep, Visit Timestamp, and **GPS Check-In Verification** (`Within 100m ✓` or `Outside Geofence — Xm` + Lat/Lng).
+   - **Audit Form Responses Table:** 2-column zebra-striped table (`Question / Field` | `Recorded Answer`).
+   - **Geo-Stamped Photo Evidence Grid:** 2-column photo grid; every image includes a **burned-in bottom watermark bar** (`Chiller Code · Timestamp · Lat, Lng · Agent Name`) directly on/below the frame so exported PDFs remain tamper-evident when shared externally via WhatsApp or email.
+
+---
+
+### 10.4 P6 Accessibility, RTL & Acceptance Checklist
+
+- **Arabic RTL (`Locale('ar')`):** Use `PositionedDirectional`, `EdgeInsetsDirectional`, and `BorderDirectional` for all banners, pills, and photo overlays. Wrap all numeric distances (`84m`, `1.4 km`), timestamps (`2026-11-19 14:32`), Chiller Codes (`CH-1042`), and GPS coordinates (`30.0444, 31.2357`) in `Directionality(textDirection: TextDirection.ltr)`.
+- **WCAG AA & Touch Targets:** All interactive pills/buttons (`Sync Now`, `View Queue`, `Retry`, `Export Visual Audit PDF`, `Open in Maps`) must have `>= 44x44` hit targets (or `36px` visual height with `MaterialTapTargetSize.padded`) and descriptive `Semantics(button: true, label: '...')`.
+- **Checklist:**
+  - [ ] `OfflineSyncBanner` & `OutboxQueueSheet` implemented in `main.dart` shell using `AppTokens.of(context)` (auto-hides when online & queue empty; supports `Sync Now`, `Retry`, and `Conflict` resolution).
+  - [ ] `GeofenceCheckInPill` displays live `Within 100m ✓` (`t.success`) vs `Outside Geofence — Xm` (`t.caution`) in `FormFillerDialog` (with non-blocking helper note) and `DashboardViewScreen`.
+  - [ ] `AuditPhotoGallery` & `_AuditPhotoLightbox` render the 2-line / full geo-stamped watermark overlay (`Chiller Code`, `Timestamp`, `Lat/Lng`, `Agent Name`).
+  - [ ] `"Export Visual Audit PDF"` CTA available in both `FormResponsesViewScreen` (list card + detail dialog) and `Customer360Drawer` (audit history header + per-visit card) with Loading/Success/Error `AppToast` states.
+

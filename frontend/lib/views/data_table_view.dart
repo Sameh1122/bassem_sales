@@ -45,6 +45,7 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
 
   // Search & Filter state
   String _globalSearchQuery = '';
+  bool _incompleteOnly = false;
   final TextEditingController _globalSearchController = TextEditingController();
   final Map<String, String> _columnFilters = {}; // colName -> filterValue
   final Set<String> _hiddenColumns = {}; // columns user chose to hide
@@ -101,6 +102,7 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
     try {
       final data = await ApiService.fetchChillers(
         search: '',
+        incomplete: _incompleteOnly ? 'any' : null,
         forceApi: forceApi,
       );
       if (mounted) {
@@ -899,6 +901,27 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
                             child: const Text('Add Filter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                           ),
                         ],
+                      ),
+
+                      // Incomplete Only filter chip (Sprint 9)
+                      FilterChip(
+                        label: const Text('Incomplete Only'),
+                        selected: _incompleteOnly,
+                        onSelected: (selected) {
+                          setState(() => _incompleteOnly = selected);
+                          _loadData(forceApi: true);
+                        },
+                        selectedColor: Colors.orange.withValues(alpha: 0.25),
+                        checkmarkColor: Colors.orangeAccent,
+                        labelStyle: TextStyle(
+                          color: _incompleteOnly ? Colors.orangeAccent : Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        backgroundColor: const Color(0xFF0F172A),
+                        side: BorderSide(
+                          color: _incompleteOnly ? Colors.orangeAccent : Colors.white24,
+                        ),
                       ),
 
                       // Match counter badge

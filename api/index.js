@@ -21,6 +21,10 @@ import batchesRoutes from './routes/batches.js';
 import chillersRoutes from './routes/chillers.js';
 import agentsRoutes from './routes/agents.js';
 import formsRoutes from './routes/forms.js';
+import ticketsRoutes from './routes/tickets.js';
+import syncRoutes from './routes/sync.js';
+import insightsRoutes from './routes/insights.js';
+import integrationsRoutes from './routes/integrations.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -96,6 +100,7 @@ router.use((req, res, next) => {
       else if (req.path.includes('/assignments')) category = 'assignment';
       else if (req.path.includes('/agents')) category = 'agents';
       else if (req.path.includes('/forms') || req.path.includes('/form-responses')) category = 'forms';
+      else if (req.path.includes('/tickets')) category = 'tickets';
     }
 
     const defaultDetails = req.auditEvent.details || `${req.method} ${req.originalUrl || req.url} responded with status ${res.statusCode}`;
@@ -130,6 +135,10 @@ router.use(batchesRoutes);
 router.use(chillersRoutes);
 router.use(agentsRoutes);
 router.use(formsRoutes);
+router.use(ticketsRoutes);
+router.use('/sync', syncRoutes);
+router.use(insightsRoutes);
+router.use('/integrations', integrationsRoutes);
 
 app.get(['/', '/index.html'], (req, res) => {
   const publicIndex = path.resolve('public/index.html');

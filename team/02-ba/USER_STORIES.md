@@ -225,3 +225,224 @@ Copy this block for each new story:
      - Displays maintenance KPIs (`Open Repairs`, `Damaged/Scrap`, `Operational %`) and a prioritized **Maintenance Queue** list of chillers needing service (with `Chiller Code`, Customer, Branch, Condition badge, GPS/Directions link, and **Customer 360°**).
      - Includes a **1-click "Mark Repaired / Update Condition"** action button on each queue item (with quick condition selector: `Operational`, `Requires Maintenance`, `Damaged`, `Scrap` + optional repair note) that calls the backend update endpoint, shows an `AppToast` confirmation, and immediately refreshes the queue and KPIs.
 
+---
+
+## Sprints 4 & 5 Stories (`P6` — Offline-First Field Resilience & Trust)
+
+### `[STORY-013]` Offline Delta Sync & Outbox Queue (`P6`)
+- **Sprint:** Sprints 4 & 5 (`P6` / `v2.7.0`)
+- **Linked PO Goal:** `ROAD-05` — Offline-First PWA & Local Sync Queue (Zero Lost Field Data)
+- **UI/UX & Architecture Spec:** [DESIGN_NOTES.md §10.1](../03-ui-ux/DESIGN_NOTES.md) (`OfflineSyncBanner`, `OutboxQueueSheet`), [ARCHITECTURE_DECISIONS.md `ADR-009` §1](../04-tech-lead/ARCHITECTURE_DECISIONS.md) (`GET /api/sync/pull`, `POST /api/sync/batch`)
+- **As a** Field Sales Agent or Maintenance Technician working in low-connectivity or zero-signal retail/warehouse zones, **I want** my assigned chillers, forms, and assignments cached locally with incremental delta sync and a persistent offline outbox queue, **so that** I can complete visit audits and repair updates offline without losing data and sync safely when connectivity returns.
+- **Acceptance Criteria:**
+  1. **Delta Pull (`GET /api/sync/pull?since=<iso>`):**
+     - Requires `requireAuth`; supports optional ISO-8601 `since` cursor (`400 Bad Request` on invalid timestamp; full bootstrap sync with `isFullSync: true` when omitted).
+     - Captures `serverTime` before filtering so clients never miss concurrent writes, and returns role/territory-scoped `chillers`, `forms`, `assignments`, plus `tombstones` (`chillerCodes`, `formIds`, `assignmentIds`) deleted after `since`.
+  2. **Transactional & Idempotent Outbox Flush (`POST /api/sync/batch`):**
+     - Accepts `1..50` queued operations (`type: 'form_response' | 'condition'`), each with a required `idempotencyKey` (max 128 chars) and optional batch-level `Idempotency-Key` header (`24h` TTL deduplication in `dbStore.idempotency_keys`).
+     - Executes each operation under the caller's exact RBAC and territory rules (`technician` receives item-level `403` on `form_response`; `agent` receives item-level `403` on `condition`) and returns per-item `results[]` (`created`, `updated`, `duplicate`, or `error`) without rolling back valid sibling items.
+  3. **Offline Sync Status Bar (`OfflineSyncBanner` in `main.dart`):**
+     - Docked at the top of the main content pane on desktop (`>= 768px`) and directly above `NavigationBar` on mobile (`< 768px`), styled with `AppTokens.of(context)` across Dark, Light, and Outdoor themes.
+     - Auto-collapses (`0px`) when Online with an empty queue (showing a `3s` transient `"All audits synced ✓"` strip right after sync), and surfaces clear states for `Offline (0 Queued)`, `Offline (N Queued)`, `Online (N Queued — Ready)` with **`Sync Now`**, `Syncing (i of N)` progress bar, and `Sync paused — K audit(s) need attention` with **`Resolve / Retry`**.
+  4. **Outbox Queue Sheet / Dialog (`OutboxQueueSheet`):**
+     - Displays queued items (`Customer Name`, `Chiller Code` in `LTR`, timestamp, photo count, geofence badge, and status pill: `Queued`, `Syncing`, `Retry Needed`, or `Conflict`), with **`Sync All`**, **`Retry`**, **`Discard`** (with confirmation), and conflict resolution (**`Keep Mine (Resubmit)`** / **`Discard Local`**).
+     - Preserves `44x44` touch targets, `Semantics` labels, and `Directionality.ltr` on codes/timestamps in Arabic RTL (`Locale('ar')`).
+
+### `[STORY-014]` 100m GPS Check-In Geofencing (`P6`)
+- **Sprint:** Sprints 4 & 5 (`P6` / `v2.7.0`)
+- **Linked PO Goal:** `ROAD-11` — 100m GPS Check-In Geofencing for Physical Visit Verification
+- **UI/UX & Architecture Spec:** [DESIGN_NOTES.md §10.2](../03-ui-ux/DESIGN_NOTES.md) (`GeofenceCheckInPill`), [ARCHITECTURE_DECISIONS.md `ADR-009` §2](../04-tech-lead/ARCHITECTURE_DECISIONS.md) (`POST /api/form-responses` & `POST /api/sync/batch`)
+- **As a** Branch Supervisor, Operations Admin, or Field Sales Agent, **I want** live `100m` GPS proximity verification during visit audit check-in and on daily stop cards, **so that** supervisors can trust that field audits were conducted on-site without hard-blocking reps when indoor GPS drifts.
+- **Acceptance Criteria:**
+  1. **Backend Geofence Calculation & Validation (`POST /api/form-responses` & `sync/batch`):**
+     - Accepts optional `checkInLat` and `checkInLng` numbers. Supplying neither preserves full backward compatibility (`checkInLat: null`, `checkInLng: null`, `checkInDistanceM: null`, `geofenceVerified: null`). Supplying only one coordinate or out-of-bounds WGS84 values (`lat` outside `[-90, 90]`, `lng` outside `[-180, 180]`) returns `400 Bad Request`.
+     - When the target chiller has valid non-zero finite coordinates, computes `checkInDistanceM = Math.round(haversineKm(...) * 1000)` and `geofenceVerified = checkInDistanceM <= 100`, persisting `check_in_lat`, `check_in_lng`, `check_in_distance_m`, and `geofence_verified` (plus camelCase aliases in responses).
+  2. **Soft-Flag Policy (No Hard Block):**
+     - Submissions with `checkInDistanceM > 100` (`geofenceVerified: false`) are **accepted** so legitimate visits with indoor GPS drift or relocated chillers are never blocked, while surfacing the distance and `OUT OF RANGE` / `Outside Geofence` indicator for supervisor review.
+  3. **Live `GeofenceCheckInPill` UI (`FormFillerDialog` & `DashboardViewScreen`):**
+     - Displayed in `FormFillerDialog` directly below `$customerName ($chillerCode)` and inline in `DashboardViewScreen` ("My Day" Next Stop well, Priority Stop cards, Technician Work cards).
+     - Renders 4 semantic states using `AppTokens.of(context)`: `Within 100m ✓` (`t.success`), `Outside Geofence — Xm` / `X.X km` (`t.caution`), `Checking GPS...` (`t.accentPrimary`), and `GPS Unavailable` (`t.surfaceHeader` + `Retry` tap action in `FormFillerDialog`).
+     - When `distanceMeters > 100`, `FormFillerDialog` displays a non-blocking helper note (`"You are Xm from the registered chiller pin. You can still submit — distance is logged for supervisor review."`). Distance values remain `Directionality.ltr` in Arabic RTL.
+
+### `[STORY-015]` Geo-Stamped Photo Watermarks & 1-Click Visual Audit PDF Export (`P6`)
+- **Sprint:** Sprints 4 & 5 (`P6` / `v2.7.0`)
+- **Linked PO Goal:** `ROAD-11` — Tamper-Evident Geo-Stamped Photo Evidence & 1-Click Visual Audit PDF Export
+- **UI/UX & Architecture Spec:** [DESIGN_NOTES.md §10.3](../03-ui-ux/DESIGN_NOTES.md) (`AuditPhotoGallery`, `_AuditPhotoLightbox`, Export CTA), [ARCHITECTURE_DECISIONS.md `ADR-009` §3](../04-tech-lead/ARCHITECTURE_DECISIONS.md) (`GET /api/form-responses/:id/report`)
+- **As a** Branch Supervisor, Operations Admin, System Owner, or Field Sales Agent, **I want** visit audit photos to carry visible geo-stamped watermarks (`Chiller Code`, `Timestamp`, `Lat/Lng`, `Agent Name`) and a 1-click **Export Visual Audit PDF** action, **so that** photo evidence is tamper-evident and audit dossiers can be printed or shared externally with stakeholders.
+- **Acceptance Criteria:**
+  1. **Structured Geo-Stamped Photo Metadata (`attachments[]`):**
+     - `POST /api/form-responses` (and `sync/batch`) supports structured attachment objects `{ url, filename, watermark: { capturedAt, lat, lng, agentName, chillerCode } }` while remaining 100% backward-compatible with legacy string URLs/data-URIs.
+     - The Flutter client renders the visible geo-stamp watermark onto captured photos prior to upload and attaches the structured `watermark` metadata.
+  2. **Watermark Overlays in `AuditPhotoGallery` & `_AuditPhotoLightbox`:**
+     - **Thumbnail Grid:** Renders a subtle bottom gradient scrim with 2 `LTR`-locked lines: `${chillerCode} · $shortDateTime` and `📍 lat, lng` (or `📍 GPS Unverified` in `t.caution` when unverified, paired with a `t.caution` dot badge).
+     - **Fullscreen Lightbox:** Displays a bottom watermark metadata card (`Chiller Code`, `Condition` badge, `Geofence` pill, `Timestamp · Agent Name`, `Lat, Lng`, and a `44x44` **`Open in Maps`** action when GPS is verified).
+  3. **1-Click Visual Audit Report / PDF Export (`GET /api/form-responses/:id/report`):**
+     - Protected by `requireAuth` and `requireRoles('owner', 'admin', 'regional_manager', 'supervisor', 'agent')`, enforcing strict territory isolation (`403` for out-of-scope `agent` or `supervisor`, `404` if missing).
+     - Supports `format=html` (default, self-contained print-optimized `@media print` dossier with `Print / Save as PDF` trigger) and `format=json`. All dynamic text is HTML-escaped (`escapeHtml`) and attachment URLs are restricted to safe schemes (`https://`, `http://`, `/uploads/`, `data:image/`) to prevent stored XSS.
+     - **UI Placement & States:** Available in `FormResponsesViewScreen` (compact `44x44` PDF icon button on list cards + `Export Visual Audit PDF` `OutlinedButton.icon` in the detail dialog) and `Customer360Drawer` (Audit History header button + per-visit card icon button), with Idle, Generating (`CircularProgressIndicator` + `"Generating PDF..."`), Success (`AppToastType.success`), and Error (`AppToastType.error` with `Retry`) states.
+
+---
+
+## Sprints 6 & 7 Stories (`P7` — Automated Service Operations, Gamification & Bulk Territory Rebalance)
+
+### `[STORY-016]` Automated Maintenance & Scrap SLA Ticketing (`P7`)
+- **Sprint:** Sprints 6 & 7 (`P7` / `v2.8.0`)
+- **Linked PO Goal:** `ROAD-06` — Automated Maintenance & Scrap SLA Timers & Escalation
+- **UI/UX & Architecture Spec:** Service Operations SLA Queue & Ticket Drawer (`DashboardViewScreen`, `Customer360Drawer`), Backend Service Ticket & SLA Escalation Engine
+- **As a** Maintenance Technician, Branch Supervisor, or Regional Manager/Admin, **I want** chillers flagged as `Requires Maintenance`, `Damaged`, or `Scrap` to automatically generate SLA-tracked service tickets with configurable escalation timers (`>24h` / `>48h`), **so that** broken assets are repaired faster (reducing MTTR) and overdue tickets are escalated automatically before revenue is lost.
+- **Acceptance Criteria:**
+  1. **Auto-Ticket Creation & Deduplication:**
+     - Whenever a chiller's `Condition` transitions to `Requires Maintenance`, `Damaged`, or `Scrap` (via `PATCH /api/chillers/:id/condition`, visit audit form submission, or master Excel/CSV ingestion delta), the backend automatically creates an `Open` Service Ticket unless an active (`Open`, `In Progress`, or `Escalated`) ticket already exists for that `chiller_code`.
+  2. **SLA Tiering & Live Countdown Timers:**
+     - **Critical (`Scrap` / `Damaged`):** `24-hour` SLA target (`slaDueAt = createdAt + 24h`).
+     - **Urgent (`Requires Maintenance`):** `48-hour` SLA target (`slaDueAt = createdAt + 48h`).
+     - Live SLA state (`On Track`, `Due Soon < 6h`, `Breached +Xh`) is computed dynamically and displayed as semantic badges (`t.success`, `t.caution`, `t.danger`) on Technician, Supervisor, and Admin/Owner dashboards.
+  3. **Automated Escalation (`>24h` / `>48h`):**
+     - Tickets exceeding their `slaDueAt` automatically transition to `Escalated` status (`L1 -> Supervisor`, `L2 -> Regional Manager / Admin` after an additional `24h` breach) and surface in the Supervisor and Regional Manager **SLA Escalation Queue**.
+  4. **Ticket Lifecycle & MTTR Tracking:**
+     - Technicians can `Acknowledge` (`In Progress`), `Log Repair Note / Photo`, and `Resolve` (marking the chiller `Operational` or confirming `Scrap`), which closes the ticket and records `resolvedAt` and `mttrHours` (Mean Time to Repair) for dashboard analytics.
+  5. **RBAC & Territory Isolation:**
+     - `technician`: Views/updates open and assigned maintenance tickets (branch-filtered if `branch` is set).
+     - `supervisor`: Views/escalates tickets scoped to their `branch`/`team_agent_ids`.
+     - `regional_manager` / `admin` / `owner`: Views branch-scoped or fleet-wide SLA compliance %, breached tickets, and MTTR trends.
+     - `agent`: Read-only visibility of open ticket status on their own assigned chillers inside `Customer 360`.
+
+### `[STORY-017]` Rep Gamification & "Perfect Chiller" Scorecards (`P7`)
+- **Sprint:** Sprints 6 & 7 (`P7` / `v2.8.0`)
+- **Linked PO Goal:** `ROAD-07` — "Perfect Chiller" Scorecards, Rep Visit Streaks & Branch Leaderboards
+- **UI/UX & Architecture Spec:** Gamification Leaderboard & Scorecard Strip (`DashboardViewScreen`), "Perfect Chiller" Badge & Breakdown (`Customer360Drawer`)
+- **As a** Field Sales Agent, Branch Supervisor, or Operations Admin, **I want** composite "Perfect Chiller" scorecards, daily/weekly visit streaks, and branch-scoped rep leaderboards, **so that** field reps stay motivated to complete high-quality, geofence-verified visits and maintain healthy, high-performing chillers.
+- **Acceptance Criteria:**
+  1. **"Perfect Chiller" Composite Score (`0–100`):**
+     - Every chiller receives a deterministic score across 4 weighted pillars:
+       - **Physical Condition (`30 pts`):** `Operational`/`Good` = `30`, `Requires Maintenance` = `10`, `Damaged`/`Scrap`/`Unknown` = `0`.
+       - **Visit Compliance (`30 pts`):** Accepted/Approved visit audit in the current calendar month = `30`, `Pending` = `15`, Overdue or `Re-opened` = `0`.
+       - **On-Site Geofence & Photo Verification (`20 pts`):** Latest visit has `geofenceVerified == true` (`<= 100m`) and photo evidence = `20` (`10` if photo only without geofence, `0` if neither).
+       - **Commercial Performance (`20 pts`):** `>= 100%` target achievement = `20`, `75–99%` = `12`, `< 75%` = `4`, missing/`N/A` = `10` (neutral).
+     - Chillers scoring `>= 90` earn the **"Perfect Chiller ★"** badge in `Customer 360` and Dashboard stop cards, with a tap-to-inspect 4-pillar breakdown.
+  2. **Rep Visit Streaks & Milestone Badges:**
+     - Tracks each `agent`'s consecutive active visit days (`currentStreakDays`, `bestStreakDays`), monthly Perfect Chiller count, and milestone badges (e.g., `On-Site Pro` for 10+ geofenced visits, `Zero Re-opens`, `7-Day Streak`).
+  3. **Branch-Scoped Rep Leaderboard:**
+     - Renders a ranked leaderboard on `Dashboard` (`Home`) for `agent` (branch/peer rank), `supervisor` (team leaderboard), and `admin`/`owner` (filterable by `Branch`), displaying Rep Name, Visit Completion %, Avg "Perfect Chiller" Score, Current Streak, and Total Points.
+  4. **Edge Cases, Themes & Arabic RTL:**
+     - Missing/non-numeric financial cells never produce `NaN`; all scorecard and leaderboard widgets use `AppTokens.of(context)` across Dark, Light, and Outdoor themes, with `Directionality.ltr` on numeric scores, percentages, and streak counts in `Locale('ar')`.
+
+### `[STORY-018]` Bulk Territory Rebalance for Supervisors/Admins (`P7`)
+- **Sprint:** Sprints 6 & 7 (`P7` / `v2.8.0`)
+- **Linked PO Goal:** `ROAD-07` — Map-Lasso & Multi-Select Bulk Territory Rebalancing for Supervisors & Admins
+- **UI/UX & Architecture Spec:** Map-Lasso / Multi-Select Rebalance Toolbar (`MapViewScreen`, `AssignLocationsViewScreen`, Supervisor `DashboardViewScreen` CTA), Bulk Reassignment API
+- **As a** Branch Supervisor, Regional Manager, or Operations Admin, **I want** to select multiple chillers on the map (via polygon/lasso or multi-select) or in the Assign Locations table and bulk-reassign them to a target agent with workload preview, **so that** I can rebalance unbalanced territories or cover absent reps in seconds instead of editing one chiller at a time.
+- **Acceptance Criteria:**
+  1. **Map-Lasso & Multi-Select Selection (`MapViewScreen`):**
+     - Supervisors, Regional Managers, Admins, and Owners can toggle **"Rebalance / Lasso Select"** mode on the map to draw a freehand polygon/lasso (or tap-select multiple pins) and highlight all chillers inside the selection boundary.
+  2. **Before → After Workload Preview:**
+     - Opening the **Rebalance Confirmation** sheet/dialog displays the selected chiller count, a **Before → After** workload comparison for affected agents (e.g., `Rep A: 48 → 35 chillers`, `Rep B: 22 → 35 chillers`), and a target **Sales Agent** selector (plus an optional **Bulk Unassign** action with confirmation).
+  3. **Atomic Bulk Reassignment & Audit Trail:**
+     - Confirming executes a single atomic bulk assignment request, updates all selected chillers, records a structured audit log entry in `System Logs` (actor, count, source/target agents, timestamp), and immediately refreshes map pins, KPIs, and `Assign Locations`.
+  4. **RBAC & Branch Guardrails:**
+     - `supervisor` can only select chillers within their assigned `branch`/`area` and can only reassign to agents in their `branch`/`team_agent_ids` (out-of-scope chillers or target agents return `403 Forbidden`).
+     - `agent` and `technician` have no access to bulk territory rebalance controls or endpoints.
+  5. **Seamless Entry Points:**
+     - Accessible from both the `Map View` toolbar and the Supervisor Dashboard's **`Rebalance Territories`** CTA (`Assign Locations`), preserving `44x44` touch targets and `AppToast` confirmation feedback.
+
+---
+
+## Sprints 8 & 9 Stories (`P8` — AI Retail Execution Intelligence, Predictive Relocation & Data Completeness Center)
+
+### `[STORY-019]` AI Chiller Purity, OOS & Predictive Relocation Insights (`P8`)
+- **Sprint:** Sprints 8 & 9 (`P8` / `v3.0.0`)
+- **Linked PO Goal:** `ROAD-08` & `ROAD-09` — AI Chiller "Purity", OOS & POSM Vision Audit + Predictive Chiller Relocation Engine
+- **UI/UX & Architecture Spec:** AI Execution & Relocation Panel (`DashboardViewScreen`, `Customer360Drawer`, `FormResponsesViewScreen`), AI Vision & Relocation Scoring Service
+- **As a** Regional Manager, Branch Supervisor, Operations Admin, or Field Sales Agent, **I want** automated AI Chiller Purity, Out-of-Stock (OOS), POSM compliance, and Predictive Relocation insights surfaced on audit photos, Customer 360, and executive dashboards, **so that** competitor intrusion and stockouts are caught automatically and underperforming "Ghost" chillers are relocated to higher-ROI outlets.
+- **Acceptance Criteria:**
+  1. **AI Vision Audit Analysis (Purity, OOS, POSM & Blur Detection):**
+     - Audit photos submitted via `POST /api/form-responses` (or `POST /api/sync/batch`) are evaluated for **Shelf Purity %** (company vs. competitor SKU facings), **Out-of-Stock (OOS) Alert** (empty shelf ratio), **POSM / Branding Compliance** (`Compliant` / `Missing`), and **Image Quality / Blur Check** (non-blocking capture-time warning if blurry).
+     - Results persist on the audit response and surface as semantic badges (`Purity >= 85%` -> `t.success`, `70–84%` -> `t.caution`, `< 70%` or `OOS Detected` -> `t.danger`) in `FormResponsesViewScreen` and `Customer360Drawer`.
+  2. **Predictive Chiller Relocation Engine ("Ghost Chiller" Detection):**
+     - Identifies low-ROI **"Ghost" Chillers** (`Condition = Operational/Good` with sustained low/zero or declining `YTD` revenue below branch threshold) and computes a **Relocation Priority Score** alongside nearby high-potential candidate outlets/zones within the same `Branch` / `District`.
+     - Surfaces a **Relocation Recommendation** card inside `Customer360Drawer` (for `supervisor`, `regional_manager`, `admin`, `owner`) and a ranked **Relocation Watchlist** on `DashboardViewScreen` with 1-click drill-down to `Map View`.
+  3. **RBAC, Territory Isolation & Auditability:**
+     - `owner` / `admin` / `regional_manager`: View fleet-wide or branch-scoped AI Purity/OOS metrics and Relocation Watchlist; can approve/dismiss relocation recommendations (logged in `System Logs`).
+     - `supervisor`: Scoped to their assigned `branch`/`team_agent_ids` for AI alerts and relocation candidates.
+     - `agent`: Views Purity/OOS feedback on their own assigned chillers (`Customer360Drawer` & `Visit Responses`) and receives capture-time blur/OOS prompts; does not see fleet-wide relocation controls.
+     - `technician`: No access to commercial relocation analytics.
+  4. **Edge Cases, Themes & Arabic RTL:**
+     - Missing or unprocessed photos display `Pending AI Scan` or `N/A` without blocking visit submission; numeric percentages and scores use `Directionality.ltr` in `Locale('ar')` and `AppTokens.of(context)` across Dark, Light, and Outdoor themes.
+
+### `[STORY-020]` Data Completeness Center & Incomplete Record Filtering (`P8`)
+- **Sprint:** Sprints 8 & 9 (`P8` / `v3.0.0`)
+- **Linked PO Goal:** `P8` — Master Data Quality Governance & Incomplete Record Remediation
+- **UI/UX & Architecture Spec:** Data Completeness Center Card / Drawer (`DashboardViewScreen`, `DataTableViewScreen`, `MapViewScreen`), Completeness Health Summary API
+- **As a** System Owner, Regional Manager, Operations Admin, or Branch Supervisor, **I want** a centralized Data Completeness Center with field-level health scores and 1-click incomplete record filtering across the Data Table and Map, **so that** missing GPS coordinates, unassigned chillers, unspecified conditions, and blank financial/serial fields can be identified and remediated quickly.
+- **Acceptance Criteria:**
+  1. **Fleet & Branch Data Completeness Scorecard:**
+     - Computes deterministic completeness `%` across critical master-data dimensions: **Valid GPS (`lat`/`lng`)**, **Assigned Agent**, **Chiller Condition** (non-`Unknown`/`-`), **Serial / Asset Metadata**, and **Financial / Branch-District Mapping**.
+     - Displays an overall **Data Completeness %** gauge and per-dimension missing-record counts (`N missing GPS`, `N unassigned`, `N unspecified condition`, `N missing serial`) on `DashboardViewScreen` (for `owner`, `admin`, `regional_manager`, and branch-scoped `supervisor`).
+  2. **1-Click Incomplete Record Filtering (`DataTableViewScreen` & `MapViewScreen`):**
+     - Clicking any missing-dimension pill (e.g., `Missing GPS`, `Unassigned`, `Unspecified Condition`, `Incomplete Financial/Serial`) navigates to or filters `DataTableViewScreen` (or `AssignLocationsViewScreen`) to isolate only the affected rows, with a dismissible active-filter chip (`Incomplete: Missing GPS (N)`) to reset.
+     - Inside `DataTableViewScreen`, a dedicated **`Incomplete Only`** quick-filter chip/toggle highlights missing cells with semantic `t.caution` / `t.danger` indicators so admins can inspect gaps immediately.
+  3. **Inline Remediation & Export:**
+     - Filtered incomplete rows provide direct quick actions (`Assign Agent`, `Open 360°`) and allow admins/owners to export the filtered incomplete subset to CSV/Excel for field or back-office cleanup.
+  4. **RBAC & Edge Cases:**
+     - `supervisor` sees completeness metrics and incomplete filters scoped strictly to their `branch`/`team_agent_ids`; `agent` and `technician` do not see fleet-wide Data Completeness Center admin controls.
+     - Empty or zero-chiller branches render `0` / `N/A` cleanly via `AppEmptyState` without division-by-zero errors.
+
+### `[STORY-021]` Sub-Branch District Rollups (`P8`)
+- **Sprint:** Sprints 8 & 9 (`P8` / `v3.0.0`)
+- **Linked PO Goal:** `P8` — Granular Sub-Branch / District Performance & Coverage Analytics
+- **UI/UX & Architecture Spec:** Hierarchical Branch → Sub-Branch / District Rollup Table & Filter (`DashboardViewScreen`, `MapViewScreen`, `DataTableViewScreen`), Dashboard Stats District Aggregation
+- **As a** System Owner, Regional Manager, Operations Admin, or Branch Supervisor, **I want** Sub-Branch / District-level rollups nested beneath each Branch across the Dashboard, Map, and Data Table, **so that** I can pinpoint underperforming districts, low visit coverage pockets, and maintenance hotspots inside large branches.
+- **Acceptance Criteria:**
+  1. **Hierarchical Branch → Sub-Branch / District Aggregation:**
+     - Backend analytics (`GET /api/stats/dashboard` and KPI rollup payloads) group chillers by `Branch` and nested `Sub-Branch` / `District` (falling back gracefully to `Unspecified District` when the column is blank/`-` in master sheets).
+     - Each district rollup computes: **Chiller Count**, **Assigned %**, **Visited This Month %**, **Avg Achievement %**, **YTD Revenue**, and **Maintenance / Alert Count**.
+  2. **Expandable Branch → District Drill-Down (`DashboardViewScreen`):**
+     - In the Branch Performance table/chart on `DashboardViewScreen`, expanding a `Branch` reveals its child **Sub-Branch / District** rows with sortable metrics and semantic target badges (`>= 85%` green, `65–84%` amber, `< 65%` red).
+  3. **1-Click District Filtering (`MapViewScreen` & `DataTableViewScreen`):**
+     - Selecting a Sub-Branch / District row drills into `Map View` or `Data Table` pre-filtered to that `Branch + District`, and a **District** filter chip/dropdown is available alongside the `Branch` filter.
+  4. **RBAC, Performance & RTL:**
+     - `supervisor` and branch-scoped `regional_manager` see only Sub-Branch / District rollups within their authorized `branch`; `agent` and `technician` do not see executive branch/district tables.
+     - Missing/non-numeric financial cells never produce `NaN`; all numeric counts and percentages remain `Directionality.ltr` in Arabic RTL (`Locale('ar')`).
+
+---
+
+## Sprints 10 & 11 Stories (`P9` — Enterprise ERP/DMS Webhooks, Executive ROI Console & PostgreSQL/PostGIS Readiness)
+
+### `[STORY-022]` Enterprise ERP/DMS Webhooks & Executive ROI Console (`P9`)
+- **Sprint:** Sprints 10 & 11 (`P9` / `v3.2.0`)
+- **Linked PO Goal:** `ROAD-10` — Scheduled ERP/DMS/WhatsApp Webhook Sync & Executive ROI / Fleet Depreciation Console
+- **UI/UX & Architecture Spec:** ERP/DMS Webhook Integration Console & Executive ROI / Fleet Depreciation Console (`DashboardViewScreen` / Admin Settings), Webhook Delivery & HMAC Signature Service
+- **As a** System Owner, Regional Manager, or Operations Admin, **I want** configurable ERP/DMS webhooks (with HMAC-SHA256 signing, retry/delivery logs, and automated restock/alert triggers) alongside an Executive ROI & Fleet Depreciation Console, **so that** manual Excel bottlenecks are eliminated and capital redeployment decisions are backed by real-time unit economics.
+- **Acceptance Criteria:**
+  1. **ERP/DMS Webhook Management & Delivery (`ROAD-10`):**
+     - Owners/Admins can register, enable/disable, rotate secrets for, and test-fire webhook subscriptions across key lifecycle events (`batch.uploaded`, `visit.submitted`, `ticket.created`, `ticket.resolved`, `relocation.approved`, `restock.triggered`).
+     - Outbound webhook payloads are signed with HMAC-SHA256 (`X-Bassem-Signature`), include idempotency keys, and record delivery attempts (`2xx` success, retry backoff, dead-letter status) in a **Webhook Delivery Log**; inbound ERP/DMS sync preserves immutable Batch Delta snapshots (`BR-02`).
+  2. **Executive ROI & Fleet Depreciation Console (`DashboardViewScreen`):**
+     - Computes per-chiller and branch-level unit economics: **Estimated Asset Cost / Depreciation**, **Maintenance Cost-to-Serve** (aggregated from SLA tickets), **YTD Revenue & Net Contribution**, **Payback Period (Months)**, and **Branch Asset Health Index**.
+     - Surfaces an **Executive ROI & Depreciation** panel for `owner`, `admin`, and `regional_manager` with branch benchmarking, Top/Bottom ROI chiller rankings, and 1-click drill-down to `Customer360Drawer` or `Map View`.
+  3. **RBAC, Territory Isolation & Auditability:**
+     - `owner` / `admin`: Full access to ERP/DMS webhook configuration, secret rotation, test-fire triggers, delivery logs, and national Executive ROI Console.
+     - `regional_manager`: Views Executive ROI metrics scoped to their authorized `branch`(es); restricted from global webhook secret management.
+     - `supervisor`, `agent`, `technician`: No access to ERP/DMS webhook configuration or executive capital ROI/depreciation financials.
+     - All webhook endpoint changes, secret rotations, and manual test triggers are logged in `System Logs`.
+  4. **Edge Cases, Themes & Arabic RTL:**
+     - Missing asset cost or zero maintenance spend renders cleanly (`N/A` or `0` without `NaN` or division-by-zero); outbound webhook failures never block core field visit submissions or batch uploads.
+     - Numeric ROI figures, currency, and percentages remain `Directionality.ltr` in `Locale('ar')` and use `AppTokens.of(context)` across Dark, Light, and Outdoor themes.
+
+### `[STORY-023]` PostgreSQL/PostGIS Multi-Tenant Migration Readiness (`P9`)
+- **Sprint:** Sprints 10 & 11 (`P9` / `v3.2.0`)
+- **Linked PO Goal:** `ADR-002` — Multi-Tenant Organization Isolation (PostgreSQL + PostGIS & RLS Readiness)
+- **UI/UX & Architecture Spec:** Tenant Diagnostics & Migration Readiness Panel (`SystemLogsViewScreen` / `GET /api/admin/diagnostics`), PostgreSQL + PostGIS Schema & RLS Context (`tenant_id`, `ST_Distance`)
+- **As a** System Owner or Operations Admin, **I want** tenant-scoped data isolation (`tenant_id` + PostgreSQL Row-Level Security readiness), PostGIS spatial query compatibility, and a pre-flight migration readiness & parity verification console, **so that** the platform can transition cleanly from JSON/Blob storage (`dbStore`) to multi-tenant PostgreSQL/PostGIS with zero cross-tenant leakage or data loss.
+- **Acceptance Criteria:**
+  1. **Multi-Tenant Context & Isolation Readiness (`tenant_id` & RLS):**
+     - Core domain records (`chillers`, `batches`, `users`, `form_responses`, `tickets`, `audit_logs`, `webhooks`) carry a deterministic `tenant_id` (defaulting cleanly to the primary tenant for legacy single-tenant records) and enforce tenant-scoped query boundaries compatible with PostgreSQL RLS (`SET LOCAL app.tenant_id`, `app.role`, `app.branch`).
+     - Cross-tenant access attempts are rejected (`403 Forbidden` / `404 Not Found`) and recorded in `System Logs`.
+  2. **PostgreSQL/PostGIS Schema & Spatial Parity:**
+     - Chiller and visit coordinates (`lat`/`lng`) validate cleanly for PostGIS `GEOGRAPHY(Point, 4326)` / `ST_Distance` spatial queries (100m geofence checks, nearest-chiller route planning, and predictive relocation radius queries) while keeping existing JSON API contracts backward-compatible.
+     - Idempotent migration/parity tooling validates record counts, batch immutability, foreign-key integrity, and invalid/missing-coordinate counts prior to cutover.
+  3. **Migration Readiness & Diagnostics Console (`Owner` / `Admin`):**
+     - `GET /api/admin/diagnostics` and the **System Logs & Diagnostics** screen expose active storage engine (`JSON/Blob` vs. `PostgreSQL/PostGIS`), active `tenant_id` context, schema/parity check status, and pre-flight readiness indicators (unmapped tenants, invalid GPS coordinates, pending sync items).
+  4. **RBAC & Security Boundaries:**
+     - Only `owner` (and `admin` for non-secret tenant diagnostics) can view multi-tenant migration readiness; `supervisor`, `agent`, and `technician` have zero access to infrastructure/migration diagnostics or cross-tenant controls.
+     - Public `GET /api/health` remains sanitized (`TC-05`) and never exposes database connection strings, tenant lists, or migration internals.
