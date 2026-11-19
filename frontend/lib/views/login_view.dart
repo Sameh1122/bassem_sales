@@ -399,12 +399,15 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
                         children: const [
                           Icon(Icons.shield_rounded, size: 14, color: Color(0xFF10B981)),
                           SizedBox(width: 8),
-                          Text(
-                            'PBKDF2 SHA-512 Encrypted • Brute-Force Protected',
-                            style: TextStyle(
-                              color: Color(0xFF64748B),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                          Flexible(
+                            child: Text(
+                              'PBKDF2 SHA-512 Encrypted \u2022 Brute-Force Protected',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ],
