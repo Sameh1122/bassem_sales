@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
+import '../widgets/app_feedback.dart';
 
 class FormFillerDialog extends StatefulWidget {
   final Map<String, dynamic> chiller;
@@ -21,6 +22,9 @@ class FormFillerDialog extends StatefulWidget {
 }
 
 class _FormFillerDialogState extends State<FormFillerDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final Map<String, GlobalKey> _fieldKeys = {};
+  bool _attemptedSubmit = false;
   bool _isLoadingForms = true;
   bool _isSubmitting = false;
   List<Map<String, dynamic>> _forms = [];
@@ -74,6 +78,7 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
       _selectedForm = form;
       _answers.clear();
       _textControllers.clear();
+      _fieldKeys.clear();
       _attachmentUrls.clear();
 
       final fields = List<Map<String, dynamic>>.from(form['fields'] ?? []);
@@ -179,13 +184,27 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
     }
   }
 
+  void _scrollToField(String fieldId) {
+    final ctx = _fieldKeys[fieldId]?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+        alignment: 0.15,
+      );
+    }
+  }
+
   Future<void> _submitForm() async {
     if (_selectedForm == null) return;
+    setState(() => _attemptedSubmit = true);
+    final isFormValid = _formKey.currentState?.validate() ?? true;
 
     final fields = List<Map<String, dynamic>>.from(_selectedForm!['fields'] ?? []);
     final Map<String, dynamic> finalAnswers = {};
 
-    // Validate required fields
+    // Validate required fields and auto-scroll to first invalid field
     for (var f in fields) {
       final id = f['id']?.toString() ?? '';
       final label = f['label']?.toString() ?? 'Field';
@@ -195,30 +214,35 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
       if (type == 'text') {
         final val = _textControllers[id]?.text.trim() ?? '';
         if (isRequired && val.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Please fill required field: $label'), backgroundColor: Colors.orangeAccent),
-          );
+          _scrollToField(id);
+          AppToast.show(context, type: AppToastType.warning, message: 'Please fill required field: $label');
           return;
         }
         finalAnswers[id] = val;
       } else if (type == 'choose') {
         final val = _answers[id]?.toString().trim() ?? '';
         if (isRequired && val.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Please select an option for: $label'), backgroundColor: Colors.orangeAccent),
-          );
+          _scrollToField(id);
+          AppToast.show(context, type: AppToastType.warning, message: 'Please select an option for: $label');
           return;
         }
         finalAnswers[id] = val;
       } else if (type == 'attachments') {
         if (isRequired && _attachmentUrls.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Please attach at least one photo for: $label'), backgroundColor: Colors.orangeAccent),
-          );
+          _scrollToField(id);
+          AppToast.show(context, type: AppToastType.warning, message: 'Please attach at least one photo for: $label');
           return;
         }
         finalAnswers[id] = _attachmentUrls;
       }
+    }
+
+    if (!isFormValid) {
+      if (fields.isNotEmpty) {
+        _scrollToField(fields.first['id']?.toString() ?? '');
+      }
+      AppToast.show(context, type: AppToastType.warning, message: 'Please fix the highlighted fields before submitting.');
+      return;
     }
 
     setState(() => _isSubmitting = true);
@@ -240,20 +264,12 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
         setState(() => _isSubmitting = false);
         Navigator.of(context).pop();
         widget.onSubmitted();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Visit form submitted successfully! Status updated on map.'),
-            backgroundColor: Color(0xFF10B981),
-            duration: Duration(seconds: 4),
-          ),
-        );
+        AppToast.show(context, type: AppToastType.success, message: 'Visit form submitted successfully! Status updated on map.');
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Submission failed: $e'), backgroundColor: Colors.redAccent),
-        );
+        AppToast.show(context, type: AppToastType.error, message: 'Submission failed: $e', actionLabel: 'Retry', onAction: _submitForm);
       }
     }
   }
@@ -439,7 +455,15 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
                         const SizedBox(height: 8),
 
                         // Dynamic Fields List
-                        if (_selectedForm != null) ..._buildDynamicFields(),
+                        if (_selectedForm != null)
+                          Form(
+                            key: _formKey,
+                            autovalidateMode: _attemptedSubmit ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: _buildDynamicFields(),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -490,6 +514,7 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
 
       widgets.add(
         Padding(
+          key: _fieldKeys.putIfAbsent(id, () => GlobalKey()),
           padding: const EdgeInsets.only(bottom: 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -522,10 +547,13 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
               const SizedBox(height: 8),
 
               if (type == 'text') ...[
-                TextField(
+                TextFormField(
                   controller: _textControllers[id],
                   maxLines: label.toLowerCase().contains('note') || label.toLowerCase().contains('comment') ? 3 : 1,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
+                  validator: isRequired
+                      ? (val) => (val == null || val.trim().isEmpty) ? '$label is required' : null
+                      : null,
                   decoration: InputDecoration(
                     hintText: 'Enter $label...',
                     hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
@@ -535,6 +563,9 @@ class _FormFillerDialogState extends State<FormFillerDialog> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
                     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
                     focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
+                    errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5)),
+                    focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5)),
+                    errorStyle: const TextStyle(color: Color(0xFFEF4444), fontSize: 11.5),
                   ),
                 ),
               ] else if (type == 'choose') ...[

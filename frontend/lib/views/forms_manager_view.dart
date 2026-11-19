@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/app_feedback.dart';
 
 class FormsManagerViewScreen extends StatefulWidget {
   const FormsManagerViewScreen({super.key});
@@ -41,15 +42,14 @@ class FormsManagerViewScreenState extends State<FormsManagerViewScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading forms: $e'), backgroundColor: Colors.redAccent),
-        );
+        AppToast.show(context, type: AppToastType.error, message: 'Error loading forms: $e');
       }
     }
   }
 
   void _showFormGeneratorDialog([Map<String, dynamic>? existingForm]) {
     final bool isEditing = existingForm != null;
+    final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController(text: existingForm?['title'] ?? '');
     final descController = TextEditingController(text: existingForm?['description'] ?? '');
 
@@ -124,14 +124,18 @@ class FormsManagerViewScreenState extends State<FormsManagerViewScreen> {
             width: math.min(680.0, MediaQuery.of(ctx).size.width - 32),
             height: math.min(640.0, MediaQuery.of(ctx).size.height * 0.8),
             child: SingleChildScrollView(
-              child: Column(
+              child: Form(
+                key: formKey,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Form Title *', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
-                  TextField(
+                  TextFormField(
                     controller: titleController,
                     style: const TextStyle(color: Colors.white, fontSize: 14),
+                    validator: (val) => (val == null || val.trim().isEmpty) ? 'Form title is required' : null,
                     decoration: InputDecoration(
                       hintText: 'e.g. Chiller Operational & Hygiene Audit',
                       hintStyle: const TextStyle(color: Colors.white38),
@@ -140,6 +144,9 @@ class FormsManagerViewScreenState extends State<FormsManagerViewScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
                       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
                       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF06B6D4))),
+                      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5)),
+                      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5)),
+                      errorStyle: const TextStyle(color: Color(0xFFEF4444), fontSize: 11.5),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -288,11 +295,13 @@ class FormsManagerViewScreenState extends State<FormsManagerViewScreen> {
                                 child: TextFormField(
                                   initialValue: f['label'] ?? '',
                                   style: const TextStyle(color: Colors.white, fontSize: 14),
+                                  validator: (val) => (val == null || val.trim().isEmpty) ? 'Field label is required' : null,
                                   decoration: const InputDecoration(
                                     hintText: 'Field Label (e.g. Cleanliness, Photo, Temperature)',
                                     hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
                                     isDense: true,
                                     border: InputBorder.none,
+                                    errorStyle: TextStyle(color: Color(0xFFEF4444), fontSize: 11),
                                   ),
                                   onChanged: (val) => f['label'] = val,
                                 ),
@@ -361,10 +370,32 @@ class FormsManagerViewScreenState extends State<FormsManagerViewScreen> {
                             ],
                           ),
 
-                          // If choose, render Options editor
-                          if (type == 'choose') ...[
+                          // If choose or dropdown, render Options editor
+                          if (type == 'choose' || type == 'dropdown') ...[
                             const SizedBox(height: 10),
                             const Text('Options (agents will choose one):', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                            if (opts.length < 2) ...[
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.5)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 15),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Add at least 2 options for a choice field',
+                                      style: TextStyle(color: Color(0xFFF59E0B), fontSize: 11.5, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 6),
                             Wrap(
                               spacing: 6,
@@ -436,6 +467,7 @@ class FormsManagerViewScreenState extends State<FormsManagerViewScreen> {
                   }),
                 ],
               ),
+              ),
             ),
           ),
           actions: [
@@ -445,26 +477,27 @@ class FormsManagerViewScreenState extends State<FormsManagerViewScreen> {
             ),
             ElevatedButton.icon(
               onPressed: () async {
+                final isFormValid = formKey.currentState?.validate() ?? true;
                 final title = titleController.text.trim();
-                if (title.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a Form Title'), backgroundColor: Colors.orangeAccent),
-                  );
+                if (!isFormValid || title.isEmpty) {
+                  AppToast.show(context, type: AppToastType.warning, message: 'Please enter a Form Title and valid field labels');
                   return;
                 }
                 if (fields.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please add at least one field to the form'), backgroundColor: Colors.orangeAccent),
-                  );
+                  AppToast.show(context, type: AppToastType.warning, message: 'Please add at least one field to the form');
                   return;
                 }
 
-                // Check empty field labels
+                // Check empty field labels and choice option counts
                 for (var f in fields) {
                   if ((f['label'] ?? '').toString().trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please provide labels for all fields'), backgroundColor: Colors.orangeAccent),
-                    );
+                    AppToast.show(context, type: AppToastType.warning, message: 'Please provide labels for all fields');
+                    return;
+                  }
+                  final fType = f['type']?.toString() ?? 'text';
+                  final fOpts = (f['options'] as List? ?? []);
+                  if ((fType == 'choose' || fType == 'dropdown') && fOpts.length < 2) {
+                    AppToast.show(context, type: AppToastType.warning, message: 'Choice fields require at least 2 options');
                     return;
                   }
                 }
@@ -486,21 +519,18 @@ class FormsManagerViewScreenState extends State<FormsManagerViewScreen> {
                       assignedAgentIds: selectedAgentIds.toList(),
                     );
                   }
-                  Navigator.of(ctx).pop();
+                  if (ctx.mounted) Navigator.of(ctx).pop();
                   _loadData();
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(isEditing ? 'Form updated successfully' : 'Form created successfully'),
-                        backgroundColor: const Color(0xFF10B981),
-                      ),
+                    AppToast.show(
+                      context,
+                      type: AppToastType.success,
+                      message: isEditing ? 'Form updated successfully' : 'Form created successfully',
                     );
                   }
                 } catch (e) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error saving form: $e'), backgroundColor: Colors.redAccent),
-                    );
+                    AppToast.show(context, type: AppToastType.error, message: 'Error saving form: $e');
                   }
                 }
               },
@@ -544,13 +574,13 @@ class FormsManagerViewScreenState extends State<FormsManagerViewScreen> {
       try {
         await ApiService.deleteForm(formId);
         _loadData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Form deleted successfully'), backgroundColor: Color(0xFF10B981)),
-        );
+        if (mounted) {
+          AppToast.show(context, type: AppToastType.success, message: 'Form deleted successfully');
+        }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting form: $e'), backgroundColor: Colors.redAccent),
-        );
+        if (mounted) {
+          AppToast.show(context, type: AppToastType.error, message: 'Error deleting form: $e');
+        }
       }
     }
   }

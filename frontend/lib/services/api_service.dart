@@ -796,5 +796,65 @@ class ApiService {
     }
     throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to toggle logging');
   }
+
+  // ==========================================
+  // Rep KPI Summary
+  // ==========================================
+
+  static Future<Map<String, dynamic>> fetchRepKpi({String? branch}) async {
+    final uri = (branch != null && branch.isNotEmpty && branch != 'All')
+        ? Uri.parse('$baseUrl/stats/rep-kpi').replace(queryParameters: {'branch': branch})
+        : Uri.parse('$baseUrl/stats/rep-kpi');
+    final response = await http.get(uri, headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to fetch Rep KPI stats');
+  }
+
+  static Future<Map<String, dynamic>> fetchChiller360(dynamic id) async {
+    final encodedId = Uri.encodeComponent(id.toString());
+    final response = await http.get(
+      Uri.parse('$baseUrl/chillers/$encodedId/360'),
+      headers: _authHeaders,
+    );
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to load Customer 360 details (${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> fetchDailyRoute({
+    double? lat,
+    double? lng,
+    String? branch,
+    String? visitDay,
+    int limit = 25,
+    bool pendingOnly = true,
+  }) async {
+    final params = <String, String>{
+      'limit': limit.toString(),
+      'pendingOnly': pendingOnly.toString(),
+    };
+    if (lat != null && lng != null && lat != 0.0 && lng != 0.0) {
+      params['lat'] = lat.toString();
+      params['lng'] = lng.toString();
+    }
+    if (branch != null && branch.isNotEmpty && branch != 'All') {
+      params['branch'] = branch;
+    }
+    if (visitDay != null && visitDay.isNotEmpty && visitDay != 'All') {
+      params['visitDay'] = visitDay;
+    }
+    final uri = Uri.parse('$baseUrl/routes/daily').replace(queryParameters: params);
+    final response = await http.get(uri, headers: _authHeaders);
+    final decoded = _safeJsonDecode(response.body);
+    if (response.statusCode == 200 && decoded is Map && decoded['success'] == true) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    throw Exception(decoded is Map && decoded['error'] != null ? decoded['error'] : 'Failed to generate daily route');
+  }
 }
 

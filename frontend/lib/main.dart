@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'services/api_service.dart';
+import 'services/storage.dart';
+import 'theme/app_tokens.dart';
+import 'widgets/app_feedback.dart';
 import 'views/login_view.dart';
 import 'views/map_view.dart';
 import 'views/upload_view.dart';
@@ -16,29 +20,75 @@ void main() {
   runApp(const ChillerAnalyticsApp());
 }
 
-class ChillerAnalyticsApp extends StatelessWidget {
+class ChillerAnalyticsApp extends StatefulWidget {
   const ChillerAnalyticsApp({super.key});
+
+  @override
+  State<ChillerAnalyticsApp> createState() => _ChillerAnalyticsAppState();
+}
+
+class _ChillerAnalyticsAppState extends State<ChillerAnalyticsApp> {
+  late AppThemeMode _themeMode;
+  late String _localeCode;
+
+  @override
+  void initState() {
+    super.initState();
+    _themeMode = AppThemeMode.fromString(getLocalStorage('app_theme_mode'));
+    _localeCode = getLocalStorage('app_locale') == 'ar' ? 'ar' : 'en';
+  }
+
+  void _setThemeMode(AppThemeMode mode) {
+    setState(() => _themeMode = mode);
+    setLocalStorage('app_theme_mode', mode.storageKey);
+  }
+
+  void _setLocale(String code) {
+    final normalized = code == 'ar' ? 'ar' : 'en';
+    setState(() => _localeCode = normalized);
+    setLocalStorage('app_locale', normalized);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Excel Map Analytics & Data Platform',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF06B6D4), // Cyan accent
-          secondary: Color(0xFF10B981), // Emerald accent
-          surface: Color(0xFF1E293B),
-        ),
+      theme: AppTokens.buildThemeData(_themeMode),
+      locale: Locale(_localeCode),
+      supportedLocales: const [Locale('en'), Locale('ar')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      builder: (context, child) => Directionality(
+        textDirection: _localeCode == 'ar' ? TextDirection.rtl : TextDirection.ltr,
+        child: child ?? const SizedBox.shrink(),
       ),
-      home: const MainNavigationScreen(),
+      home: MainNavigationScreen(
+        themeMode: _themeMode,
+        onThemeModeChanged: _setThemeMode,
+        localeCode: _localeCode,
+        onLocaleChanged: _setLocale,
+      ),
     );
   }
 }
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
+  final AppThemeMode themeMode;
+  final ValueChanged<AppThemeMode> onThemeModeChanged;
+  final String localeCode;
+  final ValueChanged<String> onLocaleChanged;
+
+  const MainNavigationScreen({
+    super.key,
+    this.themeMode = AppThemeMode.dark,
+    required this.onThemeModeChanged,
+    this.localeCode = 'en',
+    required this.onLocaleChanged,
+  });
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -46,6 +96,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
+  bool _agentRouteTabSelected = false;
   final GlobalKey<MapViewScreenState> _mapKey = GlobalKey<MapViewScreenState>();
   final GlobalKey<AssignLocationsViewScreenState> _assignKey = GlobalKey<AssignLocationsViewScreenState>();
   final GlobalKey<AgentsViewScreenState> _agentsKey = GlobalKey<AgentsViewScreenState>();
@@ -112,6 +163,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ]
         : [
             MapViewScreen(key: _mapKey),
+            DataTableViewScreen(key: _tableKey),
           ];
 
     final List<NavigationRailDestination> destinations = isAdmin
@@ -162,7 +214,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             NavigationRailDestination(
               icon: Icon(Icons.map_outlined),
               selectedIcon: Icon(Icons.map),
-              label: Text('My Assigned Customers'),
+              label: Text('My Map'),
+            ),
+            NavigationRailDestination(
+              icon: Icon(Icons.list_alt_outlined),
+              selectedIcon: Icon(Icons.list_alt),
+              label: Text('My List'),
             ),
           ];
 
@@ -171,21 +228,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final bool isMobile = screenWidth < 768;
     final bool isDesktop = screenWidth >= 1100;
+    final t = AppTokens.of(context);
 
     return Scaffold(
-      drawer: (isMobile && isAdmin) ? _buildDrawer(context, safeIndex) : null,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: t.surfaceElevated,
         elevation: 0,
-        leading: (isMobile && isAdmin)
-            ? Builder(
-                builder: (ctx) => IconButton(
-                  icon: const Icon(Icons.menu, color: Colors.cyan),
-                  tooltip: 'Navigation Menu',
-                  onPressed: () => Scaffold.of(ctx).openDrawer(),
-                ),
-              )
-            : null,
         title: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -201,7 +249,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               const SizedBox(width: 10),
               Text(
                 isMobile ? 'Sales Analytics' : 'Excel Map Analytics Platform',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17),
+                style: TextStyle(color: t.textPrimary, fontWeight: FontWeight.bold, fontSize: 17),
               ),
               if (!isMobile) ...[
                 const SizedBox(width: 8),
@@ -259,16 +307,98 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
           ),
 
+          // Locale Toggle (EN / عربي) — STORY-009
+          Semantics(
+            button: true,
+            label: widget.localeCode == 'ar' ? 'Switch language to English' : 'Switch language to Arabic',
+            child: Tooltip(
+              message: widget.localeCode == 'ar' ? 'Switch to English (LTR)' : 'التبديل إلى العربية (RTL)',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => widget.onLocaleChanged(widget.localeCode == 'ar' ? 'en' : 'ar'),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: t.accentPrimary.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: t.accentPrimary.withValues(alpha: 0.45)),
+                      ),
+                      child: Text(
+                        widget.localeCode == 'ar' ? 'EN' : 'عربي',
+                        style: TextStyle(color: t.accentPrimary, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Theme Mode Switcher (Dark / Light / Outdoor Contrast)
+          Semantics(
+            button: true,
+            label: 'Switch theme mode',
+            child: PopupMenuButton<AppThemeMode>(
+              tooltip: 'Switch Theme',
+              icon: Icon(widget.themeMode.icon, color: t.accentPrimary, size: 20),
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              color: t.surfaceElevated,
+              onSelected: widget.onThemeModeChanged,
+              itemBuilder: (ctx) => AppThemeMode.values.map((mode) {
+                final selected = mode == widget.themeMode;
+                return PopupMenuItem<AppThemeMode>(
+                  value: mode,
+                  child: Row(
+                    children: [
+                      Icon(mode.icon, size: 18, color: selected ? t.accentPrimary : t.textSecondary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          mode.label,
+                          style: TextStyle(
+                            color: selected ? t.accentPrimary : t.textPrimary,
+                            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                      if (selected) Icon(Icons.check, size: 16, color: t.accentPrimary),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          // Change Password Button
+          Semantics(
+            button: true,
+            label: 'Change Password',
+            child: IconButton(
+              tooltip: 'Change Password',
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              icon: Icon(Icons.key_outlined, color: t.accentPrimary, size: 20),
+              onPressed: () => _showChangePasswordDialog(context),
+            ),
+          ),
+
           // Logout Button
-          IconButton(
-            tooltip: 'Sign Out',
-            icon: const Icon(Icons.logout, color: Colors.redAccent, size: 20),
-            onPressed: () {
-              ApiService.logout();
-              setState(() {
-                _currentIndex = 0;
-              });
-            },
+          Semantics(
+            button: true,
+            label: 'Sign Out',
+            child: IconButton(
+              tooltip: 'Sign Out',
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              icon: const Icon(Icons.logout, color: Colors.redAccent, size: 20),
+              onPressed: () {
+                ApiService.logout();
+                setState(() {
+                  _currentIndex = 0;
+                });
+              },
+            ),
           ),
           const SizedBox(width: 4),
         ],
@@ -280,20 +410,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             )
           : Row(
               children: [
-                // Sidebar Navigation Drawer
+                // Sidebar Navigation Rail
                 NavigationRail(
-                  backgroundColor: const Color(0xFF1E293B),
+                  backgroundColor: t.surfaceElevated,
                   selectedIndex: safeIndex,
                   onDestinationSelected: (index) => _onSelectDestination(index, isAdmin),
                   extended: isDesktop,
                   minExtendedWidth: 220,
-                  selectedIconTheme: const IconThemeData(color: Colors.cyan),
-                  selectedLabelTextStyle: const TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
-                  unselectedIconTheme: const IconThemeData(color: Colors.white60),
-                  unselectedLabelTextStyle: const TextStyle(color: Colors.white60),
+                  selectedIconTheme: IconThemeData(color: t.accentPrimary),
+                  selectedLabelTextStyle: TextStyle(color: t.accentPrimary, fontWeight: FontWeight.bold),
+                  unselectedIconTheme: IconThemeData(color: t.textSecondary),
+                  unselectedLabelTextStyle: TextStyle(color: t.textSecondary),
                   destinations: destinations,
                 ),
-                const VerticalDivider(thickness: 1, width: 1, color: Colors.white12),
+                VerticalDivider(thickness: 1, width: 1, color: t.borderSubtle),
 
                 // Main View Content
                 Expanded(
@@ -304,14 +434,186 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 ),
               ],
             ),
+      bottomNavigationBar: isMobile ? _buildMobileBottomBar(context, safeIndex, isAdmin, isOwner, t) : null,
     );
   }
 
+  Future<void> _showChangePasswordDialog(BuildContext context) async {
+    final formKey = GlobalKey<FormState>();
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    bool obscureCurrent = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+    bool isSubmitting = false;
+    bool attemptedSubmit = false;
+    String? errorMsg;
+
+    InputDecoration pwDecoration(String label, bool obscure, VoidCallback toggle, {String? helper}) {
+      return InputDecoration(
+        labelText: label,
+        helperText: helper,
+        helperStyle: const TextStyle(color: Colors.white54, fontSize: 11),
+        labelStyle: const TextStyle(color: Colors.white70),
+        filled: true,
+        fillColor: const Color(0xFF0F172A),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+        ),
+        errorStyle: const TextStyle(color: Color(0xFFEF4444), fontSize: 11.5),
+        suffixIcon: IconButton(
+          icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, color: Colors.white54, size: 18),
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          onPressed: toggle,
+        ),
+      );
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !isSubmitting,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E293B),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Colors.white12),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.key_outlined, color: Color(0xFF06B6D4)),
+                  SizedBox(width: 10),
+                  Text('Change Password', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SizedBox(
+                width: 380,
+                child: Form(
+                  key: formKey,
+                  autovalidateMode: attemptedSubmit ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextFormField(
+                        controller: currentCtrl,
+                        obscureText: obscureCurrent,
+                        style: const TextStyle(color: Colors.white),
+                        validator: (v) => (v == null || v.isEmpty) ? 'Current password is required' : null,
+                        decoration: pwDecoration('Current Password', obscureCurrent, () => setDialogState(() => obscureCurrent = !obscureCurrent)),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: newCtrl,
+                        obscureText: obscureNew,
+                        style: const TextStyle(color: Colors.white),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'New password is required';
+                          if (v.length < 8) return 'Must be at least 8 characters';
+                          if (v == currentCtrl.text) return 'Must differ from current password';
+                          return null;
+                        },
+                        decoration: pwDecoration(
+                          'New Password',
+                          obscureNew,
+                          () => setDialogState(() => obscureNew = !obscureNew),
+                          helper: 'Min 8 chars, uppercase, lowercase, number & symbol',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: confirmCtrl,
+                        obscureText: obscureConfirm,
+                        style: const TextStyle(color: Colors.white),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Please confirm your new password';
+                          if (v != newCtrl.text) return 'Passwords do not match';
+                          return null;
+                        },
+                        decoration: pwDecoration('Confirm New Password', obscureConfirm, () => setDialogState(() => obscureConfirm = !obscureConfirm)),
+                      ),
+                      if (errorMsg != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                          ),
+                          child: Text(errorMsg!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.of(dialogCtx).pop(),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF06B6D4),
+                    foregroundColor: Colors.black,
+                  ),
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          setDialogState(() {
+                            attemptedSubmit = true;
+                            errorMsg = null;
+                          });
+                          if (!(formKey.currentState?.validate() ?? false)) return;
+                          setDialogState(() => isSubmitting = true);
+                          try {
+                            await ApiService.changePassword(currentCtrl.text, newCtrl.text);
+                            if (dialogCtx.mounted) Navigator.of(dialogCtx).pop();
+                            if (context.mounted) {
+                              AppToast.show(context, type: AppToastType.success, message: 'Password updated successfully');
+                            }
+                          } catch (e) {
+                            setDialogState(() {
+                              isSubmitting = false;
+                              errorMsg = e.toString().replaceFirst('Exception: ', '');
+                            });
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                      : const Text('Update Password', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    currentCtrl.dispose();
+    newCtrl.dispose();
+    confirmCtrl.dispose();
+  }
+
   void _onSelectDestination(int index, bool isAdmin) {
-    setState(() => _currentIndex = index);
+    setState(() {
+      _currentIndex = index;
+      _agentRouteTabSelected = false;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (index == 0) {
         _mapKey.currentState?.reload();
+      } else if (!isAdmin && index == 1) {
+        _tableKey.currentState?.reload();
       } else if (isAdmin) {
         if (index == 2) {
           _assignKey.currentState?.reload();
@@ -330,129 +632,271 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
-  Widget _buildDrawer(BuildContext context, int safeIndex) {
-    final currentUser = ApiService.currentUser ?? {};
-    final bool isOwner = ApiService.isOwner;
-    final displayName = (currentUser['name'] ?? currentUser['email'] ?? 'User').toString();
-    final email = (currentUser['login_email'] ?? currentUser['email'] ?? '').toString();
+  Widget _buildMobileBottomBar(BuildContext context, int safeIndex, bool isAdmin, bool isOwner, AppTokens t) {
+    if (!isAdmin) {
+      final int agentBarIndex = _agentRouteTabSelected ? 2 : safeIndex.clamp(0, 1);
+      return Container(
+        decoration: BoxDecoration(
+          color: t.surfaceElevated,
+          border: Border(top: BorderSide(color: t.borderSubtle, width: t.borderWidth)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: NavigationBar(
+            height: 64,
+            backgroundColor: t.surfaceElevated,
+            selectedIndex: agentBarIndex,
+            onDestinationSelected: (barIdx) {
+              if (barIdx == 0) {
+                _onSelectDestination(0, false);
+              } else if (barIdx == 1) {
+                _onSelectDestination(1, false);
+              } else if (barIdx == 2) {
+                setState(() {
+                  _currentIndex = 0;
+                  _agentRouteTabSelected = true;
+                });
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _mapKey.currentState?.openRoutePlanner();
+                });
+              }
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.map_outlined),
+                selectedIcon: Icon(Icons.map),
+                label: 'My Map',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.list_alt_outlined),
+                selectedIcon: Icon(Icons.list_alt),
+                label: 'My List',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.route_outlined),
+                selectedIcon: Icon(Icons.route_rounded),
+                label: 'Route',
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-    final List<Map<String, dynamic>> menuItems = [
-      {'icon': Icons.map_outlined, 'activeIcon': Icons.map, 'label': 'Map View'},
-      {'icon': Icons.upload_file_outlined, 'activeIcon': Icons.upload_file, 'label': 'Upload & Validate'},
-      {'icon': Icons.assignment_ind_outlined, 'activeIcon': Icons.assignment_ind, 'label': 'Assign Locations'},
-      {'icon': Icons.badge_outlined, 'activeIcon': Icons.badge, 'label': 'Sales Agents'},
-      {'icon': Icons.table_chart_outlined, 'activeIcon': Icons.table_chart, 'label': 'Data Table'},
-      {'icon': Icons.dynamic_form_outlined, 'activeIcon': Icons.dynamic_form, 'label': 'Forms Manager'},
-      {'icon': Icons.rate_review_outlined, 'activeIcon': Icons.rate_review, 'label': 'Visit Responses'},
-      if (isOwner)
-        {'icon': Icons.receipt_long_outlined, 'activeIcon': Icons.receipt_long, 'label': 'System Logs'},
-    ];
+    int adminBarIndex;
+    switch (safeIndex) {
+      case 0:
+        adminBarIndex = 0;
+        break;
+      case 4:
+        adminBarIndex = 1;
+        break;
+      case 2:
+        adminBarIndex = 2;
+        break;
+      case 6:
+        adminBarIndex = 3;
+        break;
+      default:
+        adminBarIndex = 4;
+    }
 
-    return Drawer(
-      backgroundColor: const Color(0xFF0F172A),
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surfaceElevated,
+        border: Border(top: BorderSide(color: t.borderSubtle, width: t.borderWidth)),
+      ),
       child: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E293B),
-                border: Border(bottom: BorderSide(color: Colors.white12)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFF06B6D4), Color(0xFF10B981)]),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.analytics_outlined, color: Colors.black, size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Excel Map Analytics',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Admin: $displayName',
-                          style: const TextStyle(color: Color(0xFF06B6D4), fontSize: 12, fontWeight: FontWeight.w600),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (email.isNotEmpty)
-                          Text(
-                            email,
-                            style: const TextStyle(color: Colors.white54, fontSize: 11),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+        top: false,
+        child: NavigationBar(
+          height: 64,
+          backgroundColor: t.surfaceElevated,
+          selectedIndex: adminBarIndex,
+          onDestinationSelected: (barIdx) {
+            switch (barIdx) {
+              case 0:
+                _onSelectDestination(0, true);
+                break;
+              case 1:
+                _onSelectDestination(4, true);
+                break;
+              case 2:
+                _onSelectDestination(2, true);
+                break;
+              case 3:
+                _onSelectDestination(6, true);
+                break;
+              case 4:
+                _showAdminMoreSheet(context, safeIndex, isOwner);
+                break;
+            }
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.map_outlined),
+              selectedIcon: Icon(Icons.map),
+              label: 'Map',
             ),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: menuItems.length,
-                itemBuilder: (ctx, index) {
-                  final item = menuItems[index];
-                  final isSelected = safeIndex == index;
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF06B6D4).withValues(alpha: 0.15) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      border: isSelected ? Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.4)) : null,
-                    ),
-                    child: ListTile(
-                      dense: true,
-                      leading: Icon(
-                        isSelected ? item['activeIcon'] : item['icon'],
-                        color: isSelected ? const Color(0xFF06B6D4) : Colors.white70,
-                        size: 20,
-                      ),
-                      title: Text(
-                        item['label'],
-                        style: TextStyle(
-                          color: isSelected ? const Color(0xFF06B6D4) : Colors.white,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          fontSize: 14,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _onSelectDestination(index, true);
-                      },
-                    ),
-                  );
-                },
-              ),
+            NavigationDestination(
+              icon: Icon(Icons.table_chart_outlined),
+              selectedIcon: Icon(Icons.table_chart),
+              label: 'Table',
             ),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.white12)),
-              ),
-              child: ListTile(
-                dense: true,
-                leading: const Icon(Icons.logout, color: Colors.redAccent, size: 20),
-                title: const Text('Sign Out', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  ApiService.logout();
-                  setState(() => _currentIndex = 0);
-                },
-              ),
+            NavigationDestination(
+              icon: Icon(Icons.assignment_ind_outlined),
+              selectedIcon: Icon(Icons.assignment_ind),
+              label: 'Assign',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.rate_review_outlined),
+              selectedIcon: Icon(Icons.rate_review),
+              label: 'Responses',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.grid_view_outlined),
+              selectedIcon: Icon(Icons.grid_view_rounded),
+              label: 'More',
             ),
           ],
         ),
       ),
     );
   }
+
+  void _showAdminMoreSheet(BuildContext context, int safeIndex, bool isOwner) {
+    final t = AppTokens.of(context);
+    final items = <({int index, IconData icon, String label})>[
+      (index: 1, icon: Icons.upload_file_outlined, label: 'Upload & Validate'),
+      (index: 3, icon: Icons.badge_outlined, label: 'Sales Agents'),
+      (index: 5, icon: Icons.dynamic_form_outlined, label: 'Forms Manager'),
+      if (isOwner) (index: 7, icon: Icons.receipt_long_outlined, label: 'System Logs'),
+    ];
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: t.surfaceElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(t.radiusLg)),
+        side: BorderSide(color: t.borderSubtle, width: t.borderWidth),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(t.spaceLg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: t.borderSubtle,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                SizedBox(height: t.spaceMd),
+                Text('MORE WORKSPACES', style: t.eyebrow),
+                SizedBox(height: t.spaceMd),
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: t.spaceSm,
+                  crossAxisSpacing: t.spaceSm,
+                  childAspectRatio: 2.7,
+                  children: items.map((item) {
+                    final selected = safeIndex == item.index;
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(t.radiusMd),
+                      onTap: () {
+                        Navigator.of(sheetCtx).pop();
+                        _onSelectDestination(item.index, true);
+                      },
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: t.spaceMd, vertical: t.spaceSm),
+                        decoration: BoxDecoration(
+                          color: selected ? t.accentPrimary.withValues(alpha: 0.16) : t.canvasBg,
+                          borderRadius: BorderRadius.circular(t.radiusMd),
+                          border: Border.all(
+                            color: selected ? t.accentPrimary : t.borderSubtle,
+                            width: t.borderWidth,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(item.icon, color: selected ? t.accentPrimary : t.textSecondary, size: 20),
+                            SizedBox(width: t.spaceSm),
+                            Expanded(
+                              child: Text(
+                                item.label,
+                                style: t.caption.copyWith(
+                                  color: selected ? t.accentPrimary : t.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                SizedBox(height: t.spaceLg),
+                Text('APPEARANCE', style: t.eyebrow),
+                SizedBox(height: t.spaceSm),
+                Row(
+                  children: AppThemeMode.values.map((mode) {
+                    final active = widget.themeMode == mode;
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsetsDirectional.only(end: mode == AppThemeMode.outdoor ? 0 : t.spaceSm),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(t.radiusSm),
+                          onTap: () {
+                            widget.onThemeModeChanged(mode);
+                            Navigator.of(sheetCtx).pop();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: active ? t.accentPrimary.withValues(alpha: 0.18) : t.canvasBg,
+                              borderRadius: BorderRadius.circular(t.radiusSm),
+                              border: Border.all(
+                                color: active ? t.accentPrimary : t.borderSubtle,
+                                width: t.borderWidth,
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(mode.icon, size: 18, color: active ? t.accentPrimary : t.textSecondary),
+                                const SizedBox(height: 4),
+                                Text(
+                                  mode == AppThemeMode.outdoor ? 'Outdoor' : mode.name.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: active ? FontWeight.bold : FontWeight.w500,
+                                    color: active ? t.accentPrimary : t.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
 }

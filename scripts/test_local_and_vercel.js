@@ -256,6 +256,17 @@ async function runTests(baseUrl, environmentName, isLocal = false) {
   const activeForm = formsData.forms[0];
   console.log(`✅ GET /forms returned ${formsData.forms.length} form(s). Using: "${activeForm.title}".`);
 
+  // Assign the test chiller to the agent before simulating visit response (Finding 5 authorization compliance)
+  await fetch(`${baseUrl}/assignments`, {
+    method: 'POST',
+    headers: adminHeaders,
+    body: JSON.stringify({
+      agent_id: 1,
+      chiller_codes: ['CH-E2E-901'],
+      customer_names: ['Cairo Retail Store Alpha']
+    })
+  });
+
   const visitSubmitRes = await fetch(`${baseUrl}/form-responses`, {
     method: 'POST',
     headers: agentHeaders,

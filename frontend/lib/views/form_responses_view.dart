@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/audit_photo_gallery.dart';
 
 class FormResponsesViewScreen extends StatefulWidget {
   const FormResponsesViewScreen({super.key});
@@ -280,50 +281,17 @@ class FormResponsesViewScreenState extends State<FormResponsesViewScreen> {
                   const SizedBox(height: 16),
                   const Text('Photo Attachments & Evidences', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: attachments.map((url) {
-                      return InkWell(
-                        onTap: () {
-                          // Preview enlarged image
-                          showDialog(
-                            context: ctx,
-                            builder: (imgCtx) => Dialog(
-                              backgroundColor: Colors.transparent,
-                              child: Stack(
-                                alignment: Alignment.topRight,
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Image.network(url, fit: BoxFit.contain),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.close, color: Colors.white, size: 28),
-                                    onPressed: () => Navigator.of(imgCtx).pop(),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          width: 110,
-                          height: 110,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white24),
-                            color: const Color(0xFF0F172A),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Image.network(
-                            url,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                  AuditPhotoGallery(
+                    columns: 4,
+                    photos: attachments.map((url) => AuditPhotoItem(
+                      url: url,
+                      timestamp: r['submittedAt']?.toString(),
+                      agentName: r['agentName']?.toString(),
+                      chillerCode: r['chillerCode']?.toString(),
+                      condition: (r['responses'] is Map ? (r['responses']['chiller_condition'] ?? r['responses']['condition']) : null)?.toString(),
+                      latitude: (r['agentLat'] as num?)?.toDouble(),
+                      longitude: (r['agentLng'] as num?)?.toDouble(),
+                    )).toList(),
                   ),
                 ],
               ],

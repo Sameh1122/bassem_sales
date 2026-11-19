@@ -1,0 +1,74 @@
+name: Flutter Web Build & Sync
+
+on:
+  push:
+    branches:
+      - main
+      - test
+      - p5-local-build
+    paths:
+      - 'frontend/**'
+      - 'scripts/build.js'
+      - '.github/workflows/flutter-build.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - 'scripts/build.js'
+      - '.github/workflows/flutter-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flutter-web-build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-flutter-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Flutter Dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Run Flutter Tests
+        working-directory: frontend
+        run: flutter test
+
+      - name: Build Flutter Web (Release)
+        working-directory: frontend
+        run: flutter build web --release
+
+      - name: Sync Web Output to public/
+        run: node scripts/build.js
+
+      - name: Commit & Push public/ Artifacts
+        if: github.event_name != 'pull_request'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action [Flutter Build]"
+          if [ -n "$(git status --porcelain public/)" ]; then
+            git add public/
+            git commit -m "chore(ci): rebuild Flutter Web assets into public/"
+            git push origin HEAD:${{ github.ref }}
+            echo "✅ Flutter Web assets rebuilt and committed to public/."
+          else
+            echo "ℹ️ No changes in public/ to commit."
+          fi

@@ -1,7 +1,36 @@
 import 'dart:collection';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../services/storage.dart';
+import 'customer_360_drawer.dart';
+import '../theme/app_tokens.dart';
+import '../widgets/app_feedback.dart';
+
+enum _TableDensity {
+  compact(36.0, 12.0, 'Compact', Icons.view_headline),
+  standard(48.0, 13.0, 'Standard', Icons.view_stream),
+  comfortable(60.0, 13.5, 'Comfortable', Icons.view_agenda);
+
+  final double rowHeight;
+  final double fontSize;
+  final String label;
+  final IconData icon;
+  const _TableDensity(this.rowHeight, this.fontSize, this.label, this.icon);
+
+  static _TableDensity fromString(String? raw) {
+    for (final d in _TableDensity.values) {
+      if (d.name == raw) return d;
+    }
+    return _TableDensity.standard;
+  }
+}
+
+class _SortRule {
+  final String column;
+  final bool ascending;
+  const _SortRule(this.column, this.ascending);
+}
 
 class DataTableViewScreen extends StatefulWidget {
   const DataTableViewScreen({super.key});
@@ -25,8 +54,14 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
   final TextEditingController _toolbarFilterController = TextEditingController();
 
   // Sorting state
-  String? _sortColumn;
-  bool _sortAscending = true;
+  // Pinning & Density state (STORY-008)
+  final Set<String> _pinnedColumns = {};
+  bool _pinsInitialized = false;
+  _TableDensity _density = _TableDensity.standard;
+
+  // Multi-sort state (max 3 levels)
+  final List<_SortRule> _sortRules = [];
+
 
   // Pagination state
   int _currentPage = 0;
@@ -36,8 +71,26 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
   @override
   void initState() {
     super.initState();
+    _density = _TableDensity.fromString(getLocalStorage('table_density'));
     _loadData(forceApi: true);
   }
+
+  void _setDensity(_TableDensity density) {
+    setState(() => _density = density);
+    setLocalStorage('table_density', density.name);
+  }
+
+  void _ensureDefaultPins(List<String> allColumns) {
+    if (_pinsInitialized || allColumns.isEmpty) return;
+    _pinsInitialized = true;
+    for (final col in allColumns) {
+      final lower = col.toLowerCase();
+      if (lower == 'chiller code' || lower == 'customer name') {
+        _pinnedColumns.add(col);
+      }
+    }
+  }
+
 
   void reload({bool forceApi = false}) {
     _loadData(forceApi: forceApi);
@@ -218,41 +271,60 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
       return true;
     }).toList();
 
-    // 2. Sort
-    if (_sortColumn != null) {
+    // 2. Multi-Sort (up to 3 levels)
+    if (_sortRules.isNotEmpty) {
       filtered.sort((a, b) {
-        final valA = _getCellValue(a, _sortColumn!);
-        final valB = _getCellValue(b, _sortColumn!);
-
-        final numA = _tryParseDouble(valA);
-        final numB = _tryParseDouble(valB);
-
-        int cmp;
-        if (numA != null && numB != null) {
-          cmp = numA.compareTo(numB);
-        } else {
-          cmp = valA.compareTo(valB);
+        for (final rule in _sortRules) {
+          final valA = _getCellValue(a, rule.column);
+          final valB = _getCellValue(b, rule.column);
+          final numA = _tryParseDouble(valA);
+          final numB = _tryParseDouble(valB);
+          int cmp;
+          if (numA != null && numB != null) {
+            cmp = numA.compareTo(numB);
+          } else {
+            cmp = valA.compareTo(valB);
+          }
+          if (cmp != 0) return rule.ascending ? cmp : -cmp;
         }
-        return _sortAscending ? cmp : -cmp;
+        return 0;
       });
     }
 
     return filtered;
   }
 
-  void _onSort(String column) {
+  void _onSort(String column, {bool append = false}) {
+    final shiftHeld = HardwareKeyboard.instance.isShiftPressed;
+    final isMulti = append || shiftHeld;
     setState(() {
-      if (_sortColumn == column) {
-        if (_sortAscending) {
-          _sortAscending = false;
+      final existingIdx = _sortRules.indexWhere((r) => r.column == column);
+      if (!isMulti) {
+        if (existingIdx == 0 && _sortRules.length == 1) {
+          if (_sortRules[0].ascending) {
+            _sortRules[0] = _SortRule(column, false);
+          } else {
+            _sortRules.clear();
+          }
         } else {
-          _sortColumn = null; // reset sort
-          _sortAscending = true;
+          _sortRules
+            ..clear()
+            ..add(_SortRule(column, true));
         }
       } else {
-        _sortColumn = column;
-        _sortAscending = true;
+        if (existingIdx >= 0) {
+          if (_sortRules[existingIdx].ascending) {
+            _sortRules[existingIdx] = _SortRule(column, false);
+          } else {
+            _sortRules.removeAt(existingIdx);
+          }
+        } else if (_sortRules.length < 3) {
+          _sortRules.add(_SortRule(column, true));
+        } else {
+          _sortRules[2] = _SortRule(column, true);
+        }
       }
+      _currentPage = 0;
     });
   }
 
@@ -426,19 +498,40 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
               itemBuilder: (ctx, i) {
                 final col = allColumns[i];
                 final isVisible = !_hiddenColumns.contains(col);
+                final isPinned = _pinnedColumns.contains(col);
                 return CheckboxListTile(
                   dense: true,
                   activeColor: Colors.cyan,
                   title: Text(col, style: TextStyle(color: isVisible ? Colors.white : Colors.white38, fontSize: 13)),
+                  secondary: IconButton(
+                    icon: Icon(
+                      isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                      size: 18,
+                      color: isPinned ? const Color(0xFF06B6D4) : Colors.white38,
+                    ),
+                    tooltip: isPinned ? 'Unpin column' : 'Pin column left',
+                    onPressed: isVisible
+                        ? () {
+                            setDialogState(() {
+                              if (isPinned) {
+                                _pinnedColumns.remove(col);
+                              } else {
+                                _pinnedColumns.add(col);
+                              }
+                            });
+                            setState(() {});
+                          }
+                        : null,
+                  ),
                   value: isVisible,
                   onChanged: (val) {
                     setDialogState(() {
                       if (val == true) {
                         _hiddenColumns.remove(col);
                       } else {
-                        // Prevent hiding all columns
                         if (allColumns.length - _hiddenColumns.length > 1) {
                           _hiddenColumns.add(col);
+                          _pinnedColumns.remove(col);
                         }
                       }
                     });
@@ -490,6 +583,9 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
   }
 
   Widget _buildCellContent(String col, String val) {
+    final fontSize = _density.fontSize;
+    final isComfortable = _density == _TableDensity.comfortable;
+    final maxLines = isComfortable ? 2 : 1;
     final lowerCol = col.toLowerCase();
     if (lowerCol == 'month ach. status' || lowerCol == 'efficiency') {
       Color badgeColor;
@@ -527,7 +623,9 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
     if (lowerCol.contains('customer name')) {
       return Text(
         val,
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: fontSize),
       );
     }
 
@@ -544,13 +642,16 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
 
     return Text(
       val,
-      style: TextStyle(color: val == '-' ? Colors.white30 : Colors.white70, fontSize: 13),
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(color: val == '-' ? Colors.white30 : Colors.white70, fontSize: fontSize),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final allColumns = _extractColumns(_chillers);
+    _ensureDefaultPins(allColumns);
     final visibleColumns = allColumns.where((c) => !_hiddenColumns.contains(c)).toList();
     final filtered = _getFilteredAndSortedChillers(allColumns);
     final totalRows = filtered.length;
@@ -563,7 +664,7 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
     final bool isMobile = screenWidth < 768;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppTokens.of(context).canvasBg,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -602,6 +703,31 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
                   runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    // Row Density Segmented Toggle (STORY-008)
+                    SegmentedButton<_TableDensity>(
+                      showSelectedIcon: false,
+                      style: ButtonStyle(
+                        backgroundColor: WidgetStateProperty.resolveWith((states) =>
+                            states.contains(WidgetState.selected) ? const Color(0xFF06B6D4).withValues(alpha: 0.22) : const Color(0xFF1E293B)),
+                        foregroundColor: WidgetStateProperty.resolveWith((states) =>
+                            states.contains(WidgetState.selected) ? const Color(0xFF06B6D4) : Colors.white70),
+                        side: WidgetStateProperty.all(const BorderSide(color: Colors.white24)),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      segments: _TableDensity.values
+                          .map((d) => ButtonSegment<_TableDensity>(
+                                value: d,
+                                tooltip: '${d.label} (${d.rowHeight.toInt()}px)',
+                                icon: Icon(d.icon, size: 15),
+                                label: Text(d.label, style: const TextStyle(fontSize: 11.5)),
+                              ))
+                          .toList(),
+                      selected: {_density},
+                      onSelectionChanged: (sel) {
+                        if (sel.isNotEmpty) _setDensity(sel.first);
+                      },
+                    ),
+
                     // Column Visibility Button
                     OutlinedButton.icon(
                       onPressed: () => _openManageColumnsDialog(allColumns),
@@ -792,7 +918,7 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
                   ),
 
                   // Active Filters Bar (Chips)
-                  if (_globalSearchQuery.isNotEmpty || _columnFilters.isNotEmpty || _sortColumn != null) ...[
+                  if (_globalSearchQuery.isNotEmpty || _columnFilters.isNotEmpty || _sortRules.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
@@ -828,16 +954,21 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
                             },
                           );
                         }),
-                        if (_sortColumn != null)
-                          Chip(
-                            backgroundColor: Colors.purpleAccent.withValues(alpha: 0.2),
-                            side: const BorderSide(color: Colors.purpleAccent),
-                            label: Text('Sorted: $_sortColumn (${_sortAscending ? "▲ Asc" : "▼ Desc"})', style: const TextStyle(color: Colors.purpleAccent, fontSize: 12)),
-                            deleteIcon: const Icon(Icons.close, size: 14, color: Colors.purpleAccent),
-                            onDeleted: () {
-                              setState(() => _sortColumn = null);
-                            },
-                          ),
+                        if (_sortRules.isNotEmpty)
+                          ..._sortRules.asMap().entries.map((entry) {
+                            final idx = entry.key;
+                            final rule = entry.value;
+                            return Chip(
+                              backgroundColor: Colors.purpleAccent.withValues(alpha: 0.2),
+                              side: const BorderSide(color: Colors.purpleAccent),
+                              label: Text(
+                                '${idx + 1}. ${rule.column} ${rule.ascending ? "↑" : "↓"}',
+                                style: const TextStyle(color: Colors.purpleAccent, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                              deleteIcon: const Icon(Icons.close, size: 14, color: Colors.purpleAccent),
+                              onDeleted: () => setState(() => _sortRules.removeAt(idx)),
+                            );
+                          }),
                         TextButton(
                           onPressed: () {
                             _globalSearchController.clear();
@@ -845,7 +976,7 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
                             setState(() {
                               _globalSearchQuery = '';
                               _columnFilters.clear();
-                              _sortColumn = null;
+                              _sortRules.clear();
                               _currentPage = 0;
                             });
                           },
@@ -861,109 +992,206 @@ class DataTableViewScreenState extends State<DataTableViewScreen> {
 
             // Table Content
             if (_isLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(60),
-                  child: CircularProgressIndicator(color: Colors.cyan),
+              AppSkeleton.tableRows(context)
+            else if (_chillers.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: AppEmptyState(
+                  icon: Icons.cloud_upload_outlined,
+                  title: 'No records currently in database',
+                  subtitle: 'Navigate to the "Upload & Validate" tab to import your latest Excel or CSV sheet.',
                 ),
               )
-            else if (_chillers.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(50),
-                decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12)),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.cloud_upload_outlined, color: Colors.cyan, size: 48),
-                    SizedBox(height: 12),
-                    Text(
-                      'No records currently in database.',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      'Navigate to the "Upload & Validate" tab to import your latest Excel sheet.',
-                      style: TextStyle(color: Colors.white60, fontSize: 13),
-                    ),
-                  ],
+            else if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: AppEmptyState.noFilterMatches(
+                  onResetFilters: () {
+                    _globalSearchController.clear();
+                    _toolbarFilterController.clear();
+                    setState(() {
+                      _globalSearchQuery = '';
+                      _columnFilters.clear();
+                      _sortRules.clear();
+                      _currentPage = 0;
+                    });
+                  },
                 ),
               )
             else ...[
-              // Scrollable Responsive Data Table
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(minWidth: screenWidth - 40),
-                      child: DataTable(
-                        headingRowColor: WidgetStateProperty.all(const Color(0xFF0B132B)),
-                        dataRowMinHeight: 46,
-                        dataRowMaxHeight: 52,
-                        horizontalMargin: 16,
-                        columnSpacing: 18,
-                        columns: visibleColumns.map((col) {
-                          final isSorted = _sortColumn == col;
-                          final hasFilter = _columnFilters.containsKey(col);
+              // Sticky Left Column Freeze (360° + Pinned Columns) + Scrollable Right Table
+              Builder(
+                builder: (context) {
+                  final pinnedCols = visibleColumns.where((c) => _pinnedColumns.contains(c)).toList();
+                  final unpinnedCols = visibleColumns.where((c) => !_pinnedColumns.contains(c)).toList();
+                  final rowH = _density.rowHeight;
+                  const double headerH = 48.0;
 
-                          return DataColumn(
-                            label: InkWell(
-                              onTap: () => _onSort(col),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    col,
-                                    style: TextStyle(
-                                      color: hasFilter ? Colors.yellowAccent : const Color(0xFF06B6D4),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
+                  DataColumn buildColHeader(String col) {
+                    final sortIdx = _sortRules.indexWhere((r) => r.column == col);
+                    final isSorted = sortIdx >= 0;
+                    final hasFilter = _columnFilters.containsKey(col);
+                    return DataColumn(
+                      label: Tooltip(
+                        message: 'Click to sort · Shift+Click or + for multi-sort (max 3)',
+                        child: InkWell(
+                          onTap: () => _onSort(col),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                col,
+                                style: TextStyle(
+                                  color: hasFilter ? Colors.yellowAccent : const Color(0xFF06B6D4),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              if (isSorted) ...[
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF06B6D4).withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
-                                  if (isSorted) ...[
-                                    const SizedBox(width: 4),
-                                    Icon(
-                                      _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                                      size: 14,
-                                      color: Colors.cyan,
+                                  child: Text(
+                                    '${sortIdx + 1} ${_sortRules[sortIdx].ascending ? "↑" : "↓"}',
+                                    style: const TextStyle(color: Colors.cyan, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(width: 2),
+                              IconButton(
+                                icon: const Icon(Icons.playlist_add, size: 14, color: Colors.white54),
+                                tooltip: '+ Add to multi-sort',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                                onPressed: () => _onSort(col, append: true),
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  hasFilter ? Icons.filter_alt : Icons.filter_alt_outlined,
+                                  size: 15,
+                                  color: hasFilter ? Colors.yellowAccent : Colors.white38,
+                                ),
+                                tooltip: 'Filter $col',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                                onPressed: () => _openColumnFilterDialog(col),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  void open360(dynamic c) {
+                    showCustomer360Drawer(
+                      context,
+                      chiller: Map<String, dynamic>.from(c as Map),
+                      onAuditSubmitted: () => _loadData(forceApi: true),
+                    );
+                  }
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Frozen Left Pane: 360° Action + Pinned Columns
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E293B),
+                              border: BorderDirectional(
+                                end: BorderSide(
+                                  color: const Color(0xFF06B6D4).withValues(alpha: 0.25),
+                                  width: 2,
+                                ),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF06B6D4).withValues(alpha: 0.10),
+                                  blurRadius: 6,
+                                  offset: const Offset(2, 0),
+                                ),
+                              ],
+                            ),
+                            child: DataTable(
+                              showCheckboxColumn: false,
+                              headingRowColor: WidgetStateProperty.all(const Color(0xFF0B132B)),
+                              headingRowHeight: headerH,
+                              dataRowMinHeight: rowH,
+                              dataRowMaxHeight: rowH,
+                              horizontalMargin: 12,
+                              columnSpacing: 14,
+                              columns: [
+                                const DataColumn(
+                                  label: Text('360°', style: TextStyle(color: Color(0xFF06B6D4), fontWeight: FontWeight.bold, fontSize: 13)),
+                                ),
+                                ...pinnedCols.map(buildColHeader),
+                              ],
+                              rows: pageRows.map((c) {
+                                return DataRow(
+                                  onSelectChanged: (_) => open360(c),
+                                  cells: [
+                                    DataCell(
+                                      Semantics(
+                                        button: true,
+                                        label: 'Open Customer 360',
+                                        child: IconButton(
+                                          icon: const Icon(Icons.open_in_new, size: 16, color: Color(0xFF06B6D4)),
+                                          tooltip: 'Open 360°',
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                          onPressed: () => open360(c),
+                                        ),
+                                      ),
                                     ),
+                                    ...pinnedCols.map((col) => DataCell(_buildCellContent(col, _getCellValue(c, col)))),
                                   ],
-                                  const SizedBox(width: 4),
-                                  IconButton(
-                                    icon: Icon(
-                                      hasFilter ? Icons.filter_alt : Icons.filter_alt_outlined,
-                                      size: 15,
-                                      color: hasFilter ? Colors.yellowAccent : Colors.white38,
-                                    ),
-                                    tooltip: 'Filter $col',
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-                                    onPressed: () => _openColumnFilterDialog(col),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                          // Horizontally Scrollable Remaining Columns
+                          if (unpinnedCols.isNotEmpty)
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(minWidth: (screenWidth - 280).clamp(320, 2000)),
+                                  child: DataTable(
+                                    showCheckboxColumn: false,
+                                    headingRowColor: WidgetStateProperty.all(const Color(0xFF0B132B)),
+                                    headingRowHeight: headerH,
+                                    dataRowMinHeight: rowH,
+                                    dataRowMaxHeight: rowH,
+                                    horizontalMargin: 16,
+                                    columnSpacing: 18,
+                                    columns: unpinnedCols.map(buildColHeader).toList(),
+                                    rows: pageRows.map((c) {
+                                      return DataRow(
+                                        onSelectChanged: (_) => open360(c),
+                                        cells: unpinnedCols.map((col) => DataCell(_buildCellContent(col, _getCellValue(c, col)))).toList(),
+                                      );
+                                    }).toList(),
                                   ),
-                                ],
+                                ),
                               ),
                             ),
-                          );
-                        }).toList(),
-                        rows: pageRows.map((c) {
-                          return DataRow(
-                            cells: visibleColumns.map((col) {
-                              final cellVal = _getCellValue(c, col);
-                              return DataCell(_buildCellContent(col, cellVal));
-                            }).toList(),
-                          );
-                        }).toList(),
+                        ],
                       ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
 
               const SizedBox(height: 14),

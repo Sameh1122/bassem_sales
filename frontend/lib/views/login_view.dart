@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/app_feedback.dart';
 
 class LoginViewScreen extends StatefulWidget {
   final VoidCallback onLoginSuccess;
@@ -11,6 +12,7 @@ class LoginViewScreen extends StatefulWidget {
 }
 
 class _LoginViewScreenState extends State<LoginViewScreen> {
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
@@ -25,11 +27,14 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
   }
 
   Future<void> _handleLogin() async {
+    final isValid = _formKey.currentState?.validate() ?? true;
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'Please enter both your email address and password.');
+    if (!isValid || email.isEmpty || password.isEmpty) {
+      const msg = 'Please enter both a valid email address and password.';
+      setState(() => _errorMessage = msg);
+      AppToast.show(context, type: AppToastType.error, message: msg);
       return;
     }
 
@@ -45,10 +50,12 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final msg = e.toString().replaceAll('Exception:', '').trim();
         setState(() {
           _isLoading = false;
-          _errorMessage = e.toString().replaceAll('Exception:', '').trim();
+          _errorMessage = msg;
         });
+        AppToast.show(context, type: AppToastType.error, message: msg);
       }
     }
   }
@@ -200,100 +207,137 @@ class _LoginViewScreenState extends State<LoginViewScreen> {
                         const SizedBox(height: 20),
                       ],
 
-                      // Email Field
-                      const Text(
-                        'Work Email Address',
-                        style: TextStyle(
-                          color: Color(0xFFE2E8F0),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: 'e.g. admin@sales.com',
-                          hintStyle: const TextStyle(color: Color(0xFF475569), fontSize: 13),
-                          prefixIcon: const Icon(Icons.mail_outline_rounded, color: Color(0xFF64748B), size: 20),
-                          filled: true,
-                          fillColor: const Color(0xFF0B1322),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF1E293B)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF1E293B)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF06B6D4), width: 1.5),
-                          ),
-                        ),
-                        onSubmitted: (_) => _handleLogin(),
-                      ),
-                      const SizedBox(height: 18),
+                      // Email & Password Form
+                      Form(
+                        key: _formKey,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text(
+                              'Work Email Address',
+                              style: TextStyle(
+                                color: Color(0xFFE2E8F0),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                              validator: (val) {
+                                final v = (val ?? '').trim();
+                                if (v.isEmpty) return 'Email address is required';
+                                if (!v.contains('@') || !v.contains('.')) return 'Enter a valid email address';
+                                return null;
+                              },
+                              decoration: InputDecoration(
+                                hintText: 'e.g. admin@sales.com',
+                                hintStyle: const TextStyle(color: Color(0xFF475569), fontSize: 13),
+                                prefixIcon: const Icon(Icons.mail_outline_rounded, color: Color(0xFF64748B), size: 20),
+                                filled: true,
+                                fillColor: const Color(0xFF0B1322),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF06B6D4), width: 1.5),
+                                ),
+                                errorBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                                ),
+                                focusedErrorBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                                ),
+                                errorStyle: const TextStyle(color: Color(0xFFF87171), fontSize: 11.5),
+                              ),
+                              onFieldSubmitted: (_) => _handleLogin(),
+                            ),
+                            const SizedBox(height: 18),
 
-                      // Password Field
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
-                          Text(
-                            'Password',
-                            style: TextStyle(
-                              color: Color(0xFFE2E8F0),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                            // Password Field
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: const [
+                                Text(
+                                  'Password',
+                                  style: TextStyle(
+                                    color: Color(0xFFE2E8F0),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  'Strict Complexity',
+                                  style: TextStyle(
+                                    color: Color(0xFF64748B),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          Text(
-                            'Strict Complexity',
-                            style: TextStyle(
-                              color: Color(0xFF64748B),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                              validator: (val) {
+                                if ((val ?? '').trim().isEmpty) return 'Password is required';
+                                return null;
+                              },
+                              decoration: InputDecoration(
+                                hintText: 'Enter your password',
+                                hintStyle: const TextStyle(color: Color(0xFF475569), fontSize: 13),
+                                prefixIcon: const Icon(Icons.lock_outline_rounded, color: Color(0xFF64748B), size: 20),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                    color: const Color(0xFF64748B),
+                                    size: 19,
+                                  ),
+                                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFF0B1322),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF1E293B)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF06B6D4), width: 1.5),
+                                ),
+                                errorBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                                ),
+                                focusedErrorBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                                ),
+                                errorStyle: const TextStyle(color: Color(0xFFF87171), fontSize: 11.5),
+                              ),
+                              onFieldSubmitted: (_) => _handleLogin(),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: 'Enter your password',
-                          hintStyle: const TextStyle(color: Color(0xFF475569), fontSize: 13),
-                          prefixIcon: const Icon(Icons.lock_outline_rounded, color: Color(0xFF64748B), size: 20),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                              color: const Color(0xFF64748B),
-                              size: 19,
-                            ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFF0B1322),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF1E293B)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF1E293B)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF06B6D4), width: 1.5),
-                          ),
+                          ],
                         ),
-                        onSubmitted: (_) => _handleLogin(),
                       ),
                       const SizedBox(height: 24),
 
