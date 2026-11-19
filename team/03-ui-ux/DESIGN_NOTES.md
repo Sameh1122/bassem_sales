@@ -787,3 +787,162 @@ Target file: `frontend/lib/widgets/audit_photo_gallery.dart`.
   - [ ] `AuditPhotoGallery` & `_AuditPhotoLightbox` render the 2-line / full geo-stamped watermark overlay (`Chiller Code`, `Timestamp`, `Lat/Lng`, `Agent Name`).
   - [ ] `"Export Visual Audit PDF"` CTA available in both `FormResponsesViewScreen` (list card + detail dialog) and `Customer360Drawer` (audit history header + per-visit card) with Loading/Success/Error `AppToast` states.
 
+---
+
+## 11. Next-Level BI & Cross-Filtering Control Tower UI/UX (Sprint 12 / `v4.0-alpha`)
+
+> **Scope & Alignment:** Translates `VISION_AND_ROADMAP.md` §8 (`v4.0` 360° Enterprise Command Center) into concrete Flutter Web & Mobile UI/UX specs for `DashboardViewScreen` (`frontend/lib/views/dashboard_view.dart`) and `dashboard_widgets.dart`, built 100% on `AppTokens` and pure Flutter `CustomPainter` (zero external chart dependencies).
+
+### 11.1 Cross-Filter Pill Bar & "Drill-Anywhere" Interaction Model
+
+Currently, `DashboardViewScreen` only supports a single `_selectedBranch` filter on `MiniBarChart` (`_buildBranchPerformanceCard`). Sprint 12 upgrades this to a **multi-dimensional bidirectional cross-filter state** (`DashboardCrossFilter`) where clicking any visual element filters **all** dashboard widgets in real time.
+
+#### A. Filterable Dimensions & Interactive Triggers
+| Dimension | Trigger Widget in `DashboardViewScreen` | Visual Selection Cue |
+| :--- | :--- | :--- |
+| **Branch** | Any bar row in `MiniBarChart` (`_buildBranchPerformanceCard`) | Active row gets `t.accentPrimary.withValues(alpha: 0.08)` fill + `1.5px` `t.accentPrimary` border; unselected bars dim to `0.45` opacity |
+| **District** | Any territory row in `_buildDistrictRollupsCard` | Active row gets `t.accentPrimary.withValues(alpha: 0.10)` fill + `1.5px` `t.accentPrimary` border + trailing `Icons.filter_alt` (`14px`) |
+| **Condition** | Any donut slice **or** legend row in `_buildFleetHealthCard` (`_healthMode == 0`: `Operational`, `Requires Maint.`, `Scrap`) | Selected slice expands strokeWidth (`18px -> 22px`) with `2px` `t.textPrimary` outer halo; unselected slices dim to `0.35` alpha; matching legend row highlights |
+| **Efficiency** | Any donut slice **or** legend row in `_buildFleetHealthCard` (`_healthMode == 1`: `Performing`, `Underperforming`, `Critical`, `Other / N/A`) | Same donut halo + legend row highlight behavior; switching `_healthMode` preserves active filter in the pill bar |
+
+- **Toggle & Multi-Select Rule:** Clicking an unselected item sets/adds that dimension predicate; clicking the **currently active** item toggles it off. Multiple dimensions stack with `AND` semantics (e.g., `Branch: Cairo` + `District: Nasr City` + `Condition: Requires Maint.`).
+- **Donut Hit-Testing (`InteractiveDonutChart`):** Wrap `CustomPaint(painter: DonutChartPainter(...))` in `GestureDetector(onTapUp: ...)` using polar angle math (`atan2(dy, dx)`) against segment start/sweep angles, **plus** make every legend row an `InkWell` (`minHeight: 36px`) so keyboard, screen-reader, and mobile touch users never have to aim at thin donut arcs.
+
+#### B. Sticky `CrossFilterPillBar` Layout & Tokens
+- **Placement:** Rendered immediately below `_buildGreetingHeader` and above the `HeroKpiCard` grid. Auto-collapses (`AnimatedSize` + `AnimatedOpacity`, `180ms` `Curves.easeOut`) with **zero vertical footprint** when no filters are active.
+- **Container:** `t.surfaceElevated` background, `1px` `t.borderSubtle` border, `t.radiusMd` (`12px`), `padding: EdgeInsets.symmetric(horizontal: t.spaceMd, vertical: t.spaceSm)`.
+- **Contents (Left to Right / `Wrap` on Mobile):**
+  1. Leading label: `Icons.filter_list_rounded` (`16px`, `t.accentPrimary`) + `"Active Filters"` (`t.eyebrow`) + live matched count badge (`"42 / 320 assets"`, `t.caption` with `tabularFigures`).
+  2. **Filter Chips (`InputChip` / custom pill):**
+     - Format: `[Dimension]: [Value]` (e.g., `Branch: Giza`, `Condition: Scrap`).
+     - Style: `t.accentPrimary.withValues(alpha: 0.14)` fill, `1px` `t.accentPrimary.withValues(alpha: 0.45)` border, `t.radiusPill`, `32px` visual height (`MaterialTapTargetSize.padded` for `>= 44px` touch target), trailing `Icons.close_rounded` (`14px`) to remove that single dimension.
+  3. **Quick-Pivot & Clear Actions (Trailing):**
+     - `"Open in Map"` (`TextButton.icon`, `Icons.map_outlined`, `16px`) — passes active `branch` / `condition` / `district` filters to `widget.onOpenMap`.
+     - `"Open in Table"` (`TextButton.icon`, `Icons.table_chart_outlined`, `16px`) — passes active predicate to `DataTableViewScreen`.
+     - **`"Clear All"`** (`TextButton`, `t.danger` foreground, `fontWeight: w600`) — 1-click reset of all active cross-filters, returning all widgets to full scope.
+
+#### C. Loading, Empty & Error States for Cross-Filtering
+- **Live Refreshing:** When a cross-filter changes, keep existing cards visible and show a `2px` `LinearProgressIndicator` (`t.accentPrimary`) along the top edge of `CrossFilterPillBar` (`_isRefreshing == true`) so the layout never jumps.
+- **Zero-Match Empty State:** If stacked filters yield `0` matching chillers, show an inline `DashboardCard` empty banner below `CrossFilterPillBar`: `Icons.filter_alt_off_outlined` (`t.textMuted`), `"No chillers match the current filter combination."`, and a primary `"Clear All Filters"` button.
+
+---
+
+### 11.2 Period-over-Period Variance & 90-Day Forecast Card
+
+Replaces static YTD-only visibility with forward-looking pace-to-goal intelligence inside `Executive` and `Commercial 360°` views (`DashboardCard`).
+
+#### A. Header & `MoM | QoQ | YoY` Toggle
+- **Left:** Eyebrow `"PACE & FORECAST"` (`t.eyebrow`) + Title `"Period Variance & 90-Day Projection"` (`t.sectionTitle`).
+- **Right:** `SegmentedButton<String>` with segments `MoM` | `QoQ` | `YoY` (matching the compact `SegmentedButton` style in `_buildBranchPerformanceCard`).
+- **Status Pill (Inline):** Projected finish badge based on 90-day run-rate vs. target:
+  - `>= 95%`: `"On Track"` (`t.success`)
+  - `80% – 94.9%`: `"At Risk"` (`t.caution`)
+  - `< 80%`: `"Behind Pace"` (`t.danger`)
+
+#### B. Period-over-Period Variance Strip & Waterfall Delta Indicators
+On desktop (`>= 900px`), render a 3-part horizontal summary strip above the forecast chart (2x2 `Wrap` on mobile):
+1. **Current Period Actual:** Large `tabularFigures` metric (`$1.42M` or `89.4%`) + delta pill (`▲ +12.4% vs. Prior MoM` in `t.success`, or `▼ -4.8%` in `t.danger`, or `● 0.0%` in `t.textMuted`).
+2. **Mini Waterfall Bridge (`Prior` → `Drivers` → `Current`):** Compact 4-bar horizontal/stepped waterfall indicator (`CustomPainter` or proportional `Container` bars, `28px` height):
+   - `Prior`: `t.textMuted`
+   - `+ Expansion / New`: `t.success` (`+$210K`)
+   - `- Contraction / Churn`: `t.danger` (`-$68K`)
+   - `Current`: `t.accentPrimary` (`$1.42M`)
+3. **90-Day Projected Finish:** Target `$1.80M` vs. Projected `$1.77M (98.3%)` with confidence range (`$1.69M – $1.85M`).
+
+#### C. 90-Day Projected Attainment Line/Band Chart (`ForecastBandPainter` via `CustomPainter`)
+Pure Flutter `CustomPainter` (`height: 210px` desktop, `180px` mobile) with zero external packages:
+- **Grid & Axes:** Subtle horizontal dashed gridlines (`t.borderSubtle`, `1px`) at `0%`, `50%`, `100%` target, with `t.caption` `tabularFigures` Y-axis labels and X-axis month/week markers (`-90d`, `-60d`, `-30d`, `Today`, `+30d`, `+60d`, `+90d`).
+- **Today Divider:** Vertical `1px` dashed line at `Today` with a `"TODAY"` micro-pill (`t.surfaceHeader` fill, `t.textSecondary` text).
+- **Historical Actuals Line:** Solid `2.5px` smooth path in `t.accentPrimary`, with subtle gradient area fill (`t.accentPrimary.withValues(alpha: 0.14)` → `0.0`).
+- **Target / Quota Line:** Horizontal or sloped `1.5px` dashed line in `t.textMuted` labeled `"Quota (100%)"`.
+- **90-Day Confidence Band (`P10–P90`):** Shaded polygon from `Today` to `+90d` in `t.achievement.withValues(alpha: 0.14)` (or `t.success` / `t.caution` matching pace status).
+- **Projected Run-Rate Line:** `2.5px` dashed line in `t.achievement` (with `4px` dot markers at `+30d`, `+60d`, `+90d`).
+- **Interactive Scrub / Tap Tooltip:** `GestureDetector(onPanUpdate / onTapDown)` snaps to nearest data point, draws a vertical hairline + `5px` glowing node, and shows a compact floating card (`t.surfaceHeader`, `1px` `t.borderSubtle`) with `Period`, `Actual / Projected`, `Quota`, and `Confidence Band`.
+- **Empty / Insufficient History State:** If `< 2` periods of historical data exist (e.g., filtered to a brand-new branch), render a muted baseline with centered message `"Need at least 2 billing periods to project 90-day run-rate."`
+
+---
+
+### 11.3 Management by Exception (EBM) Feed
+
+Surfaces *only* high-impact anomalies requiring intervention, ranked by severity and financial/SLA impact, and automatically scoped by the active `CrossFilterPillBar`.
+
+#### A. Card Header & Severity Filter Strip
+- **Header:** Eyebrow `"EXCEPTION-BASED MANAGEMENT"` (`t.eyebrow`) + Title `"Actionable Exception Feed"` (`t.sectionTitle`) + live count badge.
+- **Severity Filter Chips:** `All (12)` | `Critical (3)` | `Warning (5)` | `Watch (4)` using `FilterChip` / pill buttons with color-coded count dots.
+
+#### B. Severity Tokens & Card Anatomy
+Each exception item renders as a compact `DashboardCard` (or `t.canvasBg` inner tile with `1px` `t.borderSubtle` and a **`4px` directional start accent bar** via `BorderDirectional`):
+
+| Severity | Accent Token | Icon | Example Triggers |
+| :--- | :--- | :--- | :--- |
+| **Critical** | `t.danger` (`#EF4444` dark) | `Icons.error_outline_rounded` | `>20% MoM revenue drop`, `SLA breached >48h`, `Ghost Chiller (Condition=Good, $0 YTD 60d)` |
+| **Warning** | `t.warning` (`#F97316` dark) | `Icons.warning_amber_rounded` | `SLA >24h`, `Attainment 65–79%`, `2+ Re-opened Audits on same outlet` |
+| **Watch** | `t.caution` (`#F59E0B` dark) | `Icons.visibility_outlined` | `Missing GPS / Incomplete Data`, `Near-target pace dip (-5% WoW)`, `Warranty expiring <30d` |
+
+- **Exception Card Layout (2-row responsive structure):**
+  - **Top Row:** Severity Pill (`CRITICAL` / `WARNING` / `WATCH`, `10px` uppercase bold) + Category Tag (`REVENUE DROP`, `SLA BREACH`, `GHOST ASSET`, `AUDIT QUALITY`) + Impact Metric (`-$14,200 MoM` or `52h overdue` in `t.metricNum`, `Directionality.ltr`) + Timestamp (`2h ago`).
+  - **Middle Row:** Clear 1-line title (`"Al-Noor Hypermarket — 34% MoM Revenue Drop"`) + concise scope subtitle (`"Branch: Cairo • District: Nasr City • Chiller: CH-1042 • Rep: Ahmed Hassan"`).
+  - **Action Row (Direct 1-Click Triggers, `Wrap` with `t.spaceSm`):**
+    1. **`"Investigate 360°"`** (`FilledButton.tonalIcon` or `OutlinedButton.icon` with `t.accentPrimary`, `Icons.person_search_outlined`, `minHeight: 36px`) → Opens `Customer360Drawer` directly for that chiller/outlet (or applies `CrossFilterPillBar` if branch-level).
+    2. **`"Assign"`** (`OutlinedButton.icon`, `Icons.assignment_ind_outlined`, `minHeight: 36px`) → Opens quick Rep/Technician assignment dialog pre-scoped to the outlet.
+    3. **`"Create Ticket"`** (`OutlinedButton.icon`, `Icons.build_circle_outlined`, `minHeight: 36px`) → Opens pre-filled Maintenance/SLA Ticket dialog (`chillerCode`, `priority` mapped from severity, `issueSummary`).
+- **Empty State (Zero Exceptions):** Positive reinforcement card with `Icons.check_circle_outline_rounded` (`t.success`), `"All clear — no active exceptions in this scope."`, and `"View Full Fleet"` secondary link.
+
+---
+
+### 11.4 360° Control Tower Navigation Preview (Clutter-Free Hierarchy)
+
+Unifies **Executive**, **Commercial**, **Asset Lifecycle**, and **Workforce** analytics inside `DashboardViewScreen` without bloating the top-level `NavigationRail` or breaking the 5-item mobile `NavigationBar` cap.
+
+#### A. Navigation Architecture (No Shell Bloat)
+- **App Shell (`main.dart`) Stays Clean:** Keep existing top-level destinations (`Home / Control Tower`, `Map`, `Table`, `Responses`, `Assign`, etc.) unchanged.
+- **In-Dashboard Control Tower Mode Switcher (`owner` / `regional_manager` / `supervisor`):**
+  - Placed directly below `_buildGreetingHeader` (and above `CrossFilterPillBar`).
+  - **Desktop (`>= 900px`):** Segmented pill strip (`t.surfaceElevated`, `1px` `t.borderSubtle`, `t.radiusPill`) with 4 tabs:
+    1. `Executive` (`Icons.dashboard_rounded`) — Default landing view
+    2. `Commercial 360°` (`Icons.trending_up_rounded`)
+    3. `Asset Lifecycle 360°` (`Icons.ac_unit_rounded`)
+    4. `Workforce 360°` (`Icons.groups_outlined`)
+  - **Mobile (`< 768px`):** Horizontally scrollable `SingleChildScrollView` pill bar (`40px` pill height, `44px` tap target, `t.spaceSm` gap) so all 4 pillars remain 1 tap away without wrapping into 2 messy rows.
+  - **Role Scoping:** `agent` and `technician` retain their focused `"My Day"` and `"Service Dispatch"` workspaces with zero Control Tower tab clutter.
+
+#### B. Layout Hierarchy per Control Tower Pillar
+1. **`Executive` (Command Overview — Sprint 12 Primary):**
+   - `CrossFilterPillBar` (when active)
+   - `4x` `HeroKpiCard` strip (`Total Assets`, `YTD Achievement`, `Active Visit Rate`, `Maint. Alerts`)
+   - `Period Variance & 90-Day Forecast` card (`MoM | QoQ | YoY`)
+   - 2-Column Analytical Split: `Branch Performance` (`MiniBarChart`) + `Fleet Health Breakdown` (`DonutChartPainter`)
+   - `Management by Exception` ranked feed (`Critical | Warning | Watch`)
+   - `Territory & District Rollups` + `Data Completeness`
+2. **`Commercial 360°` (Revenue, Quota & Credit):**
+   - Hero KPIs: `Primary vs. Secondary Sales`, `Quota Attainment %`, `Promo / Discount ROI`, `Credit Aging (DSO)`
+   - `Period Variance & 90-Day Forecast` (Commercial slice) + `Branch/Rep Quota Leaderboard`
+   - `Outlet Order & Credit Health` watchlist (`Credit-Hold NBA` badges; *Sprint 15 live data / Sprint 12–14 preview state with `Preview` pill*)
+3. **`Asset Lifecycle 360°` (CALM: CapEx → TCO → Disposal):**
+   - Hero KPIs: `Fleet CapEx / Net Book Value`, `Avg. Cost-to-Serve (TCO)`, `Sales-to-Cooler Lift ROI`, `Shrinkage / Ghost Assets`
+   - `Executive ROI & ERP Sync` card + `Depreciation & Fleet Age` breakdown
+   - `Relocation & Scrap Candidates` actionable table (*Sprint 14 full CALM ledger*)
+4. **`Workforce 360°` (Reps, Techs, Coaching & Incentives):**
+   - Hero KPIs: `Active Rep Coverage %`, `Audit Approval Rate`, `Perfect Chiller Compliance`, `Avg. Tech MTTR`
+   - `Rep Gamification & Incentive Tier` leaderboard + `Technician SLA Queue` summary
+   - `1:1 Supervisor Coaching Queue` (*Sprint 15 coaching logs*)
+
+- **Progressive Disclosure Rule:** Any sub-card backed by an upcoming Sprint 13–15 endpoint displays a subtle `t.textMuted` `"Preview"` badge (`10px`) and renders realistic scoped summary placeholders or current partial metrics—never dead buttons or broken spinners.
+
+---
+
+### 11.5 Sprint 12 Accessibility, RTL & Acceptance Checklist
+
+- **Arabic RTL (`Locale('ar')`):**
+  - Use `BorderDirectional(start: BorderSide(color: severityColor, width: 4))` on Exception cards, `EdgeInsetsDirectional` on all filter chips and waterfall bars, and `Directionality(textDirection: TextDirection.ltr)` on all numeric deltas (`+12.4%`, `-$14,200`), chart axes, and chiller codes (`CH-1042`).
+- **WCAG AA & Touch Targets:**
+  - All `CrossFilterPillBar` chips, `Clear All`, `MoM | QoQ | YoY` segments, Exception action buttons (`Investigate 360°`, `Assign`, `Create Ticket`), and Control Tower pillar pills must meet `>= 44x44` effective touch targets (`MaterialTapTargetSize.padded`) and include descriptive `Semantics` labels.
+- **Color-Blind Safe Indicators:**
+  - Never rely on color alone: variance pills pair `▲ / ▼ / ●` icons with color; Exception cards pair severity icons + text labels (`CRITICAL`, `WARNING`, `WATCH`) with `t.danger / t.warning / t.caution`.
+- **Acceptance Checklist:**
+  - [ ] `CrossFilterPillBar` updates live when clicking any Branch bar, District row, Condition donut slice/legend, or Efficiency bucket/legend, with 1-click `"Clear All"` and `"Open in Map"` / `"Open in Table"` handoff.
+  - [ ] `Period Variance & 90-Day Forecast` card renders `MoM | QoQ | YoY` toggle, waterfall delta bridge, and pure-Flutter `CustomPainter` (`ForecastBandPainter`) with confidence band + interactive tap/scrub tooltip.
+  - [ ] `Management by Exception` feed renders `Critical | Warning | Watch` cards filtered by global `CrossFilterPillBar` with working `"Investigate 360°"`, `"Assign"`, and `"Create Ticket"` triggers.
+  - [ ] Control Tower mode switcher (`Executive | Commercial 360° | Asset Lifecycle 360° | Workforce 360°`) renders cleanly on desktop and mobile (`<= 5` bottom nav items preserved in `main.dart`).
+
+

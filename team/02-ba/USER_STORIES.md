@@ -446,3 +446,45 @@ Copy this block for each new story:
   4. **RBAC & Security Boundaries:**
      - Only `owner` (and `admin` for non-secret tenant diagnostics) can view multi-tenant migration readiness; `supervisor`, `agent`, and `technician` have zero access to infrastructure/migration diagnostics or cross-tenant controls.
      - Public `GET /api/health` remains sanitized (`TC-05`) and never exposes database connection strings, tenant lists, or migration internals.
+
+---
+
+## Sprint 12 Stories (`v4.0-alpha` — Next-Level BI, Cross-Filtering, Variance, 90-Day Forecast & Management by Exception)
+
+### `[STORY-024]` Period-over-Period Variance Waterfall & 90-Day Forecast (`v4.0-alpha`)
+- **Sprint:** Sprint 12 (`v4.0-alpha`)
+- **Linked PO Goal:** `v4.0` Pillar 1 ([VISION_AND_ROADMAP.md §8.2, §8.4](../01-product-owner/VISION_AND_ROADMAP.md)) — Time-Series Variance (`MoM / QoQ / YoY`) & Run-Rate Forecasting
+- **UI/UX & Architecture Spec:** [DESIGN_NOTES.md §11.2, §11.4](../03-ui-ux/DESIGN_NOTES.md) (`DashboardViewScreen`, `ForecastBandPainter`), [ARCHITECTURE_DECISIONS.md `ADR-010`](../04-tech-lead/ARCHITECTURE_DECISIONS.md)
+- **As a** System Owner, Regional Manager, Operations Admin, or Branch Supervisor, **I want** a Period-over-Period Variance Waterfall (`MoM` | `QoQ` | `YoY`) and a 90-Day Projected Attainment Forecast inside the Control Tower Dashboard, **so that** I can move beyond static YTD totals, diagnose expansion vs. contraction revenue drivers, and spot pace-to-goal risks before the period closes.
+- **Acceptance Criteria:**
+  1. **`MoM | QoQ | YoY` Period Toggle & Pace-to-Goal Status Pill:**
+     - The **Period Variance & 90-Day Projection** card provides a compact `SegmentedButton` (`MoM` | `QoQ` | `YoY`) and an inline pace-to-goal status pill based on 90-day projected attainment vs. quota: `On Track` (`>= 95%`, `t.success`), `At Risk` (`80% – 94.9%`, `t.caution`), or `Behind Pace` (`< 80%`, `t.danger`).
+  2. **Period-over-Period Variance Strip & 4-Bar Mini Waterfall Bridge:**
+     - Displays a 3-part horizontal summary strip on desktop (`>= 900px`, `2x2` `Wrap` on mobile): **Current Period Actual** (with `▲` / `▼` / `●` period delta %), **Mini Waterfall Bridge** (`Prior` in `t.textMuted` → `+ Expansion / New` in `t.success` → `- Contraction / Churn` in `t.danger` → `Current` in `t.accentPrimary`), and **90-Day Projected Finish** (`Target` vs. `Projected` with confidence range).
+  3. **90-Day Projected Attainment Chart (`ForecastBandPainter`):**
+     - Pure Flutter `CustomPainter` (`210px` desktop / `180px` mobile) rendering horizontal dashed gridlines (`0%`, `50%`, `100%`), `-90d` to `+90d` timeline markers with a vertical dashed **`TODAY`** divider, solid historical actuals line, dashed `Quota (100%)` line, shaded `P10–P90` confidence band, and dashed projected run-rate line (`+30d`, `+60d`, `+90d` nodes).
+     - Supports interactive scrub/tap tooltips showing `Period`, `Actual / Projected`, `Quota`, and `Confidence Band`. If `< 2` billing periods exist in the active scope, renders a clean empty baseline (`"Need at least 2 billing periods to project 90-day run-rate."`).
+  4. **Control Tower Mode Switcher, RBAC & Arabic RTL:**
+     - `owner`, `regional_manager`, `admin`, and `supervisor` can switch Control Tower views (`Executive`, `Commercial 360°`, `Asset Lifecycle 360°`, `Workforce 360°`) inside `DashboardViewScreen` without bloating `main.dart` navigation; `agent` and `technician` retain their focused `My Day` and `Service Dispatch` workspaces.
+     - All variance and forecast aggregations respect branch/territory scoping, use `AppTokens.of(context)` across Dark, Light, and Outdoor themes, and lock numeric metrics/deltas to `Directionality.ltr` in `Locale('ar')`.
+
+### `[STORY-025]` Global Cross-Filtering & Management by Exception Feed (`v4.0-alpha`)
+- **Sprint:** Sprint 12 (`v4.0-alpha`)
+- **Linked PO Goal:** `v4.0` Pillars 2 & 4 ([VISION_AND_ROADMAP.md §8.2, §8.4](../01-product-owner/VISION_AND_ROADMAP.md)) — Interactive Cross-Filtering, "Drill-Anywhere" & Exception-Based Management (EBM)
+- **UI/UX & Architecture Spec:** [DESIGN_NOTES.md §11.1, §11.3](../03-ui-ux/DESIGN_NOTES.md) (`DashboardCrossFilter`, `CrossFilterPillBar`, `InteractiveDonutChart`, EBM Feed), [ARCHITECTURE_DECISIONS.md `ADR-010`](../04-tech-lead/ARCHITECTURE_DECISIONS.md)
+- **As a** System Owner, Regional Manager, Operations Admin, or Branch Supervisor, **I want** bidirectional global cross-filtering across all Control Tower widgets paired with a ranked Management by Exception (EBM) Feed with 1-click corrective actions, **so that** I can slice fleet metrics in real time and resolve high-impact anomalies immediately without scanning 1,400+ rows.
+- **Acceptance Criteria:**
+  1. **Multi-Dimensional Bidirectional Cross-Filtering (`DashboardCrossFilter`):**
+     - Clicking any bar in **Branch Performance** (`MiniBarChart`), territory row in **District Rollups**, or donut slice / legend row in **Fleet Health** (`InteractiveDonutChart` for `Condition` or `Efficiency`) adds/toggles that dimension predicate with `AND` semantics (e.g., `Branch: Cairo` + `District: Nasr City` + `Condition: Requires Maint.`).
+     - Selected slices/bars highlight clearly while unselected elements dim; clicking an active item toggles it off.
+  2. **Sticky `CrossFilterPillBar` & Quick-Pivot Actions:**
+     - Renders below the greeting/Control Tower mode bar and auto-collapses (`0px`) when no filters are active.
+     - Displays `Active Filters`, live matched count (`X / Y assets`), dismissible `[Dimension]: [Value]` chips (`>= 44x44` touch targets), **`Open in Map`**, **`Open in Table`**, and **`Clear All`**.
+     - Filter updates keep existing cards visible with a `2px` top progress indicator (no layout jump), and zero-match filter combinations render an inline empty-state banner with a **`Clear All Filters`** CTA.
+  3. **Ranked Management by Exception (EBM) Feed:**
+     - Automatically scoped by `CrossFilterPillBar` and caller RBAC/territory, ranking high-impact anomalies by severity and financial/SLA impact with severity filter chips: `All`, `Critical` (`t.danger`, e.g., `>20% MoM revenue drop`, `SLA breached >48h`, `Ghost Chiller`), `Warning` (`t.warning`, e.g., `SLA >24h`, `Attainment 65–79%`, `2+ Re-opened Audits`), and `Watch` (`t.caution`, e.g., `Missing GPS`, `Near-target pace dip`, `Warranty expiring <30d`).
+     - Each exception card uses a `4px` directional start accent bar (`BorderDirectional`), severity & category pills (`REVENUE DROP`, `SLA BREACH`, `GHOST ASSET`, `AUDIT QUALITY`), `LTR`-locked impact metric, and a positive empty state (`"All clear — no active exceptions in this scope."`) when zero anomalies match.
+  4. **1-Click Corrective Action Triggers:**
+     - Every exception card exposes direct actions: **`Investigate 360°`** (opens `Customer360Drawer` for the chiller/outlet or applies branch cross-filter), **`Assign`** (opens quick Rep/Technician assignment dialog), and **`Create Ticket`** (opens pre-filled Maintenance/SLA Ticket dialog).
+  5. **RBAC, Territory Isolation & RTL:**
+     - `supervisor` and branch-scoped `regional_manager` see cross-filters and EBM items strictly within their authorized `branch`/`team_agent_ids`; numeric counts and impact metrics remain `Directionality.ltr` in `Locale('ar')`.

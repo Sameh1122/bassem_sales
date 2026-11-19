@@ -34,6 +34,7 @@ The Bassem Sales Platform (`v2.5.0`) has proven product-market fit for FMCG chil
 | **ADR-007** | 2026-11-19 | Sprint 2 API Contracts: Enhanced Rep KPI, Customer 360 & NBA, Smart Daily Route Planner | `api/index.js`, Flutter Client | Accepted |
 | **ADR-008** | 2026-11-19 | Hierarchical Sales RBAC, Dashboard Analytics & Technician Condition Updates | `api/middleware/auth.js`, `api/services/storage.js`, `api/services/chillerHelpers.js`, `api/routes/*` | Accepted |
 | **ADR-009** | 2026-11-19 | P6 (`v2.7.0`): Offline-First Delta Sync, 100m GPS Geofencing, Geo-Stamped Photos & Audit Export | `api/routes/sync.js`, `api/routes/forms.js`, `api/routes/chillers.js`, `api/services/storage.js`, Flutter Client | Accepted |
+| **ADR-010** | 2026-11-19 | `v4.0` (Sprints 12–15): Next-Level BI, Predictive Analytics & 360° Control Tower Architecture | `api/routes/analytics.js`, `api/services/analyticsEngine.js`, `api/services/storage.js`, Flutter BI Canvas | Accepted (Sprint 12) / Proposed (S13–15) |
 
 ---
 
@@ -387,6 +388,145 @@ The Bassem Sales Platform (`v2.5.0`) has proven product-market fit for FMCG chil
            6. **Review Decision:** `admin_feedback`, `reviewed_by`, `reviewed_at`.
          - **Security:** All dynamic text MUST be HTML-escaped (`escapeHtml`) and attachment `url` values restricted to safe schemes (`https://`, `http://`, `/uploads/`, `data:image/`) to prevent stored XSS.
 - **Consequences:** Delivers zero-loss offline field operations, verifiable on-site check-ins, tamper-evident photo evidence, and 1-click executive/customer audit exports, while mapping directly to `ADR-002` Postgres tables (`idempotency_keys`, `tombstones`, `GEOGRAPHY(Point, 4326)`) and `ADR-003` Redis idempotency cache.
+
+### ADR-010: Next-Level BI, Predictive Analytics & 360° Control Tower Architecture (`v4.0` / Sprints 12–15)
+- **Context:** Per the Product Owner's `v4.0` "Manage Everything" vision (`VISION_AND_ROADMAP.md` §8, `COMPETITIVE_BENCHMARK.md` §6), Bassem Sales Platform must evolve from static YTD cards into an interactive, exception-driven FMCG Control Tower featuring multidimensional cross-filtering, `MoM/QoQ/YoY` variance waterfalls, 90-day revenue forecasting, geospatial heatmaps, saved executive views/digests, and full 360° Asset Lifecycle, Workforce, and Customer/Credit ledgers. The Sprint 12 engine must execute in `<300ms` over the current modular Express + `dbStore` + `chillerHelpers.js` stack while mapping cleanly to PostgreSQL + PostGIS (`ADR-002`) and Upstash Redis (`ADR-003`).
+- **Decision:**
+
+  1. **Sprint 12 Analytics Engine (`api/routes/analytics.js` + `api/services/analyticsEngine.js`, mounted under `/api`)**
+     - **Route & Auth:** `GET /api/analytics/bi` protected by `requireAuth` (all roles: `owner`, `regional_manager`, `admin`, `supervisor`, `agent`, `technician`) + `await ensureFreshCloudSync()`.
+     - **Territory & Multi-Dimensional Slice-and-Dice Filtering:**
+       - Always apply `filterRowsByTerritory(rows, req.user, dbStore)` **first** to guarantee role-based data isolation.
+       - Support optional `batchId` (default: current `dbStore.chillers`; if numeric `batchId` provided, pull from `dbStore.history` or filter `batch_id`).
+       - Support bidirectional cross-filtering query params (all case-insensitive; `'All'`/`'all'` or omitted = no filter):
+         - `branch`: matches `(r.branch || '').trim() || 'Unassigned'`.
+         - `district`: matches `extractDistrictName(r, rawData)`.
+         - `condition`: `'Operational' | 'Requires Maintenance' | 'Scrap'` (matched via `normalizeCondition(r.condition)`).
+         - `efficiency`: `'performing' | 'underperforming' | 'critical' | 'other'` (matched via `classifyEfficiencyBucket(r, rawData)`).
+         - `period`: `'mom' | 'qoq' | 'yoy'` (default `'mom'`; return `400 Bad Request` if any other non-empty value is supplied).
+       - **Cross-Filter Facets (`facets`):** Return available dimension counts (`branches[]`, `districts[]`, `conditions[]`, `efficiency[]`) computed from the caller's territory-scoped dataset so Flutter widgets can render interactive cross-filter chips and highlight active slices without losing unselected options.
+     - **Period-over-Period Variance & Waterfall Deltas (`variance`):**
+       - Extract the 12-month invoice series (`Jan`..`Dec`) from `raw_data_json` / `rawData` matching `/^(jan|feb|mar|apr|may|jun|june|jul|july|aug|sep|oct|nov|dec)\b.*invoice/i` across the filtered rows.
+       - Identify the latest active (non-zero) month index `m` (`0..11`).
+       - Compute period totals (`currentTotal`, `previousTotal`, `deltaAmount`, `deltaPct`):
+         - `mom`: month `m` vs month `m - 1` (`null` if `m < 1`).
+         - `qoq`: trailing 3-month window `[m-2..m]` vs prior 3-month window `[m-5..m-3]` (`null` if `m < 5`).
+         - `yoy`: current YTD sum vs prior-year baseline (`rawData['Prev Year YTD']` / `rawData['LY YTD']` or prior-year batch in `dbStore.history`; set `hasBaseline: false` and `deltaPct: null` if absent—never fabricate prior-year data).
+       - **Waterfall Breakdown (`waterfall[]`):** Ordered array starting with `{ label: 'Prior Period', type: 'base', amount: previousTotal, deltaPct: null }`, followed by the top 5 branches by absolute variance (`{ label: branchName, type: delta >= 0 ? 'increase' : 'decrease', amount: delta, deltaPct }`), an `'Other Branches'` rollup if `>5` branches exist, and `{ label: 'Current Period', type: 'total', amount: currentTotal, deltaPct }`.
+     - **90-Day Revenue Forecast (`forecast90d[]` & `paceToGoal`):**
+       - Run least-squares linear regression (`y = a + b * t`) over the active non-zero monthly totals `t = 0..k-1`, modulated by a bounded seasonal index (`clamp(monthTotal / meanMonthly, 0.75, 1.35)`).
+       - Project the next 3 months (`M+1`, `M+2`, `M+3`, representing 90 days) with an 80% confidence band (`z = 1.28 * residualStdErr * sqrt(1 + 1/n)`):
+         `{ monthOffset, label, projected, lowerBound, upperBound }` (clamped `>= 0`).
+       - Compute `paceToGoal`: `{ currentYtd, monthlyRunRate, projected90dTotal, projectedAnnualized, status }` (`'on_track'` if slope `>= 0` and avgAchievement `>= 90`, `'at_risk'` if `70..89.9`, else `'critical'`).
+     - **Management by Exception Feed (`exceptions[]`):**
+       - Automatically scan filtered chillers, `dbStore.form_responses`, and `dbStore.tickets` (if present) to generate severity-ranked alerts (`severityScore` `1..100`, sorted descending, capped at top `50`), plus `exceptionSummary: { total, critical, high, medium, low, byType }`:
+         1. `revenue_drop`: Latest non-zero month dropped `>= 20%` vs prior month (`severity: 'critical'` / score `90` if `>= 40%` drop; `'high'` / score `75` if `20–39.9%`).
+         2. `sla_breach`: Asset with `condition === 'Requires Maintenance'` or open ticket/reopened audit exceeding `24h` (`'high'` / score `80`) or `48h` (`'critical'` / score `95`).
+         3. `silent_territory`: Assigned chiller with `visitStatus === 'not_visited'` and no form response in `>= 30` days (`'high'` / score `70` if `underperforming`/`critical`, else `'medium'` / score `55`).
+         4. `data_gap`: Asset failing `isMissingGps(r)`, `isUnspecifiedCondition(r, rawData)`, or `isUnknownEfficiency(r, rawData)` (`'low'` / score `35`, or `'medium'` / score `50` if missing GPS + high YTD).
+       - Each item includes `recommendedAction: { actionType, label, targetEndpoint, payload }` for 1-click corrective execution (`schedule_visit`, `open_ticket`, `review_audit`, `update_metadata`).
+     - **Response (`200 OK`):**
+       ```json
+       {
+         "success": true,
+         "generatedAt": "2026-11-19T16:40:00.000Z",
+         "scope": "global",
+         "filters": {
+           "branch": "All",
+           "district": "All",
+           "condition": "All",
+           "efficiency": "All",
+           "period": "mom",
+           "batchId": null
+         },
+         "summary": {
+           "totalAssets": 1420,
+           "ytdRevenue": 18450200.5,
+           "avgAchievement": 86.4,
+           "completionRate": 74.2,
+           "activeMonth": "Oct"
+         },
+         "facets": {
+           "branches": [{ "value": "Cairo", "count": 480 }],
+           "districts": [{ "value": "Nasr City", "count": 110 }],
+           "conditions": [{ "value": "Operational", "count": 1290 }],
+           "efficiency": [{ "value": "performing", "count": 820 }]
+         },
+         "variance": {
+           "period": "mom",
+           "hasBaseline": true,
+           "currentLabel": "Oct",
+           "previousLabel": "Sep",
+           "currentTotal": 2150400.0,
+           "previousTotal": 2010000.0,
+           "deltaAmount": 140400.0,
+           "deltaPct": 6.99,
+           "waterfall": [
+             { "label": "Sep", "type": "base", "amount": 2010000.0, "deltaPct": null },
+             { "label": "Cairo", "type": "increase", "amount": 95000.0, "deltaPct": 11.2 },
+             { "label": "Alexandria", "type": "decrease", "amount": -18500.0, "deltaPct": -4.1 },
+             { "label": "Oct", "type": "total", "amount": 2150400.0, "deltaPct": 6.99 }
+           ]
+         },
+         "forecast90d": [
+           { "monthOffset": 1, "label": "Nov", "projected": 2215000.0, "lowerBound": 1980000.0, "upperBound": 2450000.0 },
+           { "monthOffset": 2, "label": "Dec", "projected": 2290000.0, "lowerBound": 2010000.0, "upperBound": 2570000.0 },
+           { "monthOffset": 3, "label": "Jan+1", "projected": 2180000.0, "lowerBound": 1890000.0, "upperBound": 2470000.0 }
+         ],
+         "paceToGoal": {
+           "currentYtd": 18450200.5,
+           "monthlyRunRate": 1845020.05,
+           "projected90dTotal": 6685000.0,
+           "projectedAnnualized": 22890200.5,
+           "status": "at_risk"
+         },
+         "exceptionSummary": {
+           "total": 42,
+           "critical": 6,
+           "high": 14,
+           "medium": 12,
+           "low": 10,
+           "byType": { "revenue_drop": 11, "sla_breach": 9, "silent_territory": 12, "data_gap": 10 }
+         },
+         "exceptions": [
+           {
+             "id": "exc_rev_CH-042",
+             "type": "revenue_drop",
+             "severity": "critical",
+             "severityScore": 90,
+             "chillerCode": "CH-042",
+             "customerName": "Al-Noor Hyper",
+             "branch": "Cairo",
+             "district": "Nasr City",
+             "metricValue": -44.5,
+             "message": "Monthly invoice dropped 44.5% (Sep -> Oct)",
+             "detectedAt": "2026-11-19T16:40:00.000Z",
+             "recommendedAction": {
+               "actionType": "schedule_visit",
+               "label": "Dispatch Priority Audit",
+               "targetEndpoint": "/api/chillers/CH-042/360",
+               "payload": { "chillerCode": "CH-042" }
+             }
+           }
+         ]
+       }
+       ```
+
+  2. **Sprint 13–15 Architecture Blueprint (`v4.0-beta` to `v4.0-ga`)**
+     - **Geospatial Heatmap / Hexbin Aggregation (`GET /api/analytics/heatmap?metric=revenue|density|gaps`):**
+       - **Sprint 13 (`dbStore`):** Snap valid `(latitude, longitude)` points to deterministic `~1.1 km` (`0.01°` lat/lng) hex/grid cells (`cellId = latBin_lngBin`), aggregating `assetCount`, `totalRevenue`, `gapCount` (missing visits + maintenance + underperforming), and `intensity` (`0..1` normalized).
+       - **Postgres/PostGIS (`ADR-002`):** Replace JS binning with `ST_HexagonGrid(0.01, ...)` / `ST_SnapToGrid` over `GEOGRAPHY(Point, 4326)` with Redis (`ADR-003`) 5-minute TTL cache keyed by `tenant_id:role:branch:metric`.
+     - **Saved Views & Scheduled Executive Digests (`GET/POST /api/analytics/views`):**
+       - Persist user/role-scoped BI presets (`{ id, name, ownerUserId, sharedWithRoles[], filters, layoutWidgets[], digestSchedule: { enabled, frequency: 'daily'|'weekly', channels: ['in_app','email','whatsapp'], recipients[] } }`) in `dbStore.analytics_views` (migrating to `analytics_views` Postgres table).
+       - Trigger scheduled digest jobs via Vercel Cron / worker calling `analyticsEngine.buildBiSnapshot(view.filters)` and dispatching PDF/WhatsApp/Email payloads.
+     - **Asset Lifecycle Ledger (`CALM` — Sprint 14):**
+       - Introduce `asset_ledger` + `asset_events` state machine enforcing valid transitions: `procurement -> deployment -> maintenance -> relocation -> disposal` (with `scrap` / `write_off` terminal states).
+       - Track `capexCost`, `purchaseDate`, `usefulLifeMonths` (default `60`), `salvageValue`, cumulative `tcoMaintenanceCost`, straight-line `netBookValue`, and `assetRoiPct = ((ytdRevenueLift - tcoMaintenanceCost) / capexCost) * 100`.
+     - **Workforce Commission & Shift Engine (Sprint 15):**
+       - Add `commission_tiers` (bracketed attainment thresholds e.g. `80% / 100% / 115%` -> payout multiplier), `shift_logs` (check-in/out GPS + route adherence), and `coaching_notes` (`supervisor -> agent` 1:1 action items) feeding Rep & Technician 360° scorecards.
+     - **Commercial & Customer 360° Control Tower (Sprint 15):**
+       - Extend outlet profile with `customer_credit_profiles` (`creditLimit`, `outstandingBalance`, `dsoDays`, `agingBuckets: { d0_30, d31_60, d61_90, d90_plus }`, `orderCadenceDays`) and automated `credit_hold` / `restock_upsell` Next Best Actions unified inside `GET /api/chillers/:id/360`.
+- **Consequences:** Unblocks immediate Sprint 12 development with exact, backward-compatible REST contracts on the existing `api/routes/` + `chillerHelpers.js` foundation, while establishing a clean migration path to PostGIS hexbins, Redis caching, and full 360° ERP/CALM ledgers in Sprints 13–15.
 
 ---
 

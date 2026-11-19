@@ -137,3 +137,35 @@ Preserved `owner@sales.com`, `admin@sales.com`, `omnia@sales.com`, and `mina@sal
 - `node scripts/test_qa_remediation.js` against `http://localhost:5000`: **34 Passed, 0 Failed**.
 - Isolated ephemeral server (`PORT=0`, `BLOB_READ_WRITE_TOKEN=""`) verification across Sprint 8 & 9 endpoints (`GET /api/insights/anomalies` for admin & territory-scoped agent, `POST /api/insights/analyze-audit`, `GET /api/stats/dashboard` `dataCompleteness` & `districtRollups`, `GET /api/chillers?incomplete=gps`): **19 Passed, 0 Failed**.
 - Static checks on modified `.dart` files (`api_service.dart`, `dashboard_view.dart`, `data_table_view.dart`): balanced delimiters on `api_service.dart` & `dashboard_view.dart` (`FilterChip` block verified in `data_table_view.dart`), valid `AppTokens` members (`0` invalid references). (Flutter SDK is not installed locally, so `flutter build web` must run in CI.)
+
+---
+
+## Sprints 4 & 5 (`P6` Complete — Offline-First Field Resilience & Trust) (`2026-11-19`)
+
+### Sprint 4 (Offline Sync & Outbox)
+1. **Backend (`api/services/storage.js`, `api/services/syncOperations.js`, `api/routes/sync.js`, `api/routes/chillers.js`, `api/routes/forms.js`, `api/index.js`):**
+   - Added `ensureSyncStoreFields()` in `api/services/storage.js` to initialize `dbStore.idempotency_keys` (`[]`) and `dbStore.tombstones` (`{ chillers: [], forms: [], assignments: [] }`) on load and cloud sync; recorded form tombstones on `DELETE /api/forms/:id`.
+   - Extracted shared `processFormResponseSubmission()` and `applyConditionUpdate()` into `api/services/syncOperations.js` (reused by `forms.js`, `chillers.js`, and `sync.js`).
+   - Created `api/routes/sync.js` and mounted it under `/api/sync` in `api/index.js`:
+     - `GET /api/sync/pull?since=<iso>` (`requireAuth`): returns territory-scoped `chillers`, `forms`, `assignments`, `tombstones`, `serverTime`, `isFullSync`, `counts`; returns `400` on invalid `since`.
+     - `POST /api/sync/batch` (`requireAuth`, `owner`, `admin`, `regional_manager`, `supervisor`, `agent`, `technician`): supports batch `Idempotency-Key` header and per-item `idempotencyKey` (`24h` TTL), processes `1..50` `form_response` and `condition` operations with per-item RBAC & territory enforcement, and returns `processedCount`, `succeededCount`, `duplicateCount`, `failedCount`, `results[]`.
+2. **Frontend (`frontend/lib/`):**
+   - Created `frontend/lib/services/offline_sync_service.dart` (`OfflineSyncService`: localStorage-backed outbox queue `p6_offline_outbox_v1`, `enqueueFormResponse`, `enqueueConditionUpdate`, `syncNow()`, `retryItem()`, `discardItem()`, `pullDelta()`).
+   - Created `frontend/lib/widgets/offline_sync_banner.dart` (`OfflineSyncBanner` + `OutboxQueueSheet` using `AppTokens.of(context)`, auto-hiding when online & empty with 3s `"Online · All audits synced"` confirmation) and wired into `frontend/lib/main.dart` (top of desktop content pane; above `NavigationBar` on mobile `< 768px`).
+
+### Sprint 5 (100m GPS Geofencing, Photo Watermark & 1-Click Audit PDF Export)
+1. **Backend (`api/services/syncOperations.js`, `api/routes/forms.js`):**
+   - Updated `POST /api/form-responses` (and `sync/batch` `form_response` handler) to accept optional `checkInLat`/`checkInLng` (`400` if partial or out of WGS84 bounds), compute `checkInDistanceM` via `haversineKm`, and soft-flag `geofenceVerified = checkInDistanceM <= 100` (non-breaking when omitted).
+   - Supported structured `attachments[]` `{ url, filename, watermark: { capturedAt, lat, lng, agentName, chillerCode } }` alongside legacy string URLs.
+   - Implemented `GET /api/form-responses/:id/report` (`requireAuth`, `owner`, `admin`, `regional_manager`, `supervisor`, `agent`, territory-scoped; `?format=html` default print/PDF-ready HTML with `escapeHtml` & `isSafeAttachmentUrl` checks, `?format=json` structured JSON).
+2. **Frontend (`frontend/lib/`):**
+   - Updated `frontend/lib/services/api_service.dart`: updated `submitFormResponse()` with `checkInLat`/`checkInLng` and dynamic `attachments`, and added `pullSync()`, `pushSyncBatch()`, `getAuditReportUrl()`, `fetchAuditReportHtml()`.
+   - Created `frontend/lib/widgets/geofence_pill.dart` (`GeofenceCheckInPill`) and wired it into `frontend/lib/views/form_filler_dialog.dart` (live GPS acquisition, non-blocking >100m helper note, watermark attachment metadata, and offline outbox fallback on network error) and `frontend/lib/views/dashboard_view.dart` (`NEXT PRIORITY STOP`, Priority Stops, and Technician Work Cards).
+   - Updated `frontend/lib/widgets/audit_photo_gallery.dart` (`AuditPhotoItem.fromAttachment`, 2-line bottom watermark gradient scrim on thumbnails, and bottom watermark metadata card + `"Open in Maps"` in `_AuditPhotoLightbox`).
+   - Added `"Export Visual Audit PDF"` CTA in `frontend/lib/views/form_responses_view.dart` (list card + detail dialog) and `frontend/lib/views/customer_360_drawer.dart` (audit history header + per-visit card) with Loading/Success/Error `AppToast` states.
+
+### Verification Results
+- `node -c` on `api/index.js`, `api/services/storage.js`, `api/services/syncOperations.js`, `api/routes/sync.js`, `api/routes/forms.js`, `api/routes/chillers.js`: **PASSED** (exit code 0).
+- `node scripts/test_qa_remediation.js` against `http://localhost:5000`: **34 Passed, 0 Failed**.
+- Isolated ephemeral server (`PORT=0`, cloud storage disabled): **15/15 assertions PASSED** (`GET /api/sync/pull` full/incremental/`400`, `POST /api/form-responses` `400` partial coords, `<=100m` `geofenceVerified: true`, `>100m` `geofenceVerified: false`, structured `watermark`, `POST /api/sync/batch` `201` + `403` RBAC + `Idempotency-Key` deduplication, `GET /api/form-responses/:id/report` `200` HTML & JSON + `403` out-of-territory).
+- Dart static checks (balanced `()`, `{}`, `[]` delimiters and valid `AppTokens` members) across all 10 created/modified `.dart` files: **PASSED** (10/10). (Flutter SDK is not installed locally, so `flutter build web` must run in CI.)

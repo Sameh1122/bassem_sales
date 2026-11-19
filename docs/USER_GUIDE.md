@@ -1,6 +1,6 @@
-# Bassem Sales Platform — User Guide (`v2.5.0` Baseline + `v2.6.0`–`v3.2.0` Sprint 1–11)
+# Bassem Sales Platform — User Guide (`v2.5.0` Baseline + `v2.6.0`–`v4.0-alpha` Sprint 1–12)
 
-**Product Version:** `v2.5.0` (Express API + Flutter Web + Vercel Blob) with `v2.6.0` Sprint 1–3, `v2.7.0` Sprint 4–5 (`P6`), `v2.8.0` Sprint 6–7 (`P7`), `v3.0.0` Sprint 8–9 (`P8`), & `v3.2.0` Sprint 10–11 (`P9`) Enhancements  
+**Product Version:** `v2.5.0` (Express API + Flutter Web + Vercel Blob) with `v2.6.0` Sprint 1–3, `v2.7.0` Sprint 4–5 (`P6`), `v2.8.0` Sprint 6–7 (`P7`), `v3.0.0` Sprint 8–9 (`P8`), `v3.2.0` Sprint 10–11 (`P9`), & `v4.0-alpha` Sprint 12 Enhancements  
 **Target Audience:** System Owners, Regional Managers / Operations Admins, Branch Supervisors, Field Sales Agents, and Maintenance Technicians  
 **Last Updated:** 2026-11-19  
 
@@ -49,6 +49,8 @@
 | **Sub-Branch District Rollups & Hierarchical Drill-Down** *(Sprints 8 & 9 — P8)* | Owner / Regional Manager / Admin / Supervisor | `docs/screenshots/34_sub_branch_district_rollups.png` | [ ] Pending authenticated capture |
 | **Enterprise ERP/DMS Webhooks & Executive ROI Console** *(Sprints 10 & 11 — P9)* | Owner / Regional Manager / Admin | `docs/screenshots/35_erp_webhooks_roi_console.png` | [ ] Pending authenticated capture |
 | **PostgreSQL/PostGIS Multi-Tenant Migration Readiness** *(Sprints 10 & 11 — P9)* | Owner / Admin | `docs/screenshots/36_pg_postgis_readiness.png` | [ ] Pending authenticated capture |
+| **Period-over-Period Variance Waterfall & 90-Day Forecast** *(Sprint 12 — v4.0-alpha)* | Owner / Regional Manager / Admin / Supervisor | `docs/screenshots/37_variance_waterfall_forecast.png` | [ ] Pending authenticated capture |
+| **Global Cross-Filtering & Management by Exception Feed** *(Sprint 12 — v4.0-alpha)* | Owner / Regional Manager / Admin / Supervisor | `docs/screenshots/38_cross_filter_ebm_feed.png` | [ ] Pending authenticated capture |
 
 ---
 
@@ -437,5 +439,38 @@ Prepare the platform for enterprise multi-tenant scale and relational geospatial
   - Owners and Admins can inspect active storage mode (`JSON/Blob` vs. `PostgreSQL/PostGIS`), `tenant_id` context, and pre-flight parity checks (missing coordinates, unmapped tenants, record counts) in **System Logs & Diagnostics** (`GET /api/admin/diagnostics`), while public `GET /api/health` remains sanitized (`TC-05`).
 
 > *[Screenshot Placeholder: Add `docs/screenshots/36_pg_postgis_readiness.png` showing multi-tenant diagnostics, PostGIS spatial parity, and migration readiness checks.]*
+
+---
+
+## 12. Next-Level BI Control Tower: Variance, 90-Day Forecast, Cross-Filtering & Management by Exception *(Sprint 12 — `v4.0-alpha`)*
+
+Sprint 12 evolves the **`Home`** (`Dashboard`) tab for **`owner`**, **`regional_manager`**, **`admin`**, and **`supervisor`** personas into an interactive **360° Control Tower**—uniting forward-looking variance/forecasting, real-time cross-filtering across every chart, and an exception-driven action feed without adding clutter to the main navigation rail (`agent` and `technician` retain their focused `My Day` and `Service Dispatch` views).
+
+### 12.1 Control Tower Mode Switcher, Period-over-Period Variance Waterfall & 90-Day Forecast *(`STORY-024`)*
+- **Control Tower Mode Switcher:** Located directly below the dashboard greeting header, allowing leaders to switch between **`Executive`** (default), **`Commercial 360°`**, **`Asset Lifecycle 360°`**, and **`Workforce 360°`** views (horizontally scrollable pill strip on mobile `< 768px`).
+- **Period-over-Period Variance (`MoM` | `QoQ` | `YoY`):**
+  - Use the **`MoM` | `QoQ` | `YoY`** segmented toggle on the **Period Variance & 90-Day Projection** card to compare current-period performance against the prior period.
+  - **Pace-to-Goal Status Pill:** Automatically classifies projected 90-day attainment vs. quota as **`On Track`** (`>= 95%`, green), **`At Risk`** (`80% – 94.9%`, amber), or **`Behind Pace`** (`< 80%`, red).
+  - **Mini Waterfall Bridge:** Breaks down the period movement across **`Prior`** → **`+ Expansion / New`** → **`- Contraction / Churn`** → **`Current`** alongside **Current Period Actual** (`▲` / `▼` delta %) and **90-Day Projected Finish** (`Target` vs. `Projected` with confidence range).
+- **90-Day Projected Attainment Chart:**
+  - Plots historical actuals (`-90d` to **`TODAY`**), the dashed **`Quota (100%)`** benchmark, the projected run-rate line (`+30d`, `+60d`, `+90d`), and the shaded **`P10–P90` Confidence Band**.
+  - **Interactive Scrub / Tap:** Tap or drag across the chart to inspect exact `Period`, `Actual / Projected`, `Quota`, and `Confidence Band` values. *(If fewer than 2 billing periods exist in the selected filter scope, an empty-history notice is shown.)*
+
+> *[Screenshot Placeholder: Add `docs/screenshots/37_variance_waterfall_forecast.png` showing the Control Tower Mode Switcher, MoM/QoQ/YoY Variance Waterfall, and 90-Day Forecast chart.]*
+
+### 12.2 Global Cross-Filtering & Management by Exception (EBM) Feed *(`STORY-025`)*
+- **Bidirectional Global Cross-Filtering (`CrossFilterPillBar`):**
+  - Click any **Branch** bar in *Branch Performance*, **District** row in *Territory & District Rollups*, or **Condition / Efficiency** donut slice or legend row in *Fleet Health* to filter **every** KPI card, variance chart, exception feed, and rollup on the dashboard simultaneously.
+  - Multiple dimensions stack with `AND` logic (e.g., `Branch: Cairo` + `District: Nasr City` + `Condition: Requires Maint.`), and clicking an active item toggles it off.
+  - When filters are active, the sticky **`CrossFilterPillBar`** appears below the header showing matched asset counts (`X / Y assets`), dismissible `[Dimension]: [Value]` chips, **`Open in Map`**, **`Open in Table`**, and **`Clear All`** (auto-collapsing to zero height when cleared).
+- **Ranked Management by Exception (EBM) Feed:**
+  - Automatically scoped by active cross-filters and your RBAC/branch permissions, surfacing only high-impact anomalies ranked by severity and financial/SLA impact.
+  - Filter by severity using **`All` | `Critical` | `Warning` | `Watch`** pills:
+    - **Critical (Red):** `>20% MoM revenue drop`, `SLA breached >48h`, `Ghost Chiller` (`Condition = Good` with `$0 YTD`).
+    - **Warning (Orange):** `SLA >24h`, `Attainment 65–79%`, `2+ Re-opened Audits`.
+    - **Watch (Amber):** `Missing GPS / Incomplete Data`, `Near-target pace dip`, `Warranty expiring <30d`.
+  - **1-Click Corrective Actions:** Launch **`Investigate 360°`** (opens `Customer 360` or applies branch filter), **`Assign`** (assigns Rep/Technician), or **`Create Ticket`** (opens pre-filled Maintenance/SLA Ticket dialog) directly from any exception card.
+
+> *[Screenshot Placeholder: Add `docs/screenshots/38_cross_filter_ebm_feed.png` showing active CrossFilterPillBar chips, interactive chart highlighting, and the Management by Exception (EBM) feed with 1-click actions.]*
 
 

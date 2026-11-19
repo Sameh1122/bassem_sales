@@ -184,3 +184,56 @@ flowchart LR
 | **P7** | `v2.8.0` | `ROAD-05..07`, `ROAD-11` | Offline-First PWA Queue, 100m Geofencing, Watermarked Photos, SLA Escalation, Map-Lasso & Audit PDF | SA + Dev + QA | Zero lost field data, 95%+ verified visits & 40% faster MTTR |
 | **P8** | `v3.0.0` | `ROAD-08`, `ROAD-09` | AI Chiller "Purity", OOS & POSM Vision Audit, Predictive Chiller Relocation Engine | SA + AI/ML + Dev | >40% ROI uplift on relocated chillers & 70% less manual review |
 | **P9** | `v3.2.0` | `ROAD-10`, `ADR-002` | Scheduled ERP/DMS/WhatsApp Sync, Executive ROI Console, Multi-Tenant PostgreSQL/PostGIS | SA + DevOps + Dev | Zero manual Excel bottlenecks & enterprise multi-tenant scale |
+
+---
+
+## 8. `v4.0` — The 360° "Manage Everything" Enterprise Command Center (Sprints 12–15)
+
+### 8.1 `v4.0` Product Vision
+> **Evolve Bassem Sales Platform from a chiller-audit & field-execution tool into the single "Manage Everything" FMCG Control Tower—uniting Next-Level Embedded BI with Full 360° Commercial, Asset Lifecycle, Workforce, and Customer/Credit Operations.**
+
+While `P6`–`P9` establish offline field resilience, AI vision, and ERP connectivity, **`v4.0` (Sprints 12–15)** delivers the **executive & operational brain** modeled on Salesforce Revenue Intelligence / Tableau Pulse, SAP Analytics Cloud, Anaplan, and FMCG Control Towers. Every stakeholder—from VP/Owner to Branch Supervisor, Finance, Service Lead, and Field Rep—operates from one unified, interactive, exception-driven command center.
+
+### 8.2 Next-Level Analytics & Embedded BI Pillars
+
+| Pillar | Capability | What It Delivers |
+| :--- | :--- | :--- |
+| **1. Time-Series Variance & Forecasting** | `MoM / QoQ / YoY` variance %, pace-to-goal run-rate, and trend projections | Replaces static YTD totals with forward-looking *"On Track / At Risk / Projected Finish"* intelligence across national, branch, rep, and chiller levels. |
+| **2. Exception-Based Management (EBM)** | Automated anomaly detection & ranked exception feeds with 1-click action triggers | Surfaces *only* what needs intervention (>20% MoM drops, Ghost chillers, overdue SLAs, credit/order stalls) and launches workflows directly from the alert. |
+| **3. Geospatial Heatmaps & White Space** | Density heatmaps (revenue, underperformance, maintenance clusters) + territory overlays | Reveals geographic pockets of saturation, high-failure zones, and unserved retail white-space for smarter chiller placement. |
+| **4. Cross-Filtering & "Drill Anywhere"** | Bidirectional widget linking + non-hierarchical dynamic slicing | Clicking any chart bar, heatmap zone, or KPI card filters the entire workspace in real time; users can pivot across *any* dimension (Branch → Rep → SKU/Tier → Model → Month). |
+| **5. Custom KPI & Report Builder** | Self-service metric composer, saved role presets, and drag-and-drop dashboard layouts | Empowers `owner`, `regional_manager`, and `supervisor` personas to build custom views without engineering tickets. |
+| **6. Scheduled Executive Digests** | Automated daily/weekly PDF, Email & WhatsApp briefings | Pushes pace-to-goal summaries, top exceptions, and fleet ROI snapshots directly to leadership inboxes before morning standups. |
+
+### 8.3 Full 360° Operational Scope ("Manage Everything")
+
+1. **Commercial & Revenue 360°:**
+   - Unified view of **Primary vs. Secondary Sales**, **YTD / QoQ / MoM Quota Attainment**, **Trade Promo & Discount ROI**, and **Target/Quota Allocation** across National → Region → Branch → Rep → Outlet.
+2. **Asset Lifecycle 360° (Procurement → Depreciation → Disposal):**
+   - Complete **Commercial Asset Lifecycle Management (CALM)** ledger: **Procurement & CapEx** (unit cost, vendor, warranty) → **Warehouse & Deployment** (serial/QR/GPS tag) → **Active Field Operations & TCO** (maintenance parts, technician labor, downtime) → **Straight-Line / Accelerated Depreciation** (net book value vs. YTD revenue lift) → **Relocation or Scrap Write-off** (eliminating 5–15% annual fleet shrinkage).
+3. **Workforce, Coaching & Incentive 360°:**
+   - **Rep & Technician Scorecards** combining visit coverage %, audit approval rate, route adherence, "Perfect Chiller" compliance, and MTTR—paired with **1:1 Supervisor Coaching Logs**, **Automated Commission / Incentive Tier Attainment**, and **Branch Leaderboards**.
+4. **Customer & Order/Credit 360°:**
+   - Rich **Outlet 360° Profile** linking chiller fleet health with **Order History & Restock Cadence**, **Credit Limit vs. Outstanding Balance / Aging (DSO)**, **Visit & Photo Audit Timeline**, and **Automated Credit-Hold / Upsell Next Best Actions**.
+
+### 8.4 `v4.0` Phased Delivery Roadmap (Sprints 12–15)
+
+```mermaid
+flowchart LR
+    S12["Sprint 12 (v4.0-alpha): Interactive BI Engine,\nVariance/Forecasting & Cross-Filtering"] --> S13["Sprint 13 (v4.0-beta): Geospatial Heatmaps,\nEBM Alerts & Custom KPI/Digest Builder"]
+    S13 --> S14["Sprint 14 (v4.0-rc): Asset Lifecycle 360\n(CapEx-Depreciation) & Commercial 360"]
+    S14 --> S15["Sprint 15 (v4.0-ga): Workforce/Incentive 360\n& Customer Order/Credit 360"]
+```
+
+| Sprint | Release Milestone | Core Deliverables | Key Business Outcomes |
+| :---: | :--- | :--- | :--- |
+| **Sprint 12** | `v4.0-alpha` | **Next-Gen BI Core:** `MoM/QoQ/YoY` variance & run-rate forecasting API; bidirectional **Cross-Filtering** & **Drill-Anywhere** analytical canvas; unified **Commercial & Revenue 360°** (quota pacing + branch/rep/outlet drill-down). | **<300ms** multidimensional slicing; executives spot revenue variance & pace-to-goal in 1 click without Excel exports. |
+| **Sprint 13** | `v4.0-beta` | **Control Tower Intelligence:** **Geospatial Heatmaps** (revenue, OOS/maintenance hotspots, white-space); **Exception-Based Management (EBM)** ranked action feed; **Custom KPI/Report Builder** & **Scheduled Executive Digests** (PDF/Email/WhatsApp). | **60% faster** anomaly-to-action turnaround; zero manual weekly reporting overhead for regional managers. |
+| **Sprint 14** | `v4.0-rc` | **Asset Lifecycle 360° (CALM):** Procurement/CapEx registry, warranty & TCO ledger, automated **Depreciation Schedule** (Net Book Value vs. Sales-to-Cooler Lift ROI), shrinkage/ghost-asset audit alerts, and end-of-life Scrap/Relocation workflow. | **50% reduction in fleet shrinkage**; data-driven CapEx vs. relocation decisions protecting capital ROI. |
+| **Sprint 15** | `v4.0-ga` | **Workforce & Customer 360°:** **Workforce/Coaching/Incentive 360°** (commission tiers, coaching notes, Perfect Chiller scorecards) + **Customer & Order/Credit 360°** (order cadence, credit limit/DSO aging, credit-hold NBA) + full `v4.0` GA hardening. | **100% closed-loop visibility** from rep incentive & coaching to store credit health and chiller ROI in one platform. |
+
+### 8.5 Solution Architect (SA) Handoff Priorities for Sprint 12
+To kick off **Sprint 12** immediately, the Solution Architect should focus on:
+1. **Analytical Query & Aggregation Layer (`ADR`):** Designing an indexed/materialized analytical query engine (supporting `MoM/QoQ/YoY` period comparisons, dynamic `GROUP BY` / `Drill-Anywhere` dimensions, and cross-filter predicate pushdown under `<300ms`).
+2. **Unified 360° Domain Data Model:** Extending the chiller/batch/audit schema cleanly to accommodate **Asset Financial Ledger** (CapEx, purchase date, useful life, TCO), **Targets/Incentives**, and **Customer Order/Credit** entities without breaking backward compatibility with existing Excel batch ingestion.
+3. **Widget & Filter State Architecture (Flutter):** Defining a reactive cross-filter state controller so charts, heatmaps, KPI strips, and data tables stay synchronized across desktop and mobile viewports.

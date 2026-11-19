@@ -292,3 +292,41 @@ export function formatChillerRecord(r, store = null) {
     rawData: parseRawData(r)
   };
 }
+
+export function extractDistrictName(r, rawData) {
+  const candidates = [
+    r.district,
+    r.area,
+    r.city,
+    rawData?.['District'],
+    rawData?.['Sub-District'],
+    rawData?.['Sub District'],
+    rawData?.['Area'],
+    rawData?.['City'],
+    rawData?.['Zone'],
+    rawData?.['Region']
+  ];
+  for (const c of candidates) {
+    const str = String(c ?? '').trim();
+    if (str && str !== '-' && str.toLowerCase() !== 'n/a') return str;
+  }
+  return String(r.branch || '').trim() || 'Unspecified';
+}
+
+export function isMissingGps(r) {
+  const lat = parseNumericValue(r.latitude);
+  const lng = parseNumericValue(r.longitude);
+  return lat === null || lng === null || (lat === 0 && lng === 0);
+}
+
+export function isUnspecifiedCondition(r, rawData) {
+  const cond = r.condition || rawData?.['Condition'] || rawData?.['Condiiton'] || '';
+  const s = String(cond).trim().toLowerCase();
+  return !s || s === 'unknown' || s === 'unspecified' || s === 'n/a' || s === 'na' || s === '-';
+}
+
+export function isUnknownEfficiency(r, rawData) {
+  const eff = String(r.efficiency || '').trim().toLowerCase();
+  const hasEffText = Boolean(eff && eff !== 'unknown' && eff !== 'unspecified' && eff !== 'n/a' && eff !== 'na' && eff !== '-');
+  return !hasEffText && extractChillerAchievement(r, rawData) === null;
+}
