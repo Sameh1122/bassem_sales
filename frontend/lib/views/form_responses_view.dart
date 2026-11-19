@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/storage.dart';
+import '../theme/app_tokens.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/audit_photo_gallery.dart';
 
 class FormResponsesViewScreen extends StatefulWidget {
@@ -312,14 +315,24 @@ class FormResponsesViewScreenState extends State<FormResponsesViewScreen> {
                   const SizedBox(height: 10),
                   AuditPhotoGallery(
                     columns: 4,
-                    photos: attachments.map((url) => AuditPhotoItem(
-                      url: url,
-                      timestamp: r['submittedAt']?.toString(),
-                      agentName: r['agentName']?.toString(),
-                      chillerCode: r['chillerCode']?.toString(),
-                      condition: (r['responses'] is Map ? (r['responses']['chiller_condition'] ?? r['responses']['condition']) : null)?.toString(),
-                      latitude: (r['agentLat'] as num?)?.toDouble(),
-                      longitude: (r['agentLng'] as num?)?.toDouble(),
+                    photos: attachments.map((att) => AuditPhotoItem.fromAttachment(
+                      att,
+                      fallbackTimestamp: submittedAt,
+                      fallbackAgentName: agentName,
+                      fallbackChillerCode: chillerCode,
+                      fallbackCondition: (answers['chiller_condition'] ?? answers['condition'])?.toString(),
+                      fallbackLat: (r['check_in_lat'] ?? r['checkInLat'] ?? r['agentLat']) is num
+                          ? ((r['check_in_lat'] ?? r['checkInLat'] ?? r['agentLat']) as num).toDouble()
+                          : null,
+                      fallbackLng: (r['check_in_lng'] ?? r['checkInLng'] ?? r['agentLng']) is num
+                          ? ((r['check_in_lng'] ?? r['checkInLng'] ?? r['agentLng']) as num).toDouble()
+                          : null,
+                      checkInDistanceM: (r['check_in_distance_m'] ?? r['checkInDistanceM']) is num
+                          ? ((r['check_in_distance_m'] ?? r['checkInDistanceM']) as num).toInt()
+                          : null,
+                      geofenceVerified: (r['geofence_verified'] ?? r['geofenceVerified']) is bool
+                          ? (r['geofence_verified'] ?? r['geofenceVerified']) as bool
+                          : null,
                     )).toList(),
                   ),
                 ],

@@ -681,7 +681,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           child: Text(errorMsg!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                         ),
                       ],
-    
+                    ],
+                  ),
+                ),
               ),
               actions: [
                 TextButton(
