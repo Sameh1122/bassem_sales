@@ -68,7 +68,7 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
 
     try {
       final statsFuture = ApiService.fetchDashboardStats(branch: _selectedBranch);
-      final chillersFuture = ApiService.fetchChillers().catchError((_) => <Map<String, dynamic>>[]);
+      final chillersFuture = ApiService.fetchChillers().catchError((_) => <dynamic>[]);
       final responsesFuture = (ApiService.isSupervisor || ApiService.isAdmin)
           ? ApiService.fetchFormResponses(status: 'submitted').catchError((_) => <Map<String, dynamic>>[])
           : Future.value(<Map<String, dynamic>>[]);
@@ -78,8 +78,8 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
 
       setState(() {
         _stats = results[0] as Map<String, dynamic>;
-        _chillers = results[1] as List<Map<String, dynamic>>;
-        _pendingResponses = results[2] as List<Map<String, dynamic>>;
+        _chillers = (results[1] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _pendingResponses = List<Map<String, dynamic>>.from(results[2] as List);
         _lastSynced = DateTime.now();
         _isLoading = false;
         _isRefreshing = false;
@@ -170,8 +170,8 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
                             icon: Icons.cloud_off_outlined,
                             title: 'Dashboard unavailable',
                             subtitle: _errorMsg ?? 'Could not load dashboard metrics.',
-                            actionLabel: 'Retry',
-                            onAction: () => _loadDashboard(showSpinner: true),
+                            primaryLabel: 'Retry',
+                            onPrimaryPressed: () => _loadDashboard(showSpinner: true),
                           )
                         else
                           _buildRoleBody(t, isMobile),
@@ -303,8 +303,8 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
         subtitle: ApiService.isAdmin
             ? 'Upload your Master Excel dataset to populate fleet analytics and maps.'
             : 'No chillers are currently assigned to your scope. Contact your administrator.',
-        actionLabel: ApiService.isAdmin && widget.onOpenUpload != null ? 'Upload Master Excel' : null,
-        onAction: ApiService.isAdmin ? widget.onOpenUpload : null,
+        primaryLabel: ApiService.isAdmin && widget.onOpenUpload != null ? 'Upload Master Excel' : null,
+        onPrimaryPressed: ApiService.isAdmin ? widget.onOpenUpload : null,
       );
     }
 
@@ -904,7 +904,10 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
                           label: const Text('Approve'),
                           onPressed: () async {
                             try {
-                              await ApiService.reviewFormResponse(respId, 'accepted');
+                              await ApiService.reviewFormResponse(
+                                responseId: respId is int ? respId : int.parse(respId.toString()),
+                                status: 'accepted',
+                              );
                               if (!mounted) return;
                               AppToast.show(context, type: AppToastType.success, message: 'Audit approved');
                               _loadDashboard();
@@ -964,7 +967,11 @@ class DashboardViewScreenState extends State<DashboardViewScreen> {
     );
     if (confirmed == true) {
       try {
-        await ApiService.reviewFormResponse(responseId, 'reopened', adminFeedback: ctrl.text.trim());
+        await ApiService.reviewFormResponse(
+          responseId: responseId is int ? responseId : int.parse(responseId.toString()),
+          status: 'reopened',
+          adminFeedback: ctrl.text.trim(),
+        );
         if (!mounted) return;
         AppToast.show(context, type: AppToastType.warning, message: 'Audit flagged and re-opened');
         _loadDashboard();
